@@ -1,0 +1,684 @@
+﻿
+> [2026-01-08 
+16:02:04] 
+localhost.ERROR: 
+Dashboard loading 
+failed completely {"e
+rror":"SQLSTATE[42S22
+]: Column not found: 
+1054 Unknown column '
+ten_min_orders.delive
+ry_partner_id' in 
+'where clause' 
+(Connection: mysql, 
+SQL: select count(*) 
+as aggregate from 
+`ten_min_orders` 
+where `ten_min_orders
+`.`delivery_partner_i
+d` = 1 and `ten_min_o
+rders`.`delivery_part
+ner_id` is not null)"
+,"file":"D:\\Clone\\g
+rabbaskets\\vendor\\l
+aravel\\framework\\sr
+c\\Illuminate\\Databa
+se\\Connection.php","
+line":826,"trace":"#0
+ D:\\Clone\\grabbaske
+ts\\vendor\\laravel\\
+framework\\src\\Illum
+inate\\Database\\Conn
+ection.php(780): Illu
+minate\\Database\\Con
+nection->runQueryCall
+back('select 
+count(*)...', Array, 
+Object(Closure))
+  #1 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Connection.php(397): 
+Illuminate\\Database\
+\Connection->run('sel
+ect count(*)...', 
+Array, 
+Object(Closure))
+  #2 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(31
+88): Illuminate\\Data
+base\\Connection->sel
+ect('select 
+count(*)...', Array, 
+true)
+  #3 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(31
+73): Illuminate\\Data
+base\\Query\\Builder-
+>runSelect()
+  #4 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(37
+63): Illuminate\\Data
+base\\Query\\Builder-
+>Illuminate\\Database
+\\Query\\{closure}()
+  #5 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(31
+72): Illuminate\\Data
+base\\Query\\Builder-
+>onceWithColumns(Arra
+y, Object(Closure))
+  #6 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(36
+87): Illuminate\\Data
+base\\Query\\Builder-
+>get(Array)
+  #7 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(36
+15): Illuminate\\Data
+base\\Query\\Builder-
+>aggregate('count', 
+Array)
+  #8 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Eloquent\\Builder.php
+(2235): Illuminate\\D
+atabase\\Query\\Build
+er->count()
+  #9 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Support\\T
+raits\\ForwardsCalls.
+php(23): Illuminate\\
+Database\\Eloquent\\B
+uilder->__call('count
+', Array)
+  #10 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Support\\
+Traits\\ForwardsCalls
+.php(52): Illuminate\
+\Database\\Eloquent\\
+Relations\\Relation->
+forwardCallTo(Object(
+Illuminate\\Database\
+\Eloquent\\Builder), 
+'count', Array)
+  #11 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Database\
+\Eloquent\\Relations\
+\Relation.php(538): I
+lluminate\\Database\\
+Eloquent\\Relations\\
+Relation->forwardDeco
+ratedCallTo(Object(Il
+luminate\\Database\\E
+loquent\\Builder), 
+'count', Array)
+  #12 D:\\Clone\\grab
+baskets\\app\\Http\\C
+ontrollers\\DeliveryP
+artner\\DashboardCont
+roller.php(124): Illu
+minate\\Database\\Elo
+quent\\Relations\\Rel
+ation->__call('count'
+, Array)
+  #13 D:\\Clone\\grab
+baskets\\app\\Http\\C
+ontrollers\\DeliveryP
+artner\\DashboardCont
+roller.php(47): App\\
+Http\\Controllers\\De
+liveryPartner\\Dashbo
+ardController->getDas
+hboardStats(Object(Ap
+p\\Models\\DeliveryPa
+rtner))
+  #14 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Routing\\
+ControllerDispatcher.
+php(46): App\\Http\\C
+ontrollers\\DeliveryP
+artner\\DashboardCont
+roller->index()
+  #15 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Routing\\
+Route.php(265): Illum
+inate\\Routing\\Contr
+ollerDispatcher->disp
+atch(Object(Illuminat
+e\\Routing\\Route), O
+bject(App\\Http\\Cont
+rollers\\DeliveryPart
+ner\\DashboardControl
+ler), 'index')
+  #16 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Routing\\
+Route.php(211): Illum
+inate\\Routing\\Route
+->runController()
+  #17 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Routing\\
+Router.php(822): Illu
+minate\\Routing\\Rout
+e->run()
+  #18 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Pipeline\
+\Pipeline.php(180): I
+lluminate\\Routing\\R
+outer->Illuminate\\Ro
+uting\\{closure}(Obje
+ct(Illuminate\\Http\\
+Request))
+  #19 D:\\Clone\\grab
+baskets\\app\\Http\\M
+iddleware\\CheckDeliv
+eryPartnerStatus.php(
+57): Illuminate\\Pipe
+line\\Pipeline->Illum
+inate\\Pipeline\\{clo
+sure}(Object(Illumina
+te\\Http\\Request))
+  #20 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Pipeline\
+\Pipeline.php(219): A
+pp\\Http\\Middleware\
+\CheckDeliveryPartner
+Status->handle(Object
+(Illuminate\\Http\\Re
+quest), 
+Object(Closure))
+> [2026-01-08 
+16:04:53] 
+localhost.ERROR: 
+Dashboard loading 
+failed completely {"e
+rror":"SQLSTATE[42S22
+]: Column not found: 
+1054 Unknown column '
+ten_min_orders.delive
+ry_partner_id' in 
+'where clause' 
+(Connection: mysql, 
+SQL: select count(*) 
+as aggregate from 
+`ten_min_orders` 
+where `ten_min_orders
+`.`delivery_partner_i
+d` = 1 and `ten_min_o
+rders`.`delivery_part
+ner_id` is not null)"
+,"file":"D:\\Clone\\g
+rabbaskets\\vendor\\l
+aravel\\framework\\sr
+c\\Illuminate\\Databa
+se\\Connection.php","
+line":826,"trace":"#0
+ D:\\Clone\\grabbaske
+ts\\vendor\\laravel\\
+framework\\src\\Illum
+inate\\Database\\Conn
+ection.php(780): Illu
+minate\\Database\\Con
+nection->runQueryCall
+back('select 
+count(*)...', Array, 
+Object(Closure))
+  #1 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Connection.php(397): 
+Illuminate\\Database\
+\Connection->run('sel
+ect count(*)...', 
+Array, 
+Object(Closure))
+  #2 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(31
+88): Illuminate\\Data
+base\\Connection->sel
+ect('select 
+count(*)...', Array, 
+true)
+  #3 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(31
+73): Illuminate\\Data
+base\\Query\\Builder-
+>runSelect()
+  #4 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(37
+63): Illuminate\\Data
+base\\Query\\Builder-
+>Illuminate\\Database
+\\Query\\{closure}()
+  #5 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(31
+72): Illuminate\\Data
+base\\Query\\Builder-
+>onceWithColumns(Arra
+y, Object(Closure))
+  #6 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(36
+87): Illuminate\\Data
+base\\Query\\Builder-
+>get(Array)
+  #7 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(36
+15): Illuminate\\Data
+base\\Query\\Builder-
+>aggregate('count', 
+Array)
+  #8 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Eloquent\\Builder.php
+(2235): Illuminate\\D
+atabase\\Query\\Build
+er->count()
+  #9 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Support\\T
+raits\\ForwardsCalls.
+php(23): Illuminate\\
+Database\\Eloquent\\B
+uilder->__call('count
+', Array)
+  #10 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Support\\
+Traits\\ForwardsCalls
+.php(52): Illuminate\
+\Database\\Eloquent\\
+Relations\\Relation->
+forwardCallTo(Object(
+Illuminate\\Database\
+\Eloquent\\Builder), 
+'count', Array)
+  #11 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Database\
+\Eloquent\\Relations\
+\Relation.php(538): I
+lluminate\\Database\\
+Eloquent\\Relations\\
+Relation->forwardDeco
+ratedCallTo(Object(Il
+luminate\\Database\\E
+loquent\\Builder), 
+'count', Array)
+  #12 D:\\Clone\\grab
+baskets\\app\\Http\\C
+ontrollers\\DeliveryP
+artner\\DashboardCont
+roller.php(124): Illu
+minate\\Database\\Elo
+quent\\Relations\\Rel
+ation->__call('count'
+, Array)
+  #13 D:\\Clone\\grab
+baskets\\app\\Http\\C
+ontrollers\\DeliveryP
+artner\\DashboardCont
+roller.php(47): App\\
+Http\\Controllers\\De
+liveryPartner\\Dashbo
+ardController->getDas
+hboardStats(Object(Ap
+p\\Models\\DeliveryPa
+rtner))
+  #14 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Routing\\
+ControllerDispatcher.
+php(46): App\\Http\\C
+ontrollers\\DeliveryP
+artner\\DashboardCont
+roller->index()
+  #15 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Routing\\
+Route.php(265): Illum
+inate\\Routing\\Contr
+ollerDispatcher->disp
+atch(Object(Illuminat
+e\\Routing\\Route), O
+bject(App\\Http\\Cont
+rollers\\DeliveryPart
+ner\\DashboardControl
+ler), 'index')
+  #16 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Routing\\
+Route.php(211): Illum
+inate\\Routing\\Route
+->runController()
+  #17 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Routing\\
+Router.php(822): Illu
+minate\\Routing\\Rout
+e->run()
+  #18 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Pipeline\
+\Pipeline.php(180): I
+lluminate\\Routing\\R
+outer->Illuminate\\Ro
+uting\\{closure}(Obje
+ct(Illuminate\\Http\\
+Request))
+  #19 D:\\Clone\\grab
+baskets\\app\\Http\\M
+iddleware\\CheckDeliv
+eryPartnerStatus.php(
+57): Illuminate\\Pipe
+line\\Pipeline->Illum
+inate\\Pipeline\\{clo
+sure}(Object(Illumina
+te\\Http\\Request))
+  #20 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Pipeline\
+\Pipeline.php(219): A
+pp\\Http\\Middleware\
+\CheckDeliveryPartner
+Status->handle(Object
+(Illuminate\\Http\\Re
+quest), 
+Object(Closure))
+> [2026-01-08 
+16:06:57] 
+localhost.ERROR: 
+Dashboard loading 
+failed completely {"e
+rror":"SQLSTATE[42S22
+]: Column not found: 
+1054 Unknown column '
+ten_min_orders.delive
+ry_partner_id' in 
+'where clause' 
+(Connection: mysql, 
+SQL: select count(*) 
+as aggregate from 
+`ten_min_orders` 
+where `ten_min_orders
+`.`delivery_partner_i
+d` = 1 and `ten_min_o
+rders`.`delivery_part
+ner_id` is not null)"
+,"file":"D:\\Clone\\g
+rabbaskets\\vendor\\l
+aravel\\framework\\sr
+c\\Illuminate\\Databa
+se\\Connection.php","
+line":826,"trace":"#0
+ D:\\Clone\\grabbaske
+ts\\vendor\\laravel\\
+framework\\src\\Illum
+inate\\Database\\Conn
+ection.php(780): Illu
+minate\\Database\\Con
+nection->runQueryCall
+back('select 
+count(*)...', Array, 
+Object(Closure))
+  #1 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Connection.php(397): 
+Illuminate\\Database\
+\Connection->run('sel
+ect count(*)...', 
+Array, 
+Object(Closure))
+  #2 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(31
+88): Illuminate\\Data
+base\\Connection->sel
+ect('select 
+count(*)...', Array, 
+true)
+  #3 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(31
+73): Illuminate\\Data
+base\\Query\\Builder-
+>runSelect()
+  #4 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(37
+63): Illuminate\\Data
+base\\Query\\Builder-
+>Illuminate\\Database
+\\Query\\{closure}()
+  #5 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(31
+72): Illuminate\\Data
+base\\Query\\Builder-
+>onceWithColumns(Arra
+y, Object(Closure))
+  #6 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(36
+87): Illuminate\\Data
+base\\Query\\Builder-
+>get(Array)
+  #7 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Query\\Builder.php(36
+15): Illuminate\\Data
+base\\Query\\Builder-
+>aggregate('count', 
+Array)
+  #8 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Database\\
+Eloquent\\Builder.php
+(2235): Illuminate\\D
+atabase\\Query\\Build
+er->count()
+  #9 D:\\Clone\\grabb
+askets\\vendor\\larav
+el\\framework\\src\\I
+lluminate\\Support\\T
+raits\\ForwardsCalls.
+php(23): Illuminate\\
+Database\\Eloquent\\B
+uilder->__call('count
+', Array)
+  #10 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Support\\
+Traits\\ForwardsCalls
+.php(52): Illuminate\
+\Database\\Eloquent\\
+Relations\\Relation->
+forwardCallTo(Object(
+Illuminate\\Database\
+\Eloquent\\Builder), 
+'count', Array)
+  #11 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Database\
+\Eloquent\\Relations\
+\Relation.php(538): I
+lluminate\\Database\\
+Eloquent\\Relations\\
+Relation->forwardDeco
+ratedCallTo(Object(Il
+luminate\\Database\\E
+loquent\\Builder), 
+'count', Array)
+  #12 D:\\Clone\\grab
+baskets\\app\\Http\\C
+ontrollers\\DeliveryP
+artner\\DashboardCont
+roller.php(124): Illu
+minate\\Database\\Elo
+quent\\Relations\\Rel
+ation->__call('count'
+, Array)
+  #13 D:\\Clone\\grab
+baskets\\app\\Http\\C
+ontrollers\\DeliveryP
+artner\\DashboardCont
+roller.php(47): App\\
+Http\\Controllers\\De
+liveryPartner\\Dashbo
+ardController->getDas
+hboardStats(Object(Ap
+p\\Models\\DeliveryPa
+rtner))
+  #14 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Routing\\
+ControllerDispatcher.
+php(46): App\\Http\\C
+ontrollers\\DeliveryP
+artner\\DashboardCont
+roller->index()
+  #15 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Routing\\
+Route.php(265): Illum
+inate\\Routing\\Contr
+ollerDispatcher->disp
+atch(Object(Illuminat
+e\\Routing\\Route), O
+bject(App\\Http\\Cont
+rollers\\DeliveryPart
+ner\\DashboardControl
+ler), 'index')
+  #16 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Routing\\
+Route.php(211): Illum
+inate\\Routing\\Route
+->runController()
+  #17 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Routing\\
+Router.php(822): Illu
+minate\\Routing\\Rout
+e->run()
+  #18 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Pipeline\
+\Pipeline.php(180): I
+lluminate\\Routing\\R
+outer->Illuminate\\Ro
+uting\\{closure}(Obje
+ct(Illuminate\\Http\\
+Request))
+  #19 D:\\Clone\\grab
+baskets\\app\\Http\\M
+iddleware\\CheckDeliv
+eryPartnerStatus.php(
+57): Illuminate\\Pipe
+line\\Pipeline->Illum
+inate\\Pipeline\\{clo
+sure}(Object(Illumina
+te\\Http\\Request))
+  #20 D:\\Clone\\grab
+baskets\\vendor\\lara
+vel\\framework\\src\\
+Illuminate\\Pipeline\
+\Pipeline.php(219): A
+pp\\Http\\Middleware\
+\CheckDeliveryPartner
+Status->handle(Object
+(Illuminate\\Http\\Re
+quest), 
+Object(Closure))
+
+

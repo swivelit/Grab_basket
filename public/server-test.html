@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GrabBaskets - Server Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+        .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .status { color: #28a745; font-weight: bold; }
+        .error { color: #dc3545; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛒 GrabBaskets Server Test</h1>
+        <p class="status">✅ Static HTML is working!</p>
+        <p><strong>Timestamp:</strong> <script>document.write(new Date().toLocaleString());</script></p>
+        <p><strong>Domain:</strong> <script>document.write(window.location.hostname);</script></p>
+        
+        <h3>Test Links:</h3>
+        <ul>
+            <li><a href="/minimal.php">Minimal PHP Test</a></li>
+            <li><a href="/debug.php">Laravel Debug</a></li>
+            <li><a href="/health">Health Check</a></li>
+            <li><a href="/">Main Application</a></li>
+        </ul>
+        
+        <h3>Issues to Check:</h3>
+        <ul>
+            <li>If this page loads: Web server is working</li>
+            <li>If minimal.php loads: PHP is working</li>
+            <li>If main app fails: Laravel configuration issue</li>
+        </ul>
+    </div>
+</body>
+</html>

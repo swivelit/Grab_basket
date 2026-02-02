@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Test</title>
+</head>
+<body>
+    <h1>Testing Recently Uploaded Image</h1>
+    <h2>Product: Yardley London Magnolia & Grapefruit</h2>
+    
+    <h3>Method 1: R2 Public URL (PREFERRED)</h3>
+    <img src="https://367be3a2035528943240074d0096e0cd.r2.cloudflarestorage.com/fls-a00f1665-d58e-4a6d-a69d-0dc4be26102f/products/seller-2/srm339-1760333146.jpg" 
+         alt="Product Image" 
+         style="max-width: 300px; border: 2px solid green;">
+    <p>If you see the image above with green border, R2 storage is working! ✅</p>
+    
+    <h3>Method 2: Serve-Image Route (FALLBACK)</h3>
+    <img src="https://grabbaskets.laravel.cloud/serve-image/products/seller-2/srm339-1760333146.jpg" 
+         alt="Product Image via serve-image" 
+         style="max-width: 300px; border: 2px solid blue;"
+         onerror="this.style.border='2px solid red'; this.alt='Serve-image route not working - but thats OK, R2 is primary'">
+    <p>If you see the image above with blue border, serve-image route is also working</p>
+    <p>If you see red border, serve-image route returned 404 - <strong>but this is OK</strong> because R2 public URL (Method 1) is the primary method</p>
+</body>
+</html>

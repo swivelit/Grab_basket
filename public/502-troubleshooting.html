@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>502 Error Troubleshooting Guide</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; max-width: 1200px; }
+        .container { background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 10px 0; }
+        .error { background: #ffebee; border-left: 4px solid #f44336; }
+        .warning { background: #fff3e0; border-left: 4px solid #ff9800; }
+        .success { background: #e8f5e8; border-left: 4px solid #4caf50; }
+        .info { background: #e3f2fd; border-left: 4px solid #2196f3; }
+        h1, h2 { color: #333; }
+        h3 { color: #666; margin-top: 20px; }
+        code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .step { margin: 15px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .checklist { list-style-type: none; }
+        .checklist li { margin: 8px 0; }
+        .checklist li:before { content: "☐ "; margin-right: 8px; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Bulk Upload 502 Error Troubleshooting Guide</h1>
+    
+    <div class="container error">
+        <h2>What is a 502 Error?</h2>
+        <p>A 502 Bad Gateway error occurs when the web server (Apache/Nginx) can't get a valid response from PHP. This typically happens when:</p>
+        <ul>
+            <li>PHP script times out (takes too long to process)</li>
+            <li>PHP runs out of memory</li>
+            <li>PHP crashes due to a fatal error</li>
+            <li>Server resource limits are exceeded</li>
+        </ul>
+    </div>
+
+    <div class="container info">
+        <h2>📋 Quick Diagnosis Checklist</h2>
+        <ul class="checklist">
+            <li>Visit <code>/bulk-upload-test.php</code> to check server configuration</li>
+            <li>Visit <code>/upload-config-check.php</code> to verify PHP settings</li>
+            <li>Check if ZIP file is under 20MB (recommended)</li>
+            <li>Ensure ZIP contains less than 30 images</li>
+            <li>Verify images are under 2MB each</li>
+            <li>Check Laravel logs: <code>storage/logs/laravel.log</code></li>
+            <li>Check server error logs (Apache/Nginx)</li>
+        </ul>
+    </div>
+
+    <div class="container warning">
+        <h2>⚡ Immediate Solutions to Try</h2>
+        
+        <div class="step">
+            <h3>1. Reduce ZIP File Size</h3>
+            <p><strong>Problem:</strong> Large files cause timeouts</p>
+            <p><strong>Solution:</strong></p>
+            <ul>
+                <li>Split your images into multiple ZIP files (max 20 images per ZIP)</li>
+                <li>Compress images before zipping (use tools like TinyPNG)</li>
+                <li>Resize images to reasonable dimensions (max 1200x1200 pixels)</li>
+                <li>Keep ZIP files under 20MB total</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <h3>2. Optimize Images</h3>
+            <p><strong>Before uploading:</strong></p>
+            <ul>
+                <li>Resize images to 800x600 or 1200x800 pixels</li>
+                <li>Compress to 70-80% quality</li>
+                <li>Convert to JPEG format (smaller file size)</li>
+                <li>Remove EXIF data</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <h3>3. Check Server Settings</h3>
+            <p>Your hosting provider may need to increase these PHP settings:</p>
+            <pre>upload_max_filesize = 50M
+post_max_size = 50M
+max_execution_time = 300
+memory_limit = 512M
+max_input_time = 300</pre>
+            <p><strong>How to check:</strong> Visit <code>/upload-config-check.php</code></p>
+        </div>
+    </div>
+
+    <div class="container success">
+        <h2>✅ Step-by-Step Testing Process</h2>
+        
+        <div class="step">
+            <h3>Step 1: Test with 1 Image</h3>
+            <ul>
+                <li>Create a ZIP with just 1 small image (under 500KB)</li>
+                <li>Name the image file exactly as your product's unique_id</li>
+                <li>Try uploading this test ZIP</li>
+                <li>If this works, the issue is file size/quantity</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <h3>Step 2: Gradually Increase</h3>
+            <ul>
+                <li>If 1 image works, try 5 images</li>
+                <li>Then try 10 images</li>
+                <li>Find your server's limit</li>
+                <li>Stay below this limit for future uploads</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <h3>Step 3: Check Logs</h3>
+            <ul>
+                <li>After each test, check <code>storage/logs/laravel.log</code></li>
+                <li>Look for memory errors, timeout errors, or fatal errors</li>
+                <li>Note the exact error message</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="container info">
+        <h2>🛠️ Advanced Solutions</h2>
+        
+        <div class="step">
+            <h3>For Shared Hosting Users</h3>
+            <ul>
+                <li>Contact your hosting provider to increase PHP limits</li>
+                <li>Consider upgrading to a higher hosting plan</li>
+                <li>Ask about dedicated PHP-FPM pools</li>
+                <li>Request increased memory and execution time limits</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <h3>For VPS/Dedicated Server Users</h3>
+            <p>Edit your <code>php.ini</code> file:</p>
+            <pre>upload_max_filesize = 50M
+post_max_size = 50M
+max_execution_time = 300
+memory_limit = 512M
+max_input_time = 300
+max_file_uploads = 100</pre>
+            
+            <p>Also check web server timeout settings:</p>
+            <p><strong>Apache (.htaccess):</strong></p>
+            <pre>TimeOut 300
+LimitRequestBody 52428800</pre>
+            
+            <p><strong>Nginx:</strong></p>
+            <pre>client_max_body_size 50M;
+proxy_read_timeout 300s;
+proxy_connect_timeout 300s;</pre>
+        </div>
+    </div>
+
+    <div class="container warning">
+        <h2>🔍 Common Error Messages & Solutions</h2>
+        
+        <div class="step">
+            <h3>"504 Gateway Timeout" or "502 Bad Gateway"</h3>
+            <p><strong>Cause:</strong> Script took too long to execute</p>
+            <p><strong>Solution:</strong> Use smaller ZIP files (max 20 images) or increase <code>max_execution_time</code></p>
+        </div>
+
+        <div class="step">
+            <h3>"Fatal error: Allowed memory size exhausted"</h3>
+            <p><strong>Cause:</strong> Not enough memory to process images</p>
+            <p><strong>Solution:</strong> Increase <code>memory_limit</code> or use smaller/fewer images</p>
+        </div>
+
+        <div class="step">
+            <h3>"The uploaded file exceeds the upload_max_filesize directive"</h3>
+            <p><strong>Cause:</strong> ZIP file too large</p>
+            <p><strong>Solution:</strong> Increase <code>upload_max_filesize</code> and <code>post_max_size</code></p>
+        </div>
+
+        <div class="step">
+            <h3>"Maximum execution time exceeded"</h3>
+            <p><strong>Cause:</strong> Processing took too long</p>
+            <p><strong>Solution:</strong> Increase <code>max_execution_time</code> or use fewer images</p>
+        </div>
+    </div>
+
+    <div class="container success">
+        <h2>💡 Best Practices for Successful Uploads</h2>
+        <ul>
+            <li><strong>Image Naming:</strong> Name files exactly as your product unique_id (e.g., ABC123.jpg)</li>
+            <li><strong>File Size:</strong> Keep individual images under 2MB</li>
+            <li><strong>ZIP Size:</strong> Keep ZIP files under 20MB</li>
+            <li><strong>Quantity:</strong> Upload max 20-30 images per batch</li>
+            <li><strong>Format:</strong> Use JPEG format for smaller file sizes</li>
+            <li><strong>Timing:</strong> Upload during off-peak hours for better server performance</li>
+            <li><strong>Testing:</strong> Always test with a few images first</li>
+        </ul>
+    </div>
+
+    <div class="container info">
+        <h2>📞 Getting Help</h2>
+        <p>If you're still experiencing issues after trying these solutions:</p>
+        <ol>
+            <li>Run the diagnostic tests: <code>/bulk-upload-test.php</code></li>
+            <li>Check the exact error in <code>storage/logs/laravel.log</code></li>
+            <li>Note your server configuration from <code>/upload-config-check.php</code></li>
+            <li>Contact your hosting provider with this information</li>
+            <li>Consider upgrading your hosting plan if on shared hosting</li>
+        </ol>
+    </div>
+
+    <div style="margin-top: 30px; padding: 20px; background: #f0f0f0; border-radius: 5px; text-align: center;">
+        <p><strong>Quick Links:</strong></p>
+        <p>
+            <a href="/bulk-upload-test.php" style="margin: 0 10px;">🧪 Run Diagnostic Test</a> |
+            <a href="/upload-config-check.php" style="margin: 0 10px;">⚙️ Check Configuration</a> |
+            <a href="/storage/logs" style="margin: 0 10px;">📋 View Logs</a>
+        </p>
+    </div>
+</body>
+</html>
