@@ -1,0 +1,8 @@
+# Laravel Cloud Environment Variables
+# Add this to your Laravel Cloud dashboard environment variables
+
+# Explicitly mark as Laravel Cloud deployment
+LARAVEL_CLOUD_DEPLOYMENT=true
+
+# This helps the code detect it's running on actual Laravel Cloud
+# and not just a local environment with APP_ENV=production

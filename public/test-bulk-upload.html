@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Bulk Image Upload Routes</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .test-section { background: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Bulk Image Upload Feature Test</h1>
+    
+    <div class="test-section">
+        <h3>📊 Current Status</h3>
+        <p class="info"><strong>Total Products:</strong> 66</p>
+        <p class="error"><strong>Missing Images:</strong> 65 products</p>
+        <p class="success"><strong>Products with Images:</strong> 1 product</p>
+    </div>
+    
+    <div class="test-section">
+        <h3>🎯 Test URLs</h3>
+        <p><strong>Bulk Upload Form:</strong> <a href="https://grabbaskets.laravel.cloud/seller/bulk-image-reupload" target="_blank">https://grabbaskets.laravel.cloud/seller/bulk-image-reupload</a></p>
+        <p><strong>Seller Dashboard:</strong> <a href="https://grabbaskets.laravel.cloud/seller/dashboard" target="_blank">https://grabbaskets.laravel.cloud/seller/dashboard</a></p>
+        <p><strong>Login:</strong> <a href="https://grabbaskets.laravel.cloud/login" target="_blank">https://grabbaskets.laravel.cloud/login</a></p>
+    </div>
+    
+    <div class="test-section">
+        <h3>📝 Sample Products to Test With</h3>
+        <table border="1" style="border-collapse: collapse; width: 100%;">
+            <tr>
+                <th>ID</th>
+                <th>Unique ID</th>
+                <th>Product Name</th>
+                <th>Current Image</th>
+                <th>Test Image Name</th>
+            </tr>
+            <tr>
+                <td>1</td>
+                <td>SRM701</td>
+                <td>Surf Excel Quick wash 1kg</td>
+                <td class="success">HAS IMAGE</td>
+                <td>SRM701.jpg</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td>SRM702</td>
+                <td>Surf Excel Quick wash 500g</td>
+                <td class="error">NULL</td>
+                <td>SRM702.jpg</td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td>SRM703</td>
+                <td>Surf Excel Matic Top load 1kg</td>
+                <td class="error">NULL</td>
+                <td>SRM703.jpg</td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td>SRM704</td>
+                <td>Surf Excel matic Front Load 500g</td>
+                <td class="error">NULL</td>
+                <td>SRM704.jpg</td>
+            </tr>
+            <tr>
+                <td>5</td>
+                <td>SRM705</td>
+                <td>Surf Excel Easy wash 500g</td>
+                <td class="error">NULL</td>
+                <td>SRM705.jpg</td>
+            </tr>
+        </table>
+    </div>
+    
+    <div class="test-section">
+        <h3>🔧 Test Scenarios</h3>
+        <ol>
+            <li><strong>Unique ID Matching:</strong> Create test.zip with SRM702.jpg, SRM703.jpg, etc.</li>
+            <li><strong>Name Matching:</strong> Create test.zip with surf_excel_500g.jpg, surf_excel_1kg.jpg, etc.</li>
+            <li><strong>Mixed Matching:</strong> Combine both approaches in one ZIP</li>
+        </ol>
+    </div>
+    
+    <div class="test-section">
+        <h3>✅ Testing Checklist</h3>
+        <ul>
+            <li>☐ Access bulk upload page without errors</li>
+            <li>☐ Upload small test ZIP (2-3 images)</li>
+            <li>☐ Verify progress bar shows during upload</li>
+            <li>☐ Check success/failure messages</li>
+            <li>☐ Verify images appear in cloud storage</li>
+            <li>☐ Confirm product pages show new images</li>
+            <li>☐ Test with larger ZIP file (10+ images)</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h3>🚨 If Issues Found</h3>
+        <p>Check browser console for errors, verify file formats (JPG/PNG), ensure ZIP isn't corrupted, and confirm seller authentication.</p>
+    </div>
+    
+    <p><strong>Ready to test!</strong> Start with the bulk upload form link above. 🚀</p>
+</body>
+</html>

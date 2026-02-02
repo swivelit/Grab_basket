@@ -1,0 +1,187 @@
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    RewriteEngine On
+
+    # Handle Authorization Header (Important for API authentication)
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Handle X-XSRF-Token Header (Laravel CSRF protection)
+    RewriteCond %{HTTP:x-xsrf-token} .
+    RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
+
+    # Hostinger HTTPS Redirect (using X-Forwarded-Proto for load balancer)
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteCond %{HTTPS} off [NC]
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Redirect Trailing Slashes If Not A Folder...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # Allow access to storage files (Laravel public disk)
+    RewriteCond %{REQUEST_URI} ^/storage/
+    RewriteRule ^storage/(.*)$ storage/$1 [L,NC]
+    
+    # Allow access to serve-image route for dynamic image serving
+    RewriteCond %{REQUEST_URI} !^/serve-image/
+    
+    # Send Requests To Front Controller (Laravel routing)
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+
+# Security: Disable access to sensitive files
+<FilesMatch "^\.env">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+<FilesMatch "^\.git">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+<FilesMatch "composer\.(json|lock)">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+</IfModule>
+
+# PHP Configuration for Hostinger (Conservative limits)
+php_value upload_max_filesize 32M
+php_value post_max_size 32M
+php_value max_execution_time 300
+php_value max_input_time 300
+php_value memory_limit 512M
+php_value max_file_uploads 50
+php_value default_socket_timeout 300
+
+# Enable PHP error logging (disable in production)
+# php_flag display_errors Off
+# php_flag log_errors On
+
+# Hostinger-compatible timeout settings
+<IfModule mod_fcgid.c>
+    FcgidIOTimeout 300
+    FcgidBusyTimeout 300
+    FcgidIdleTimeout 300
+    FcgidConnectTimeout 60
+</IfModule>
+
+# Enable GZIP compression (Hostinger compatible)
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/xml
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE text/javascript
+    AddOutputFilterByType DEFLATE application/xml
+    AddOutputFilterByType DEFLATE application/xhtml+xml
+    AddOutputFilterByType DEFLATE application/rss+xml
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/x-javascript
+    AddOutputFilterByType DEFLATE application/json
+    AddOutputFilterByType DEFLATE font/truetype
+    AddOutputFilterByType DEFLATE font/opentype
+    AddOutputFilterByType DEFLATE application/vnd.ms-fontobject
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# Browser Caching (Optimized for Hostinger)
+<IfModule mod_expires.c>
+    ExpiresActive On
+    
+    # Cache CSS and JS for 1 month
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType text/javascript "access plus 1 month"
+    
+    # Cache images for 6 months
+    ExpiresByType image/png "access plus 6 months"
+    ExpiresByType image/jpg "access plus 6 months"
+    ExpiresByType image/jpeg "access plus 6 months"
+    ExpiresByType image/gif "access plus 6 months"
+    ExpiresByType image/webp "access plus 6 months"
+    ExpiresByType image/svg+xml "access plus 6 months"
+    ExpiresByType image/x-icon "access plus 6 months"
+    
+    # Cache fonts for 1 year
+    ExpiresByType font/ttf "access plus 1 year"
+    ExpiresByType font/otf "access plus 1 year"
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType application/vnd.ms-fontobject "access plus 1 year"
+    
+    # Cache HTML for 1 hour (dynamic content)
+    ExpiresByType text/html "access plus 1 hour"
+    
+    # Don't cache dynamic files
+    ExpiresByType application/json "access plus 0 seconds"
+</IfModule>
+
+# Security Headers (Hostinger compatible)
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options SAMEORIGIN
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    
+    # Remove server information
+    Header unset Server
+    Header unset X-Powered-By
+    
+    # CORS headers for API (if needed)
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header set Access-Control-Allow-Headers "Origin, Content-Type, Accept, Authorization, X-Request-With"
+</IfModule>
+
+# Error Pages (Hostinger friendly)
+ErrorDocument 404 /index.php
+ErrorDocument 403 /index.php
+ErrorDocument 500 /index.php
+
+# Prevent access to sensitive Laravel directories
+<IfModule mod_alias.c>
+    RedirectMatch 403 /\..*$
+    RedirectMatch 403 /app/
+    RedirectMatch 403 /bootstrap/
+    RedirectMatch 403 /config/
+    RedirectMatch 403 /database/
+    RedirectMatch 403 /resources/
+    RedirectMatch 403 /routes/
+    RedirectMatch 403 /storage/(?!app/public)
+    RedirectMatch 403 /tests/
+    RedirectMatch 403 /vendor/
+</IfModule>
+
+# Hostinger: Prevent execution of PHP in uploads directory
+<Directory "storage/">
+    php_flag engine off
+    AddHandler cgi-script .php .phtml .php3 .pl .py .jsp .asp .sh .cgi
+    Options -ExecCGI
+</Directory>
+
+# Hostinger: Additional MIME types
+<IfModule mod_mime.c>
+    AddType application/javascript .js
+    AddType text/css .css
+    AddType image/svg+xml .svg
+    AddType font/woff .woff
+    AddType font/woff2 .woff2
+    AddType application/vnd.ms-fontobject .eot
+    AddType font/ttf .ttf
+    AddType font/otf .otf
+</IfModule>
+
+# Hostinger: Optimize Apache settings
+<IfModule mod_env.c>
+    SetEnv TZ Asia/Kolkata
+</IfModule>

@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GrabBaskets - Quick Grocery Delivery</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #FF6B00 0%, #FFD700 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .phone-frame {
+            width: 100%;
+            max-width: 390px;
+            height: 844px;
+            background: #1a1a1a;
+            border-radius: 40px;
+            padding: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        .phone-screen {
+            width: 100%;
+            height: 100%;
+            background: #fff;
+            border-radius: 32px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .screen {
+            display: none;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        /* Splash Screen */
+        .splash {
+            background: linear-gradient(135deg, #FF6B00 0%, #FFD700 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .logo {
+            width: 120px;
+            height: 120px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            margin-bottom: 24px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .app-name {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .tagline {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        /* Login Screen */
+        .login {
+            background: linear-gradient(135deg, #FF6B00 0%, #FFD700 100%);
+        }
+
+        .login-header {
+            padding: 60px 20px 40px;
+            text-align: center;
+            color: white;
+        }
+
+        .login-card {
+            background: white;
+            border-radius: 30px 30px 0 0;
+            padding: 40px 24px;
+            min-height: calc(100% - 300px);
+        }
+
+        .login-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #212121;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .country-code {
+            background: #f5f5f5;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        input {
+            flex: 1;
+            padding: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            border-color: #FF6B00;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #FF6B00 0%, #FF8C42 100%);
+            color: white;
+            margin: 24px 0;
+            box-shadow: 0 4px 12px rgba(255,107,0,0.3);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 16px rgba(255,107,0,0.4);
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+            gap: 12px;
+            color: #757575;
+            font-size: 14px;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e0e0e0;
+        }
+
+        /* Home Screen */
+        .home {
+            background: #f5f5f5;
+        }
+
+        .header {
+            background: white;
+            padding: 16px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #212121;
+        }
+
+        .search-bar {
+            margin: 16px;
+            padding: 12px 16px;
+            background: white;
+            border-radius: 25px;
+            border: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .search-bar input {
+            border: none;
+            padding: 0;
+            flex: 1;
+        }
+
+        .categories {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            padding: 16px;
+        }
+
+        .category-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .category-card:active {
+            transform: scale(0.95);
+        }
+
+        .category-icon {
+            font-size: 40px;
+            margin-bottom: 8px;
+        }
+
+        .category-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #212121;
+        }
+
+        .products {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            padding: 16px;
+        }
+
+        .product-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .product-card:active {
+            transform: scale(0.98);
+        }
+
+        .product-image {
+            width: 100%;
+            height: 150px;
+            background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+        }
+
+        .product-info {
+            padding: 12px;
+        }
+
+        .product-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #212121;
+            margin-bottom: 4px;
+        }
+
+        .product-price {
+            font-size: 16px;
+            font-weight: bold;
+            color: #FF6B00;
+            margin-bottom: 8px;
+        }
+
+        .btn-add {
+            width: 100%;
+            padding: 8px;
+            background: #FF6B00;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* Bottom Nav */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-around;
+            padding: 12px 0;
+            max-width: 390px;
+            margin: 0 auto;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            font-size: 24px;
+            color: #757575;
+            transition: color 0.2s;
+        }
+
+        .nav-item.active {
+            color: #FF6B00;
+        }
+
+        .nav-label {
+            font-size: 11px;
+        }
+
+        .cart-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: #F44336;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+
+        .loading-dots {
+            display: flex;
+            gap: 8px;
+            margin-top: 24px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="phone-frame">
+        <div class="phone-screen">
+            <!-- Splash Screen -->
+            <div class="screen splash active" id="splash">
+                <div class="logo">🛒</div>
+                <div class="app-name">GrabBaskets</div>
+                <div class="tagline">Quick Grocery Delivery</div>
+                <div class="loading-dots">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
+            </div>
+
+            <!-- Login Screen -->
+            <div class="screen login" id="login">
+                <div class="login-header">
+                    <div class="logo">🛒</div>
+                    <div class="app-name">Welcome to GrabBaskets</div>
+                    <div class="tagline">Get groceries delivered in 10 minutes</div>
+                </div>
+                <div class="login-card">
+                    <div class="login-title">Login with Phone</div>
+                    <div class="input-group">
+                        <div class="input-row">
+                            <div class="country-code">🇮🇳 +91</div>
+                            <input type="tel" placeholder="Enter phone number" maxlength="10" id="phone">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="login()">Send OTP</button>
+                    <div class="divider">OR</div>
+                    <button class="btn" style="background: white; border: 1px solid #e0e0e0; margin-bottom: 12px;">
+                        🔵 Continue with Google
+                    </button>
+                    <button class="btn" style="background: white; border: 1px solid #e0e0e0;">
+                        📘 Continue with Facebook
+                    </button>
+                </div>
+            </div>
+
+            <!-- Home Screen -->
+            <div class="screen home" id="home">
+                <div class="header">
+                    <div class="header-content">
+                        <div class="header-title">🛒 GrabBaskets</div>
+                        <div style="display: flex; gap: 12px;">
+                            <div style="position: relative; cursor: pointer;">
+                                <span style="font-size: 24px;">🔔</span>
+                            </div>
+                            <div style="position: relative; cursor: pointer;" onclick="showScreen('cart')">
+                                <span style="font-size: 24px;">🛒</span>
+                                <span class="cart-badge" id="cartBadge">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="search-bar">
+                    <span style="font-size: 20px;">🔍</span>
+                    <input type="text" placeholder="Search for products...">
+                </div>
+
+                <div style="padding: 16px;">
+                    <h3 style="margin-bottom: 12px; font-size: 18px;">Categories</h3>
+                    <div class="categories">
+                        <div class="category-card">
+                            <div class="category-icon">🥬</div>
+                            <div class="category-name">Vegetables</div>
+                        </div>
+                        <div class="category-card">
+                            <div class="category-icon">🍎</div>
+                            <div class="category-name">Fruits</div>
+                        </div>
+                        <div class="category-card">
+                            <div class="category-icon">🥛</div>
+                            <div class="category-name">Dairy</div>
+                        </div>
+                        <div class="category-card">
+                            <div class="category-icon">🍞</div>
+                            <div class="category-name">Bakery</div>
+                        </div>
+                        <div class="category-card">
+                            <div class="category-icon">🍗</div>
+                            <div class="category-name">Meat</div>
+                        </div>
+                        <div class="category-card">
+                            <div class="category-icon">🧃</div>
+                            <div class="category-name">Beverages</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="padding: 16px; padding-bottom: 80px;">
+                    <h3 style="margin-bottom: 12px; font-size: 18px;">Popular Products</h3>
+                    <div class="products" id="products"></div>
+                </div>
+
+                <div class="bottom-nav">
+                    <div class="nav-item active" onclick="showScreen('home')">
+                        <span>🏠</span>
+                        <span class="nav-label">Home</span>
+                    </div>
+                    <div class="nav-item" onclick="showScreen('orders')">
+                        <span>📦</span>
+                        <span class="nav-label">Orders</span>
+                    </div>
+                    <div class="nav-item" onclick="showScreen('cart')" style="position: relative;">
+                        <span>🛒</span>
+                        <span class="nav-label">Cart</span>
+                    </div>
+                    <div class="nav-item" onclick="showScreen('profile')">
+                        <span>👤</span>
+                        <span class="nav-label">Profile</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let cart = 0;
+
+        // Products data
+        const products = [
+            {name: 'Fresh Tomatoes', price: 40, icon: '🍅'},
+            {name: 'Green Apples', price: 120, icon: '🍏'},
+            {name: 'Fresh Milk', price: 60, icon: '🥛'},
+            {name: 'White Bread', price: 35, icon: '🍞'},
+            {name: 'Orange Juice', price: 80, icon: '🧃'},
+            {name: 'Fresh Eggs', price: 90, icon: '🥚'},
+        ];
+
+        // Initialize
+        setTimeout(() => showScreen('login'), 2000);
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            
+            if (screenId === 'home') {
+                renderProducts();
+            }
+        }
+
+        function login() {
+            const phone = document.getElementById('phone').value;
+            if (phone.length === 10) {
+                showScreen('home');
+            } else {
+                alert('Please enter a valid 10-digit phone number');
+            }
+        }
+
+        function renderProducts() {
+            const container = document.getElementById('products');
+            container.innerHTML = products.map(p => `
+                <div class="product-card">
+                    <div class="product-image">${p.icon}</div>
+                    <div class="product-info">
+                        <div class="product-name">${p.name}</div>
+                        <div class="product-price">₹${p.price}</div>
+                        <button class="btn-add" onclick="addToCart()">Add to Cart</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addToCart() {
+            cart++;
+            document.getElementById('cartBadge').textContent = cart;
+        }
+    </script>
+</body>
+</html>

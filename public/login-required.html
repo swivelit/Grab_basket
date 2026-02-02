@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Upload - Login Required</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f8f9fa; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 40px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; }
+        .warning { color: #856404; background: #fff3cd; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 5px solid #ffc107; }
+        .btn { display: inline-block; padding: 15px 30px; background: #007bff; color: white; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: bold; }
+        .btn:hover { background: #0056b3; }
+        .btn-success { background: #28a745; }
+        .btn-success:hover { background: #218838; }
+        .steps { background: #e7f3ff; padding: 20px; border-radius: 10px; margin: 20px 0; text-align: left; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Login Required</h1>
+        
+        <div class="warning">
+            <h3>⚠️ Authentication Needed</h3>
+            <p>The simple upload feature requires you to be logged in as a seller to access it.</p>
+        </div>
+
+        <div class="steps">
+            <h4>📋 How to Access Simple Upload:</h4>
+            <ol>
+                <li><strong>Login first</strong> using the button below</li>
+                <li><strong>Go to Dashboard</strong> after login</li>
+                <li><strong>Click "Simple Image Upload"</strong> in the menu</li>
+                <li><strong>Upload your ZIP file</strong> with SRM images</li>
+            </ol>
+        </div>
+
+        <div style="margin: 30px 0;">
+            <a href="https://grabbaskets.laravel.cloud/login" class="btn">🔑 Login First</a>
+            <a href="https://grabbaskets.laravel.cloud/seller/dashboard" class="btn btn-success">📊 Go to Dashboard</a>
+        </div>
+
+        <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+            <h4>🎯 What You'll Get After Login:</h4>
+            <ul style="text-align: left;">
+                <li>✅ Access to Simple Image Upload form</li>
+                <li>📊 Real-time upload statistics</li>
+                <li>🖼️ Gallery of successfully uploaded images</li>
+                <li>⚠️ List of products still needing images</li>
+            </ul>
+        </div>
+
+        <p><strong>Ready to upload your SRM product images? Login first! 🚀</strong></p>
+    </div>
+</body>
+</html>

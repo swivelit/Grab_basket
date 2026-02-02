@@ -1,0 +1,11 @@
+name,unique_id,category_id,subcategory_id,image,description,price,discount,delivery_charge,gift_option,stock
+Product 1,UID001,1,1,3roses,Sample description 1,1000,10,50,yes,100
+Product 2,UID002,1,1,products/default-fashion.jpg,Sample description 2,1200,5,40,no,80
+Product 3,UID003,1,1,products/default-fashion.jpg,Sample description 3,900,0,30,yes,60
+Product 4,UID004,1,1,products/default-fashion.jpg,Sample description 4,1500,15,20,no,50
+Product 5,UID005,1,1,products/default-fashion.jpg,Sample description 5,1100,8,10,yes,70
+Product 6,UID006,1,1,products/default-fashion.jpg,Sample description 6,1300,12,0,no,90
+Product 7,UID007,1,1,products/default-fashion.jpg,Sample description 7,1400,7,60,yes,40
+Product 8,UID008,1,1,products/default-fashion.jpg,Sample description 8,800,3,70,no,30
+Product 9,UID009,1,1,products/default-fashion.jpg,Sample description 9,950,6,80,yes,20
+Product 10,UID010,1,1,products/default-fashion.jpg,Sample description 10,1050,9,90,no,10

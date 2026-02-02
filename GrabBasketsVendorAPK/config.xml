@@ -1,0 +1,13 @@
+<widget id="com.grabbaskets.vendor" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>GrabBaskets Partner</name>
+    <description>GrabBaskets Vendor Partner App</description>
+    <author email="support@grabbaskets.com" href="https://grabbaskets.com">
+        GrabBaskets Team
+    </author>
+    <content src="https://grabbaskets.com/joinus" />
+    <icon src="www/img/logo.png" />
+    <allow-intent href="http://*/*" />
+    <allow-intent href="https://*/*" />
+    <allow-navigation href="https://grabbaskets.com/*" />
+    <allow-navigation href="https://*.grabbaskets.com/*" />
+</widget>

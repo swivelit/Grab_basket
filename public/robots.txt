@@ -1,0 +1,39 @@
+User-agent: *
+Allow: /
+
+# Disallow admin and backend pages
+Disallow: /admin/
+Disallow: /seller/
+Disallow: /warehouse/
+Disallow: /delivery-partner/
+Disallow: /hotel-owner/
+Disallow: /api/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /cart/
+Disallow: /checkout
+Disallow: /profile
+Disallow: /orders/
+
+# Allow search engines to crawl important pages
+Allow: /
+Allow: /buyer/
+Allow: /buyer/category/
+Allow: /buyer/subcategory/
+Allow: /products/
+Allow: /search
+
+# Sitemap
+Sitemap: https://grabbaskets.com/sitemap.xml
+
+# Crawl delay (optional, helps prevent server overload)
+Crawl-delay: 1
+
+# Block aggressive bots
+User-agent: AhrefsBot
+Crawl-delay: 10
+
+User-agent: SemrushBot
+Crawl-delay: 10

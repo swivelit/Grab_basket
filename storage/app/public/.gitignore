@@ -1,0 +1,18 @@
+# Allow product images to be committed (for GitHub CDN)
+!products/
+!products/**
+!seller/
+!seller/**
+!storage_check/
+!storage_check/**
+!test-files/
+!test-files/**
+!*.jpg
+!*.jpeg
+!*.png
+!*.gif
+!*.webp
+
+# Still ignore temporary files
+*.tmp
+*.log
