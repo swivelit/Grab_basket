@@ -32,39 +32,90 @@ def append_pubspec_deps():
     print("pubspec.yaml updated")
 
 def patch_build_gradle():
-    path = os.path.join(ROOT, "android", "app", "build.gradle")
-    s = read(path)
-    if "productFlavors" in s:
-        print("android/app/build.gradle already has flavors")
+    """
+    Flutter new templates use Kotlin DSL:
+      android/app/build.gradle.kts
+    Older templates use:
+      android/app/build.gradle
+
+    This function patches whichever exists.
+    """
+    kts_path = os.path.join(ROOT, "android", "app", "build.gradle.kts")
+    groovy_path = os.path.join(ROOT, "android", "app", "build.gradle")
+
+    if os.path.exists(kts_path):
+        s = read(kts_path)
+        if "productFlavors" in s and "Grabbasket" in s:
+            print("android/app/build.gradle.kts already has flavors")
+            return
+
+        insert = textwrap.dedent('''
+            // ✅ Grabbasket flavors (Customer/Seller/Partner)
+            flavorDimensions += "app"
+            productFlavors {
+                create("customer") {
+                    dimension = "app"
+                    applicationIdSuffix = ".customer"
+                    resValue("string", "app_name", "Grabbasket")
+                }
+                create("seller") {
+                    dimension = "app"
+                    applicationIdSuffix = ".seller"
+                    resValue("string", "app_name", "Grabbasket Seller")
+                }
+                create("partner") {
+                    dimension = "app"
+                    applicationIdSuffix = ".partner"
+                    resValue("string", "app_name", "Grabbasket Partner")
+                }
+            }
+        ''').strip("\n")
+
+        # Insert after defaultConfig { ... } block
+        s2 = re.sub(r"(defaultConfig\s*\{[\s\S]*?\}\s*)", r"\1\n\n" + insert + "\n\n", s, count=1)
+        if s2 == s:
+            print("Could not patch build.gradle.kts automatically. Add flavors manually.")
+            return
+        write(kts_path, s2)
+        print("android/app/build.gradle.kts patched with flavors")
         return
 
-    insert = textwrap.dedent('''
-    flavorDimensions "app"
-    productFlavors {
-        customer {
-            dimension "app"
-            applicationIdSuffix ".customer"
-            resValue "string", "app_name", "Grabbasket"
-        }
-        seller {
-            dimension "app"
-            applicationIdSuffix ".seller"
-            resValue "string", "app_name", "Grabbasket Seller"
-        }
-        partner {
-            dimension "app"
-            applicationIdSuffix ".partner"
-            resValue "string", "app_name", "Grabbasket Partner"
-        }
-    }
-    ''').strip("\n")
+    if os.path.exists(groovy_path):
+        s = read(groovy_path)
+        if "productFlavors" in s and "Grabbasket" in s:
+            print("android/app/build.gradle already has flavors")
+            return
 
-    s2 = re.sub(r"(defaultConfig\s*\{[\s\S]*?\}\s*)", r"\1\n" + insert + "\n", s, count=1)
-    if s2 == s:
-        print("Could not patch build.gradle automatically. Add flavors manually (see README).")
+        insert = textwrap.dedent('''
+        flavorDimensions "app"
+        productFlavors {
+            customer {
+                dimension "app"
+                applicationIdSuffix ".customer"
+                resValue "string", "app_name", "Grabbasket"
+            }
+            seller {
+                dimension "app"
+                applicationIdSuffix ".seller"
+                resValue "string", "app_name", "Grabbasket Seller"
+            }
+            partner {
+                dimension "app"
+                applicationIdSuffix ".partner"
+                resValue "string", "app_name", "Grabbasket Partner"
+            }
+        }
+        ''').strip("\n")
+
+        s2 = re.sub(r"(defaultConfig\s*\{[\s\S]*?\}\s*)", r"\1\n" + insert + "\n", s, count=1)
+        if s2 == s:
+            print("Could not patch build.gradle automatically. Add flavors manually.")
+            return
+        write(groovy_path, s2)
+        print("android/app/build.gradle patched with flavors")
         return
-    write(path, s2)
-    print("android/app/build.gradle patched with flavors")
+
+    print("No android/app/build.gradle(.kts) found; cannot patch flavors.")
 
 def add_entrypoints_and_lib():
     write(os.path.join(ROOT, "lib", "main_customer.dart"),
@@ -421,6 +472,7 @@ def add_entrypoints_and_lib():
           }
           '''))
 
+    # UI files
     write(os.path.join(ROOT, "lib", "grabbasket", "ui", "login.dart"),
           textwrap.dedent('''\
           import 'package:flutter/material.dart';
