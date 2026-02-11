@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, time
-from typing import Optional
-
+from datetime import datetime
+from enum import Enum
 from sqlalchemy import (
     Boolean,
     Column,
@@ -13,11 +12,10 @@ from sqlalchemy import (
     String,
     Text,
     Time,
-    UniqueConstraint,
 )
-from sqlalchemy.orm import relationship, Mapped
+from sqlalchemy.orm import relationship
 from .db import Base
-from enum import Enum
+
 
 class Role(str, Enum):
     CUSTOMER = "CUSTOMER"
@@ -31,6 +29,8 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
+
+    # Stored as string, but we validate with Role enum
     role = Column(String(32), nullable=False, default=Role.CUSTOMER.value)
 
     is_partner_available = Column(Boolean, default=False, nullable=False)
@@ -40,8 +40,16 @@ class User(Base):
     # one seller -> one vendor (MVP)
     vendor = relationship("Vendor", back_populates="seller", uselist=False)
 
-    customer_addresses = relationship("CustomerAddress", back_populates="customer", cascade="all, delete-orphan")
-    partner_locations = relationship("PartnerLocation", back_populates="partner", cascade="all, delete-orphan")
+    customer_addresses = relationship(
+        "CustomerAddress",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+    )
+    partner_locations = relationship(
+        "PartnerLocation",
+        back_populates="partner",
+        cascade="all, delete-orphan",
+    )
 
 
 class Vendor(Base):
@@ -127,7 +135,7 @@ class Order(Base):
     customer_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     partner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
-    # New stages
+    # Stages
     status = Column(String(64), default="CREATED", nullable=False)
     # CREATED -> ACCEPTED_BY_SELLER -> ASSIGNED_TO_PARTNER -> PICKED_UP -> DELIVERED
     # optional: CANCELLED_BY_CUSTOMER / CANCELLED_BY_SELLER / CANCELLED_BY_PARTNER
@@ -141,10 +149,10 @@ class Order(Base):
     delivery_fee = Column(Float, default=0.0, nullable=False)
     total_amount = Column(Float, default=0.0, nullable=False)
 
-    # Payments (structure supports COD/UPI now; gateway later)
-    payment_method = Column(String(32), default="COD", nullable=False)  # COD / UPI / GATEWAY
+    # Payments
+    payment_method = Column(String(32), default="COD", nullable=False)      # COD / UPI / GATEWAY
     payment_status = Column(String(32), default="PENDING", nullable=False)  # PENDING / PAID / FAILED
-    payment_ref = Column(String(128), nullable=True)  # gateway/upi ref
+    payment_ref = Column(String(128), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
