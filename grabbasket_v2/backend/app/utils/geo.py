@@ -2,8 +2,9 @@ import math
 
 
 def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
-    # Earth radius in km
-    R = 6371.0
+    """Great-circle distance (km) between two WGS84 lat/lng points."""
+
+    r = 6371.0
     p1 = math.radians(lat1)
     p2 = math.radians(lat2)
     dlat = math.radians(lat2 - lat1)
@@ -11,4 +12,4 @@ def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 
     a = math.sin(dlat / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlng / 2) ** 2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c
+    return r * c

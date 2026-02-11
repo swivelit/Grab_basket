@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../bootstrap.dart';
 import '../api.dart';
 import '../storage.dart';
+import '../state.dart';
 import 'customer_home.dart';
 import 'seller_home.dart';
 import 'partner_home.dart';
@@ -53,6 +54,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   final store = SecureStore();
                   await store.saveSession(token: res.accessToken, role: res.role);
+
+                  // Refresh providers so subsequent API calls use the new token.
+                  ref.invalidate(sessionProvider);
 
                   if (!context.mounted) return;
                   final target = switch (widget.flavor) {
