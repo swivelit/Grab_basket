@@ -1,24 +1,57 @@
 from datetime import datetime, timedelta
-from jose import jwt
+from typing import Optional
+
+from fastapi import Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer
+from jose import jwt, JWTError
 from passlib.context import CryptContext
-from .settings import settings
+from sqlalchemy.orm import Session
+
+from .config import settings
+from .db import get_db
+from .models import User
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def hash_password(password: str) -> str:
-    # bcrypt max 72 bytes (passlib will throw), keep it safe:
-    password = password[:72]
+    # bcrypt max is 72 bytes; enforce at schema level too.
+    if len(password.encode("utf-8")) > 72:
+        password = password.encode("utf-8")[:72].decode("utf-8", errors="ignore")
     return pwd_context.hash(password)
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    password = password[:72]
     return pwd_context.verify(password, password_hash)
 
 
 def create_access_token(subject: str, role: str) -> str:
-    exp = datetime.utcnow() + timedelta(minutes=settings.jwt_exp_minutes)
-    to_encode = {"sub": subject, "role": role, "exp": exp}
-    return jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    now = datetime.utcnow()
+    exp = now + timedelta(minutes=settings.ACCESS_TOKEN_MINUTES)
+    payload = {"sub": subject, "role": role, "iat": int(now.timestamp()), "exp": exp}
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALG)
+
+
+def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALG])
+        email: Optional[str] = payload.get("sub")
+        if not email:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+
+def require_role(*roles: str):
+    def _guard(user: User = Depends(get_current_user)) -> User:
+        if user.role not in roles:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return user
+    return _guard

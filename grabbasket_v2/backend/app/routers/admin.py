@@ -1,102 +1,48 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models import User, Role, Order, OrderStatus
-from ..security import require_role
-from ..notifications import send_push
-from ..settings import settings
+from ..auth import require_role, get_current_user
+from ..db import get_db
+from ..models import User, Vendor, Order, OrderEvent
+from ..schemas import OrderOut
 
-from jinja2 import Environment, BaseLoader
-
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_role("ADMIN"))])
 
 
-TEMPLATE = Environment(loader=BaseLoader()).from_string("""
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8"/>
-    <title>Grabbasket Admin</title>
-    <style>
-      body { font-family: Arial; margin: 20px; }
-      table { border-collapse: collapse; width: 100%; }
-      th, td { border: 1px solid #ddd; padding: 8px; }
-      th { background: #f3f3f3; }
-      .pill { padding: 2px 8px; border-radius: 999px; background: #eee; }
-      form { display: inline; }
-    </style>
-  </head>
-  <body>
-    <h2>Orders</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th><th>Status</th><th>Vendor</th><th>Customer</th><th>Partner</th><th>Action</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for o in orders %}
-        <tr>
-          <td>{{ o.id }}</td>
-          <td><span class="pill">{{ o.status }}</span></td>
-          <td>{{ o.vendor_id }}</td>
-          <td>{{ o.customer_id }}</td>
-          <td>{{ o.partner_id or "" }}</td>
-          <td>
-            {% if o.status == "ACCEPTED_BY_SELLER" %}
-              <form method="post" action="/admin/orders/{{o.id}}/assign">
-                <button type="submit">Assign partner</button>
-              </form>
-            {% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </body>
-</html>
-""")
+@router.get("/users")
+def users(db: Session = Depends(get_db)):
+    rows = db.query(User).order_by(User.id.desc()).limit(500).all()
+    return [{"id": u.id, "email": u.email, "role": u.role, "created_at": u.created_at} for u in rows]
 
 
-@router.get("/panel", response_class=HTMLResponse)
-def panel(
-    request: Request,
-    _: User = Depends(require_role(Role.ADMIN)),
-    db: Session = Depends(get_db),
-):
-    if not settings.admin_panel_enabled:
-        raise HTTPException(status_code=404, detail="Admin panel disabled")
+@router.get("/vendors")
+def vendors(db: Session = Depends(get_db)):
+    rows = db.query(Vendor).order_by(Vendor.id.desc()).limit(500).all()
+    return [
+        {
+            "id": v.id,
+            "seller_id": v.seller_id,
+            "name": v.name,
+            "delivery_radius_km": v.delivery_radius_km,
+            "is_open": v.is_open,
+        }
+        for v in rows
+    ]
 
-    orders = db.query(Order).order_by(Order.id.desc()).limit(200).all()
-    html = TEMPLATE.render(orders=[{"id": o.id, "status": o.status.value, "vendor_id": o.vendor_id, "customer_id": o.customer_id, "partner_id": o.partner_id} for o in orders])
-    return HTMLResponse(html)
+
+@router.get("/orders", response_model=list[OrderOut])
+def orders(db: Session = Depends(get_db)):
+    return db.query(Order).order_by(Order.id.desc()).limit(500).all()
 
 
-@router.post("/orders/{order_id}/assign")
-def assign_partner(order_id: int, _: User = Depends(require_role(Role.ADMIN)), db: Session = Depends(get_db)):
+@router.post("/orders/{order_id}/status", response_model=OrderOut)
+def override_status(order_id: int, status: str, note: str = "", db: Session = Depends(get_db), admin: User = Depends(get_current_user)):
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    if order.status != OrderStatus.ACCEPTED_BY_SELLER:
-        raise HTTPException(status_code=400, detail=f"Cannot assign in status {order.status}")
-
-    partner = db.query(User).filter(User.role == Role.PARTNER, User.is_partner_available == True).order_by(User.id.asc()).first()
-    if not partner:
-        raise HTTPException(status_code=400, detail="No available partner")
-
-    order.partner_id = partner.id
-    order.status = OrderStatus.ASSIGNED_TO_PARTNER
+    order.status = status
+    db.add(OrderEvent(order_id=order.id, status=status, note=note or "Admin override", actor_user_id=admin.id))
     db.commit()
-
-    # Notify partner + customer
-    p_tokens = [t.token for t in partner.device_tokens]
-    send_push(p_tokens, "New delivery", f"You have a new order #{order.id}", {"order_id": order.id, "status": order.status.value})
-
-    cust = db.query(User).filter(User.id == order.customer_id).first()
-    c_tokens = [t.token for t in (cust.device_tokens if cust else [])]
-    send_push(c_tokens, "Partner assigned", f"Partner assigned for order #{order.id}", {"order_id": order.id, "status": order.status.value})
-
-    return {"ok": True, "partner_id": partner.id}
+    db.refresh(order)
+    return order

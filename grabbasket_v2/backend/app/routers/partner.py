@@ -1,85 +1,75 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models import User, Role, Order, OrderStatus, PartnerLocation, DeviceToken
-from ..schemas import PartnerAvailabilityIn, PartnerLocationIn, OrderOut
-from ..security import require_role
+from ..auth import require_role, get_current_user
+from ..db import get_db
+from ..models import User, Order, PartnerLocation, OrderEvent, FcmToken
+from ..schemas import PartnerLocationIn, OrderOut
 from ..notifications import send_push
 
 router = APIRouter(prefix="/partner", tags=["partner"])
 
 
-@router.post("/availability")
-def set_availability(data: PartnerAvailabilityIn, user: User = Depends(require_role(Role.PARTNER)), db: Session = Depends(get_db)):
-    user.is_partner_available = data.is_available
+@router.post("/availability", dependencies=[Depends(require_role("PARTNER"))])
+def set_availability(is_available: bool, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    user.is_partner_available = is_available
     db.commit()
     return {"ok": True, "is_available": user.is_partner_available}
 
 
-@router.post("/location")
-def update_location(data: PartnerLocationIn, user: User = Depends(require_role(Role.PARTNER)), db: Session = Depends(get_db)):
-    loc = PartnerLocation(
-        partner_id=user.id,
-        lat=data.lat,
-        lng=data.lng,
-        heading=data.heading,
-        speed=data.speed,
-    )
-    db.add(loc)
+@router.post("/location", dependencies=[Depends(require_role("PARTNER"))])
+def update_location(payload: PartnerLocationIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    db.add(PartnerLocation(partner_id=user.id, **payload.model_dump()))
     db.commit()
     return {"ok": True}
 
 
-@router.get("/orders", response_model=list[OrderOut])
-def my_assigned_orders(user: User = Depends(require_role(Role.PARTNER)), db: Session = Depends(get_db)):
-    return (
-        db.query(Order)
-        .filter(Order.partner_id == user.id)
-        .order_by(Order.id.desc())
-        .all()
-    )
+@router.get("/orders", response_model=list[OrderOut], dependencies=[Depends(require_role("PARTNER"))])
+def my_assigned_orders(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return db.query(Order).filter(Order.partner_id == user.id).order_by(Order.id.desc()).all()
 
 
-@router.post("/orders/{order_id}/pickup", response_model=OrderOut)
-def pickup(order_id: int, user: User = Depends(require_role(Role.PARTNER)), db: Session = Depends(get_db)):
+@router.post("/orders/{order_id}/pickup", response_model=OrderOut, dependencies=[Depends(require_role("PARTNER"))])
+def pickup(order_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     order = db.query(Order).filter(Order.id == order_id, Order.partner_id == user.id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    if order.status != OrderStatus.ASSIGNED_TO_PARTNER:
-        raise HTTPException(status_code=400, detail=f"Cannot pickup in status {order.status}")
+    if order.status != "ASSIGNED_TO_PARTNER":
+        raise HTTPException(status_code=400, detail="Cannot pickup at this stage")
 
-    order.status = OrderStatus.PICKED_UP
+    order.status = "PICKED_UP"
+    db.add(OrderEvent(order_id=order.id, status=order.status, note="Picked up by partner", actor_user_id=user.id))
     db.commit()
     db.refresh(order)
 
     # notify customer
-    from ..models import User as U
-    cust = db.query(U).filter(U.id == order.customer_id).first()
-    tokens = [t.token for t in (cust.device_tokens if cust else [])]
-    send_push(tokens, "Order picked up", f"Partner picked up order #{order.id}", {"order_id": order.id, "status": order.status.value})
+    ctokens = [t.token for t in db.query(FcmToken).filter(FcmToken.user_id == order.customer_id).all()]
+    send_push(ctokens, "Order picked up", f"Order #{order.id} is on the way", data={"order_id": str(order.id)})
 
     return order
 
 
-@router.post("/orders/{order_id}/deliver", response_model=OrderOut)
-def deliver(order_id: int, user: User = Depends(require_role(Role.PARTNER)), db: Session = Depends(get_db)):
+@router.post("/orders/{order_id}/deliver", response_model=OrderOut, dependencies=[Depends(require_role("PARTNER"))])
+def deliver(order_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     order = db.query(Order).filter(Order.id == order_id, Order.partner_id == user.id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    if order.status != OrderStatus.PICKED_UP:
-        raise HTTPException(status_code=400, detail=f"Cannot deliver in status {order.status}")
+    if order.status != "PICKED_UP":
+        raise HTTPException(status_code=400, detail="Cannot deliver at this stage")
 
-    order.status = OrderStatus.DELIVERED
+    order.status = "DELIVERED"
+    db.add(OrderEvent(order_id=order.id, status=order.status, note="Delivered", actor_user_id=user.id))
+
+    # COD becomes paid on delivery
+    if order.payment_method == "COD":
+        order.payment_status = "PAID"
+
     db.commit()
     db.refresh(order)
 
-    # notify customer
-    from ..models import User as U
-    cust = db.query(U).filter(U.id == order.customer_id).first()
-    tokens = [t.token for t in (cust.device_tokens if cust else [])]
-    send_push(tokens, "Delivered!", f"Order #{order.id} delivered", {"order_id": order.id, "status": order.status.value})
+    ctokens = [t.token for t in db.query(FcmToken).filter(FcmToken.user_id == order.customer_id).all()]
+    send_push(ctokens, "Delivered", f"Order #{order.id} delivered", data={"order_id": str(order.id)})
 
     return order
