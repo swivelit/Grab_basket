@@ -16,7 +16,7 @@ class VendorMenuScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(vendor.name),
         actions: [
-          if (cart != null)
+          if (cart != null && cart.vendorId == vendor.id)
             TextButton.icon(
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CheckoutScreen())),
               icon: const Icon(Icons.shopping_cart),

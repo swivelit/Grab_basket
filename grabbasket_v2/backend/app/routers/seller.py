@@ -48,6 +48,22 @@ def update_vendor(payload: VendorUpdateIn, db: Session = Depends(get_db), user: 
     return {"ok": True}
 
 
+# Alias endpoint used by the Flutter client.
+@router.post("/vendor/settings", dependencies=[Depends(require_role("SELLER"))])
+def vendor_settings(payload: VendorUpdateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Update vendor settings (location, delivery radius, open/close, etc.)."""
+
+    v = db.query(Vendor).filter(Vendor.seller_id == user.id).first()
+    if not v:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+
+    for k, val in payload.model_dump(exclude_unset=True).items():
+        setattr(v, k, val)
+
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/products", response_model=ProductOut, dependencies=[Depends(require_role("SELLER"))])
 def create_product(payload: ProductCreateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     v = db.query(Vendor).filter(Vendor.seller_id == user.id).first()
@@ -69,8 +85,14 @@ def list_products(db: Session = Depends(get_db), user: User = Depends(get_curren
     return db.query(Product).filter(Product.vendor_id == v.id).order_by(Product.id.desc()).all()
 
 
+@router.put("/products/{product_id}", response_model=ProductOut, dependencies=[Depends(require_role("SELLER"))])
 @router.patch("/products/{product_id}", response_model=ProductOut, dependencies=[Depends(require_role("SELLER"))])
-def update_product(product_id: int, payload: ProductUpdateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def update_product(
+    product_id: int,
+    payload: ProductUpdateIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     v = db.query(Vendor).filter(Vendor.seller_id == user.id).first()
     if not v:
         raise HTTPException(status_code=404, detail="Vendor not found")

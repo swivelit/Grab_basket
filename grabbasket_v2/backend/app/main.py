@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from .db import Base, engine
-from .routers import auth, vendors, orders, seller, partner, admin, addresses
+from .routers import auth, vendors, orders, seller, partner, admin, addresses, tracking
 
 # Ensure tables exist (MVP)
 Base.metadata.create_all(bind=engine)
@@ -14,6 +14,7 @@ app.include_router(orders.router)
 app.include_router(seller.router)
 app.include_router(partner.router)
 app.include_router(addresses.router)
+app.include_router(tracking.router)
 app.include_router(admin.router)
 
 
