@@ -30,6 +30,26 @@ android {
         versionName = flutter.versionName
     }
 
+    // ✅ Grabbasket flavors (Customer/Seller/Partner)
+    flavorDimensions += "app"
+    productFlavors {
+        create("customer") {
+            dimension = "app"
+            applicationIdSuffix = ".customer"
+            resValue("string", "app_name", "Grabbasket")
+        }
+        create("seller") {
+            dimension = "app"
+            applicationIdSuffix = ".seller"
+            resValue("string", "app_name", "Grabbasket Seller")
+        }
+        create("partner") {
+            dimension = "app"
+            applicationIdSuffix = ".partner"
+            resValue("string", "app_name", "Grabbasket Partner")
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

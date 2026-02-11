@@ -33,6 +33,10 @@ dependencies:
   go_router: ^14.6.3
   flutter_riverpod: ^2.6.1
   collection: ^1.18.0
+  geolocator: ^14.0.2
+  firebase_core: ^4.0.0
+  firebase_messaging: ^17.0.0
+
 
   flutter:
     sdk: flutter
