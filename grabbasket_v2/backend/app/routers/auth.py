@@ -15,7 +15,14 @@ def register(data: RegisterIn, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == data.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
-    user = User(email=data.email, password_hash=hash_password(data.password), role=data.role)
+
+    # Validate role
+    try:
+        role = Role(data.role).value
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid role")
+
+    user = User(email=data.email, password_hash=hash_password(data.password), role=role)
     db.add(user)
     db.commit()
     token = create_access_token(subject=user.email, role=user.role)
