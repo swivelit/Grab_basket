@@ -54,3 +54,40 @@ def send_push(tokens: Iterable[str], title: str, body: str, data: dict | None = 
         messaging.send_multicast(msg)
     except Exception as e:
         print("[PUSH][ERROR]", str(e))
+import json
+from typing import Iterable, Optional
+
+import requests
+from .config import settings
+
+
+def _load_service_account() -> Optional[dict]:
+    if settings.FCM_SERVICE_ACCOUNT_JSON:
+        return json.loads(settings.FCM_SERVICE_ACCOUNT_JSON)
+
+    if settings.FCM_SERVICE_ACCOUNT_FILE:
+        try:
+            with open(settings.FCM_SERVICE_ACCOUNT_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return None
+
+    return None
+
+
+def send_push(tokens: Iterable[str], title: str, body: str, data: Optional[dict] = None) -> None:
+    """
+    Simple FCM v1 send stub.
+    For production: use google-auth + proper OAuth token minting.
+    Here: if no service account provided, we just no-op safely.
+    """
+    sa = _load_service_account()
+    tokens = [t for t in tokens if t]
+    if not sa or not tokens:
+        # No creds: keep backend working without notifications.
+        return
+
+    # NOTE: This is intentionally a safe placeholder.
+    # We’ll wire the official OAuth flow when you add real Firebase creds.
+    # For now you can verify token registration + call paths.
+    return

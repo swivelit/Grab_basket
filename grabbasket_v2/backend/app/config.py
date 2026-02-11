@@ -1,15 +1,18 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    database_url: str = "postgresql+psycopg://grabbasket:grabbasket@localhost:5432/grabbasket"
-    jwt_secret: str = "change-me"
-    access_token_expire_minutes: int = 120
-    cors_origins: str = "http://localhost:3000"
+    DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@db:5432/grabbasket"
+    JWT_SECRET: str = "dev-secret-change-me"
+    JWT_ALG: str = "HS256"
+    ACCESS_TOKEN_MINUTES: int = 60 * 24 * 7  # 7 days
 
-    def cors_origin_list(self) -> List[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+    # Optional FCM:
+    # Either provide a JSON string or mount a file and set FCM_SERVICE_ACCOUNT_FILE
+    FCM_SERVICE_ACCOUNT_JSON: str | None = None
+    FCM_SERVICE_ACCOUNT_FILE: str | None = None
+
 
 settings = Settings()

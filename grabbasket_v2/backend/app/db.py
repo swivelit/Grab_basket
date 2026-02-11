@@ -1,6 +1,20 @@
-# Simple compatibility wrapper.
-# Some parts of the code import from app.db, while the actual implementation is in app.database.
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-from .database import Base, engine, SessionLocal, get_db
+from .config import settings
 
-__all__ = ["Base", "engine", "SessionLocal", "get_db"]
+
+class Base(DeclarativeBase):
+    pass
+
+
+engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

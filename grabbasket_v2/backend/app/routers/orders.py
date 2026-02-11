@@ -1,158 +1,193 @@
+from __future__ import annotations
+
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from ..database import get_db
+from ..auth import require_role, get_current_user
+from ..db import get_db
 from ..models import (
-    User, Role, Vendor, Product, Order, OrderItem,
-    CustomerAddress, OrderStatus, PaymentMethod, PaymentStatus,
+    User, Vendor, Product, Order, OrderItem, OrderEvent, CustomerAddress, PartnerLocation, FcmToken
 )
-from ..schemas import OrderCreateIn, OrderOut, PartnerLocationOut
-from ..security import require_role
-from ..settings import settings
-from ..utils_geo import haversine_km
+from ..schemas import OrderCreateIn, OrderOut, OrderTrackingOut
+from ..utils.geo import haversine_km
+from ..notifications import send_push
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
 
-def _get_delivery_point(data: OrderCreateIn, customer_id: int, db: Session):
-    # Prefer address_id; fallback lat/lng for quick testing
-    if data.delivery_address_id:
-        addr = db.query(CustomerAddress).filter(
-            CustomerAddress.id == data.delivery_address_id,
-            CustomerAddress.customer_id == customer_id,
-        ).first()
-        if not addr:
-            raise HTTPException(status_code=400, detail="Invalid delivery address")
-        return addr.id, addr.lat, addr.lng
-
-    if data.delivery_lat is None or data.delivery_lng is None:
-        raise HTTPException(status_code=400, detail="Provide delivery_address_id or delivery_lat/lng")
-    return None, data.delivery_lat, data.delivery_lng
+def add_event(db: Session, order: Order, status: str, note: str = "", actor_user_id: int | None = None):
+    order.status = status
+    db.add(OrderEvent(order_id=order.id, status=status, note=note, actor_user_id=actor_user_id))
 
 
-@router.post("", response_model=OrderOut)
-def create_order(
-    data: OrderCreateIn,
-    user: User = Depends(require_role(Role.CUSTOMER)),
-    db: Session = Depends(get_db),
-):
-    vendor = db.query(Vendor).filter(Vendor.id == data.vendor_id).first()
+def _assign_partner(db: Session, order: Order) -> None:
+    # Minimal: pick first available partner
+    partner = (
+        db.query(User)
+        .filter(User.role == "PARTNER")
+        .filter(User.is_partner_available == True)  # noqa
+        .first()
+    )
+    if partner:
+        order.partner_id = partner.id
+        add_event(db, order, "ASSIGNED_TO_PARTNER", "Auto-assigned partner", actor_user_id=None)
+
+        tokens = [t.token for t in db.query(FcmToken).filter(FcmToken.user_id == partner.id).all()]
+        send_push(tokens, "New delivery", f"Order #{order.id} assigned to you", data={"order_id": str(order.id)})
+
+
+@router.post("", response_model=OrderOut, dependencies=[Depends(require_role("CUSTOMER"))])
+def create_order(payload: OrderCreateIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    vendor = db.query(Vendor).filter(Vendor.id == payload.vendor_id).first()
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
 
-    addr_id, dlat, dlng = _get_delivery_point(data, user.id, db)
-
-    # Validate delivery radius (if vendor has geo)
-    if vendor.lat is not None and vendor.lng is not None:
-        dist = haversine_km(vendor.lat, vendor.lng, dlat, dlng)
-        if dist > vendor.delivery_radius_km:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Delivery out of range. Distance {dist:.2f} km > {vendor.delivery_radius_km:.2f} km",
-            )
-
-    # Build items
-    if not data.items:
-        raise HTTPException(status_code=400, detail="No items")
-
-    product_ids = [x.product_id for x in data.items]
-    products = db.query(Product).filter(Product.id.in_(product_ids), Product.vendor_id == vendor.id).all()
-    prod_map = {p.id: p for p in products}
-
-    subtotal = 0.0
-    items_rows: list[OrderItem] = []
-    for it in data.items:
-        p = prod_map.get(it.product_id)
-        if not p:
-            raise HTTPException(status_code=400, detail=f"Invalid product {it.product_id}")
-        if not p.is_available:
-            raise HTTPException(status_code=400, detail=f"Product not available: {p.name}")
-        subtotal += float(p.price) * it.qty
-        items_rows.append(
-            OrderItem(
-                product_id=p.id,
-                name_snapshot=p.name,
-                price_snapshot=float(p.price),
-                qty=it.qty,
-            )
+    # Delivery address
+    delivery_lat = None
+    delivery_lng = None
+    if payload.delivery_address_id is not None:
+        addr = (
+            db.query(CustomerAddress)
+            .filter(CustomerAddress.id == payload.delivery_address_id)
+            .filter(CustomerAddress.customer_id == user.id)
+            .first()
         )
+        if not addr:
+            raise HTTPException(status_code=400, detail="Invalid address")
+        delivery_lat, delivery_lng = addr.lat, addr.lng
 
-    delivery_fee = float(settings.base_delivery_fee)
-    total = subtotal + delivery_fee
+        # enforce delivery radius if vendor has coords
+        if vendor.lat is not None and vendor.lng is not None:
+            dist = haversine_km(delivery_lat, delivery_lng, vendor.lat, vendor.lng)
+            if dist > float(vendor.delivery_radius_km):
+                raise HTTPException(status_code=400, detail="Address outside delivery radius")
 
     order = Order(
         vendor_id=vendor.id,
         customer_id=user.id,
-        status=OrderStatus.CREATED,
-        delivery_address_id=addr_id,
-        delivery_lat=dlat,
-        delivery_lng=dlng,
-        subtotal_amount=subtotal,
-        delivery_fee=delivery_fee,
-        total_amount=total,
-        payment_method=data.payment_method,
-        payment_status=PaymentStatus.PENDING if data.payment_method != PaymentMethod.COD else PaymentStatus.PENDING,
+        status="CREATED",
+        delivery_address_id=payload.delivery_address_id,
+        delivery_lat=delivery_lat,
+        delivery_lng=delivery_lng,
+        payment_method=payload.payment_method,
+        payment_status="PENDING",
     )
     db.add(order)
     db.flush()  # get order.id
-    for row in items_rows:
-        row.order_id = order.id
-        db.add(row)
+
+    subtotal = 0.0
+    for it in payload.items:
+        p = db.query(Product).filter(Product.id == it.product_id, Product.vendor_id == vendor.id).first()
+        if not p or not p.is_available:
+            raise HTTPException(status_code=400, detail=f"Invalid/unavailable product {it.product_id}")
+
+        line = float(p.price) * int(it.qty)
+        subtotal += line
+        db.add(
+            OrderItem(
+                order_id=order.id,
+                product_id=p.id,
+                name_snapshot=p.name,
+                price_snapshot=p.price,
+                qty=it.qty,
+            )
+        )
+
+    order.subtotal_amount = round(subtotal, 2)
+
+    # delivery fee stub: later dynamic by distance
+    order.delivery_fee = 20.0 if delivery_lat is not None else 0.0
+    order.total_amount = round(order.subtotal_amount + order.delivery_fee, 2)
+
+    add_event(db, order, "CREATED", "Order created", actor_user_id=user.id)
+
+    # For UPI: generate a ref now (client can show QR / intent later)
+    if order.payment_method == "UPI":
+        order.payment_ref = f"UPI-DEMO-{order.id}-{int(datetime.utcnow().timestamp())}"
+
     db.commit()
     db.refresh(order)
+
+    # Notify seller (if seller has FCM)
+    seller_tokens = []
+    if vendor.seller_id:
+        seller_tokens = [t.token for t in db.query(FcmToken).filter(FcmToken.user_id == vendor.seller_id).all()]
+    send_push(seller_tokens, "New order", f"Order #{order.id} placed", data={"order_id": str(order.id)})
+
     return order
 
 
 @router.get("/me", response_model=list[OrderOut])
-def my_orders(user: User = Depends(require_role(Role.CUSTOMER)), db: Session = Depends(get_db)):
-    return (
-        db.query(Order)
-        .filter(Order.customer_id == user.id)
-        .order_by(Order.id.desc())
-        .all()
-    )
+def my_orders(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if user.role == "CUSTOMER":
+        return db.query(Order).filter(Order.customer_id == user.id).order_by(Order.id.desc()).all()
+    if user.role == "SELLER":
+        v = db.query(Vendor).filter(Vendor.seller_id == user.id).first()
+        if not v:
+            return []
+        return db.query(Order).filter(Order.vendor_id == v.id).order_by(Order.id.desc()).all()
+    if user.role == "PARTNER":
+        return db.query(Order).filter(Order.partner_id == user.id).order_by(Order.id.desc()).all()
+    if user.role == "ADMIN":
+        return db.query(Order).order_by(Order.id.desc()).limit(200).all()
+    return []
 
 
 @router.get("/{order_id}", response_model=OrderOut)
-def get_order(order_id: int, user: User = Depends(require_role(Role.CUSTOMER)), db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id, Order.customer_id == user.id).first()
+def get_order(order_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+
+    if user.role == "CUSTOMER" and order.customer_id != user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if user.role == "PARTNER" and order.partner_id != user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if user.role == "SELLER":
+        v = db.query(Vendor).filter(Vendor.seller_id == user.id).first()
+        if not v or order.vendor_id != v.id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
     return order
 
 
-@router.get("/{order_id}/track")
-def track_order(order_id: int, user: User = Depends(require_role(Role.CUSTOMER)), db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id, Order.customer_id == user.id).first()
+@router.get("/{order_id}/tracking", response_model=OrderTrackingOut)
+def tracking(order_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    partner_loc = None
+    # access checks
+    allowed = False
+    if user.role == "ADMIN":
+        allowed = True
+    elif user.role == "CUSTOMER" and order.customer_id == user.id:
+        allowed = True
+    elif user.role == "PARTNER" and order.partner_id == user.id:
+        allowed = True
+    elif user.role == "SELLER":
+        v = db.query(Vendor).filter(Vendor.seller_id == user.id).first()
+        allowed = bool(v and order.vendor_id == v.id)
+
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    latest_loc = None
     if order.partner_id:
         loc = (
-            db.query("dummy")  # placeholder to keep mypy away
-        )
-
-        # latest partner location
-        from ..models import PartnerLocation
-        partner_loc = (
             db.query(PartnerLocation)
             .filter(PartnerLocation.partner_id == order.partner_id)
-            .order_by(PartnerLocation.id.desc())
+            .order_by(PartnerLocation.created_at.desc())
             .first()
         )
+        if loc:
+            latest_loc = {
+                "lat": loc.lat,
+                "lng": loc.lng,
+                "heading": loc.heading,
+                "speed": loc.speed,
+                "created_at": loc.created_at,
+            }
 
-    return {
-        "order_id": order.id,
-        "status": order.status,
-        "partner_id": order.partner_id,
-        "partner_location": None
-        if not partner_loc
-        else PartnerLocationOut(
-            lat=partner_loc.lat,
-            lng=partner_loc.lng,
-            heading=partner_loc.heading,
-            speed=partner_loc.speed,
-            created_at=partner_loc.created_at,
-        ).model_dump(),
-    }
+    return {"order": order, "partner_latest_location": latest_loc}

@@ -1,45 +1,51 @@
 from __future__ import annotations
 
-from datetime import time, datetime
+from datetime import datetime, time
+from typing import Optional, List
+
 from pydantic import BaseModel, EmailStr, Field
-from .models import Role, PaymentMethod, PaymentStatus, OrderStatus
 
 
 # ---------- Auth ----------
 class RegisterIn(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=4, max_length=128)
-    role: Role
+    password: str = Field(min_length=6, max_length=72)
+    role: str  # CUSTOMER / SELLER / PARTNER / ADMIN
 
 
 class LoginIn(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=6, max_length=72)
 
 
 class Token(BaseModel):
     access_token: str
-    role: Role
+    role: str
 
 
-# ---------- Device tokens ----------
-class DeviceTokenIn(BaseModel):
-    token: str = Field(min_length=10, max_length=512)
+# ---------- FCM ----------
+class FcmRegisterIn(BaseModel):
+    token: str
     platform: str = "unknown"
 
 
-# ---------- Vendors / Products ----------
+# ---------- Vendor / Product ----------
 class VendorOut(BaseModel):
     id: int
     name: str
     description: str
     address: str
-    lat: float | None
-    lng: float | None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
     delivery_radius_km: float
     is_open: bool
-    open_time: time | None
-    close_time: time | None
+    open_time: Optional[time] = None
+    close_time: Optional[time] = None
+
+    # computed (optional)
+    distance_km: Optional[float] = None
+    can_deliver: Optional[bool] = None
+    open_now: Optional[bool] = None
 
     class Config:
         from_attributes = True
@@ -57,33 +63,33 @@ class ProductOut(BaseModel):
         from_attributes = True
 
 
-class SellerVendorUpsertIn(BaseModel):
-    name: str
-    description: str = ""
-    address: str = ""
-    lat: float | None = None
-    lng: float | None = None
-    delivery_radius_km: float = 5.0
-    is_open: bool = True
-    open_time: time | None = None
-    close_time: time | None = None
-
-
 class ProductCreateIn(BaseModel):
     name: str
     description: str = ""
-    price: float = Field(gt=0)
+    price: float
     is_available: bool = True
 
 
 class ProductUpdateIn(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    price: float | None = Field(default=None, gt=0)
-    is_available: bool | None = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    is_available: Optional[bool] = None
 
 
-# ---------- Addresses ----------
+class VendorUpdateIn(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    address: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    delivery_radius_km: Optional[float] = None
+    is_open: Optional[bool] = None
+    open_time: Optional[time] = None
+    close_time: Optional[time] = None
+
+
+# ---------- Address ----------
 class AddressCreateIn(BaseModel):
     label: str = "Home"
     line1: str
@@ -113,16 +119,14 @@ class AddressOut(BaseModel):
 # ---------- Orders ----------
 class OrderItemIn(BaseModel):
     product_id: int
-    qty: int = Field(gt=0)
+    qty: int = Field(ge=1, le=50)
 
 
 class OrderCreateIn(BaseModel):
     vendor_id: int
-    items: list[OrderItemIn]
-    delivery_address_id: int | None = None
-    delivery_lat: float | None = None
-    delivery_lng: float | None = None
-    payment_method: PaymentMethod = PaymentMethod.COD
+    items: List[OrderItemIn]
+    delivery_address_id: Optional[int] = None
+    payment_method: str = "COD"  # COD / UPI
 
 
 class OrderItemOut(BaseModel):
@@ -135,45 +139,46 @@ class OrderItemOut(BaseModel):
         from_attributes = True
 
 
-class OrderOut(BaseModel):
-    id: int
-    vendor_id: int
-    customer_id: int
-    partner_id: int | None
-    status: OrderStatus
-    subtotal_amount: float
-    delivery_fee: float
-    total_amount: float
-    payment_method: PaymentMethod
-    payment_status: PaymentStatus
+class OrderEventOut(BaseModel):
+    status: str
+    note: str
+    actor_user_id: Optional[int] = None
     created_at: datetime
-    items: list[OrderItemOut]
-    delivery_lat: float | None
-    delivery_lng: float | None
 
     class Config:
         from_attributes = True
 
 
-class OrderStatusUpdateIn(BaseModel):
-    status: OrderStatus
+class OrderOut(BaseModel):
+    id: int
+    vendor_id: int
+    customer_id: int
+    partner_id: Optional[int]
+    status: str
+
+    delivery_fee: float
+    subtotal_amount: float
+    total_amount: float
+
+    payment_method: str
+    payment_status: str
+    payment_ref: Optional[str] = None
+
+    items: List[OrderItemOut]
+    events: List[OrderEventOut] = []
+
+    class Config:
+        from_attributes = True
 
 
-# ---------- Partner live tracking ----------
-class PartnerAvailabilityIn(BaseModel):
-    is_available: bool
+class OrderTrackingOut(BaseModel):
+    order: OrderOut
+    partner_latest_location: Optional[dict] = None  # {lat,lng,heading,speed,created_at}
 
 
+# ---------- Partner ----------
 class PartnerLocationIn(BaseModel):
     lat: float
     lng: float
-    heading: float | None = None
-    speed: float | None = None
-
-
-class PartnerLocationOut(BaseModel):
-    lat: float
-    lng: float
-    heading: float | None
-    speed: float | None
-    created_at: datetime
+    heading: Optional[float] = None
+    speed: Optional[float] = None
