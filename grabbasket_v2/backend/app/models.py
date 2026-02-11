@@ -1,59 +1,88 @@
 from __future__ import annotations
 
-from datetime import datetime
-from enum import Enum
+import enum
+from datetime import datetime, time
 from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Enum,
     Float,
     ForeignKey,
     Integer,
     String,
     Text,
     Time,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
-from .db import Base
+from .database import Base
 
 
-class Role(str, Enum):
+class Role(str, enum.Enum):
     CUSTOMER = "CUSTOMER"
     SELLER = "SELLER"
     PARTNER = "PARTNER"
     ADMIN = "ADMIN"
 
 
+class PaymentMethod(str, enum.Enum):
+    COD = "COD"
+    UPI = "UPI"
+    GATEWAY = "GATEWAY"
+
+
+class PaymentStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    PAID = "PAID"
+    FAILED = "FAILED"
+
+
+class OrderStatus(str, enum.Enum):
+    CREATED = "CREATED"
+    ACCEPTED_BY_SELLER = "ACCEPTED_BY_SELLER"
+    ASSIGNED_TO_PARTNER = "ASSIGNED_TO_PARTNER"
+    PICKED_UP = "PICKED_UP"
+    DELIVERED = "DELIVERED"
+    CANCELLED_BY_CUSTOMER = "CANCELLED_BY_CUSTOMER"
+    CANCELLED_BY_SELLER = "CANCELLED_BY_SELLER"
+    CANCELLED_BY_PARTNER = "CANCELLED_BY_PARTNER"
+
+
 class User(Base):
     __tablename__ = "users"
+
     id = Column(Integer, primary_key=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
-
-    # Stored as string, but we validate with Role enum
-    role = Column(String(32), nullable=False, default=Role.CUSTOMER.value)
+    role = Column(Enum(Role), nullable=False)
 
     is_partner_available = Column(Boolean, default=False, nullable=False)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    # one seller -> one vendor (MVP)
     vendor = relationship("Vendor", back_populates="seller", uselist=False)
+    customer_addresses = relationship("CustomerAddress", back_populates="customer", cascade="all, delete-orphan")
+    partner_locations = relationship("PartnerLocation", back_populates="partner", cascade="all, delete-orphan")
+    device_tokens = relationship("DeviceToken", back_populates="user", cascade="all, delete-orphan")
 
-    customer_addresses = relationship(
-        "CustomerAddress",
-        back_populates="customer",
-        cascade="all, delete-orphan",
-    )
-    partner_locations = relationship(
-        "PartnerLocation",
-        back_populates="partner",
-        cascade="all, delete-orphan",
-    )
+
+class DeviceToken(Base):
+    __tablename__ = "device_tokens"
+    __table_args__ = (UniqueConstraint("user_id", "token", name="uq_user_token"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token = Column(String(512), nullable=False)
+    platform = Column(String(32), default="unknown", nullable=False)  # android/ios/web
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="device_tokens")
 
 
 class Vendor(Base):
     __tablename__ = "vendors"
+
     id = Column(Integer, primary_key=True)
     seller_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
 
@@ -61,15 +90,13 @@ class Vendor(Base):
     description = Column(Text, default="", nullable=False)
     address = Column(Text, default="", nullable=False)
 
-    # Store geo + delivery radius (km)
     lat = Column(Float, nullable=True)
     lng = Column(Float, nullable=True)
     delivery_radius_km = Column(Float, default=5.0, nullable=False)
 
-    # Store timings
     is_open = Column(Boolean, default=True, nullable=False)
-    open_time = Column(Time, nullable=True)   # e.g. 09:00
-    close_time = Column(Time, nullable=True)  # e.g. 23:00
+    open_time = Column(Time, nullable=True)    # e.g. 09:00
+    close_time = Column(Time, nullable=True)   # e.g. 23:00
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -80,6 +107,7 @@ class Vendor(Base):
 
 class Product(Base):
     __tablename__ = "products"
+
     id = Column(Integer, primary_key=True)
     vendor_id = Column(Integer, ForeignKey("vendors.id"), nullable=False, index=True)
 
@@ -94,6 +122,7 @@ class Product(Base):
 
 class CustomerAddress(Base):
     __tablename__ = "customer_addresses"
+
     id = Column(Integer, primary_key=True)
     customer_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
@@ -115,6 +144,7 @@ class CustomerAddress(Base):
 
 class PartnerLocation(Base):
     __tablename__ = "partner_locations"
+
     id = Column(Integer, primary_key=True)
     partner_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
@@ -130,17 +160,14 @@ class PartnerLocation(Base):
 
 class Order(Base):
     __tablename__ = "orders"
+
     id = Column(Integer, primary_key=True)
     vendor_id = Column(Integer, ForeignKey("vendors.id"), nullable=False, index=True)
     customer_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     partner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
-    # Stages
-    status = Column(String(64), default="CREATED", nullable=False)
-    # CREATED -> ACCEPTED_BY_SELLER -> ASSIGNED_TO_PARTNER -> PICKED_UP -> DELIVERED
-    # optional: CANCELLED_BY_CUSTOMER / CANCELLED_BY_SELLER / CANCELLED_BY_PARTNER
+    status = Column(Enum(OrderStatus), default=OrderStatus.CREATED, nullable=False)
 
-    # Delivery details
     delivery_address_id = Column(Integer, ForeignKey("customer_addresses.id"), nullable=True)
     delivery_lat = Column(Float, nullable=True)
     delivery_lng = Column(Float, nullable=True)
@@ -149,9 +176,8 @@ class Order(Base):
     delivery_fee = Column(Float, default=0.0, nullable=False)
     total_amount = Column(Float, default=0.0, nullable=False)
 
-    # Payments
-    payment_method = Column(String(32), default="COD", nullable=False)      # COD / UPI / GATEWAY
-    payment_status = Column(String(32), default="PENDING", nullable=False)  # PENDING / PAID / FAILED
+    payment_method = Column(Enum(PaymentMethod), default=PaymentMethod.COD, nullable=False)
+    payment_status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING, nullable=False)
     payment_ref = Column(String(128), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -163,6 +189,7 @@ class Order(Base):
 
 class OrderItem(Base):
     __tablename__ = "order_items"
+
     id = Column(Integer, primary_key=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
 
