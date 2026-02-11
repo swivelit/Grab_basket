@@ -1,9 +1,9 @@
-import json
-from typing import Iterable
-from .settings import settings
+from __future__ import annotations
 
-_fcm_ready = False
-_fcm_app = None
+import json
+from typing import Iterable, Optional
+
+from .config import settings
 
 try:
     import firebase_admin
@@ -14,56 +14,15 @@ except Exception:  # pragma: no cover
     messaging = None
 
 
-def _init_fcm():
-    global _fcm_ready, _fcm_app
-    if _fcm_ready:
-        return
-    _fcm_ready = True
-
-    if not settings.firebase_service_account_json:
-        return
-    if not firebase_admin:
-        return
-
-    try:
-        cred_obj = json.loads(settings.firebase_service_account_json)
-        cred = credentials.Certificate(cred_obj)
-        _fcm_app = firebase_admin.initialize_app(cred)
-    except Exception:
-        _fcm_app = None
-
-
-def send_push(tokens: Iterable[str], title: str, body: str, data: dict | None = None) -> None:
-    _init_fcm()
-
-    tokens = [t for t in tokens if t]
-    if not tokens:
-        return
-
-    # If no FCM configured, just print (dev-friendly)
-    if not _fcm_app or not messaging:
-        print("[PUSH][DEV]", {"tokens": len(tokens), "title": title, "body": body, "data": data or {}})
-        return
-
-    msg = messaging.MulticastMessage(
-        notification=messaging.Notification(title=title, body=body),
-        data={k: str(v) for k, v in (data or {}).items()},
-        tokens=tokens,
-    )
-    try:
-        messaging.send_multicast(msg)
-    except Exception as e:
-        print("[PUSH][ERROR]", str(e))
-import json
-from typing import Iterable, Optional
-
-import requests
-from .config import settings
+_fcm_app = None
 
 
 def _load_service_account() -> Optional[dict]:
     if settings.FCM_SERVICE_ACCOUNT_JSON:
-        return json.loads(settings.FCM_SERVICE_ACCOUNT_JSON)
+        try:
+            return json.loads(settings.FCM_SERVICE_ACCOUNT_JSON)
+        except Exception:
+            return None
 
     if settings.FCM_SERVICE_ACCOUNT_FILE:
         try:
@@ -71,23 +30,65 @@ def _load_service_account() -> Optional[dict]:
                 return json.load(f)
         except FileNotFoundError:
             return None
+        except Exception:
+            return None
 
     return None
 
 
-def send_push(tokens: Iterable[str], title: str, body: str, data: Optional[dict] = None) -> None:
-    """
-    Simple FCM v1 send stub.
-    For production: use google-auth + proper OAuth token minting.
-    Here: if no service account provided, we just no-op safely.
-    """
+def _ensure_fcm_app():
+    """Initialize Firebase Admin app once (if credentials are provided)."""
+    global _fcm_app
+
+    if _fcm_app is not None:
+        return _fcm_app
+
     sa = _load_service_account()
-    tokens = [t for t in tokens if t]
-    if not sa or not tokens:
-        # No creds: keep backend working without notifications.
+    if not sa or not firebase_admin or not credentials:
+        _fcm_app = False  # mark attempted
+        return _fcm_app
+
+    try:
+        cred = credentials.Certificate(sa)
+
+        # firebase_admin keeps a global registry; avoid double-init.
+        try:
+            _fcm_app = firebase_admin.get_app()
+        except Exception:
+            _fcm_app = firebase_admin.initialize_app(cred)
+
+        return _fcm_app
+    except Exception:
+        _fcm_app = False
+        return _fcm_app
+
+
+def send_push(tokens: Iterable[str], title: str, body: str, data: Optional[dict] = None) -> None:
+    """Send an FCM push to many tokens.
+
+    - If Firebase credentials are not configured, this becomes a safe no-op in prod,
+      and a console print in dev (so flows can still be tested).
+    """
+    tok_list = [t for t in tokens if t]
+    if not tok_list:
         return
 
-    # NOTE: This is intentionally a safe placeholder.
-    # We’ll wire the official OAuth flow when you add real Firebase creds.
-    # For now you can verify token registration + call paths.
-    return
+    app = _ensure_fcm_app()
+
+    # Dev-friendly fallback
+    if not app or not messaging:
+        if settings.APP_ENV != "prod":
+            print("[PUSH][DEV]", {"tokens": len(tok_list), "title": title, "body": body, "data": data or {}})
+        return
+
+    msg = messaging.MulticastMessage(
+        notification=messaging.Notification(title=title, body=body),
+        data={k: str(v) for k, v in (data or {}).items()},
+        tokens=tok_list,
+    )
+
+    try:
+        messaging.send_multicast(msg)
+    except Exception as e:
+        if settings.APP_ENV != "prod":
+            print("[PUSH][ERROR]", str(e))

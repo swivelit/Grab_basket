@@ -7,7 +7,15 @@ from sqlalchemy.orm import Session
 from ..auth import require_role, get_current_user
 from ..db import get_db
 from ..models import (
-    User, Vendor, Product, Order, OrderItem, OrderEvent, CustomerAddress, PartnerLocation, FcmToken
+    User,
+    Vendor,
+    Product,
+    Order,
+    OrderItem,
+    OrderEvent,
+    CustomerAddress,
+    PartnerLocation,
+    FcmToken,
 )
 from ..schemas import OrderCreateIn, OrderOut, OrderTrackingOut
 from ..utils.geo import haversine_km
@@ -114,6 +122,49 @@ def create_order(payload: OrderCreateIn, db: Session = Depends(get_db), user: Us
     if vendor.seller_id:
         seller_tokens = [t.token for t in db.query(FcmToken).filter(FcmToken.user_id == vendor.seller_id).all()]
     send_push(seller_tokens, "New order", f"Order #{order.id} placed", data={"order_id": str(order.id)})
+
+    return order
+
+
+@router.post("/{order_id}/cancel", response_model=OrderOut, dependencies=[Depends(require_role("CUSTOMER"))])
+def cancel_order(
+    order_id: int,
+    reason: str = "",
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    order = db.query(Order).filter(Order.id == order_id, Order.customer_id == user.id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    non_cancellable = {"PICKED_UP", "DELIVERED", "CANCELLED_BY_CUSTOMER", "REJECTED_BY_SELLER"}
+    if order.status in non_cancellable:
+        raise HTTPException(status_code=400, detail="Order cannot be cancelled at this stage")
+
+    order.partner_id = None  # release any assignment (MVP)
+    add_event(
+        db,
+        order,
+        "CANCELLED_BY_CUSTOMER",
+        (reason or "Cancelled by customer")[:300],
+        actor_user_id=user.id,
+    )
+
+    # Payment handling (MVP placeholders)
+    if order.payment_status == "PAID":
+        order.payment_status = "REFUND_PENDING"
+    elif order.payment_status == "PENDING" and order.payment_method != "COD":
+        order.payment_status = "CANCELLED"
+
+    db.commit()
+    db.refresh(order)
+
+    # Notify seller and partner (if any)
+    # Seller
+    vendor = db.query(Vendor).filter(Vendor.id == order.vendor_id).first()
+    if vendor and vendor.seller_id:
+        stokens = [t.token for t in db.query(FcmToken).filter(FcmToken.user_id == vendor.seller_id).all()]
+        send_push(stokens, "Order cancelled", f"Order #{order.id} was cancelled by customer", data={"order_id": str(order.id)})
 
     return order
 

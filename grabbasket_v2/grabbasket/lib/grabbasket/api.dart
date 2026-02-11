@@ -11,7 +11,26 @@ class Api {
           connectTimeout: const Duration(seconds: 10),
           receiveTimeout: const Duration(seconds: 20),
           headers: token != null ? {"Authorization": "Bearer $token"} : null,
-        ));
+        )) {
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onError: (e, handler) {
+          // Make errors readable in UI
+          final msg = e.response?.data is Map && (e.response?.data as Map).containsKey("detail")
+              ? (e.response?.data as Map)["detail"].toString()
+              : e.message ?? "Request failed";
+          handler.reject(
+            DioException(
+              requestOptions: e.requestOptions,
+              response: e.response,
+              type: e.type,
+              error: msg,
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   Future<TokenResponse> register({required String email, required String password, required String role}) async {
     final res = await _dio.post("/auth/register", data: {"email": email, "password": password, "role": role});
@@ -23,17 +42,24 @@ class Api {
     return TokenResponse.fromJson(res.data);
   }
 
-  // Vendors with radius filter
-  Future<List<Vendor>> vendors({double? lat, double? lng}) async {
+  // Vendors
+  Future<List<Vendor>> vendors({double? lat, double? lng, String? q}) async {
     final res = await _dio.get("/vendors", queryParameters: {
       if (lat != null) "lat": lat,
       if (lng != null) "lng": lng,
+      if (q != null && q.trim().isNotEmpty) "q": q.trim(),
+      "limit": 100,
+      "offset": 0,
     });
     return (res.data as List).map((x) => Vendor.fromJson(x)).toList();
   }
 
-  Future<List<Product>> products(int vendorId) async {
-    final res = await _dio.get("/vendors/$vendorId/products");
+  Future<List<Product>> products(int vendorId, {String? q}) async {
+    final res = await _dio.get("/vendors/$vendorId/products", queryParameters: {
+      if (q != null && q.trim().isNotEmpty) "q": q.trim(),
+      "limit": 500,
+      "offset": 0,
+    });
     return (res.data as List).map((x) => Product.fromJson(x)).toList();
   }
 
@@ -71,6 +97,18 @@ class Api {
   Future<List<Order>> myOrders() async {
     final res = await _dio.get("/orders/me");
     return (res.data as List).map((x) => Order.fromJson(x)).toList();
+  }
+
+  Future<Order> getOrder(int orderId) async {
+    final res = await _dio.get("/orders/$orderId");
+    return Order.fromJson(res.data);
+  }
+
+  Future<Order> cancelOrder(int orderId, {String reason = ""}) async {
+    final res = await _dio.post("/orders/$orderId/cancel", queryParameters: {
+      if (reason.trim().isNotEmpty) "reason": reason.trim(),
+    });
+    return Order.fromJson(res.data);
   }
 
   // Tracking
@@ -124,6 +162,18 @@ class Api {
 
   Future<Order> sellerAcceptOrder(int orderId) async {
     final res = await _dio.post("/seller/orders/$orderId/accept");
+    return Order.fromJson(res.data);
+  }
+
+  Future<Order> sellerRejectOrder(int orderId, {String reason = ""}) async {
+    final res = await _dio.post("/seller/orders/$orderId/reject", queryParameters: {
+      if (reason.trim().isNotEmpty) "reason": reason.trim(),
+    });
+    return Order.fromJson(res.data);
+  }
+
+  Future<Order> sellerMarkReady(int orderId) async {
+    final res = await _dio.post("/seller/orders/$orderId/ready");
     return Order.fromJson(res.data);
   }
 

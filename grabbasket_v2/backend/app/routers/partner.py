@@ -35,7 +35,8 @@ def pickup(order_id: int, db: Session = Depends(get_db), user: User = Depends(ge
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    if order.status != "ASSIGNED_TO_PARTNER":
+    # Backward compatible: allow pickup when ASSIGNED or READY
+    if order.status not in {"ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP"}:
         raise HTTPException(status_code=400, detail="Cannot pickup at this stage")
 
     order.status = "PICKED_UP"
