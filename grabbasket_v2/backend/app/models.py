@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, time
+from datetime import datetime
 from sqlalchemy import (
     Boolean,
     Column,
@@ -135,7 +135,7 @@ class Order(Base):
     partner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
     # stages:
-    # CREATED -> ACCEPTED_BY_SELLER -> ASSIGNED_TO_PARTNER -> PICKED_UP -> DELIVERED
+    # CREATED -> ACCEPTED_BY_SELLER -> ASSIGNED_TO_PARTNER -> READY_FOR_PICKUP -> PICKED_UP -> DELIVERED
     # optional: CANCELLED_*
     status = Column(String(64), default="CREATED", nullable=False)
 
@@ -156,9 +156,19 @@ class Order(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     vendor = relationship("Vendor", back_populates="orders")
-    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    items = relationship(
+        "OrderItem",
+        back_populates="order",
+        cascade="all, delete-orphan",
+        order_by="OrderItem.id",
+    )
     delivery_address = relationship("CustomerAddress", foreign_keys=[delivery_address_id])
-    events = relationship("OrderEvent", back_populates="order", cascade="all, delete-orphan")
+    events = relationship(
+        "OrderEvent",
+        back_populates="order",
+        cascade="all, delete-orphan",
+        order_by="OrderEvent.created_at",
+    )
 
 
 class OrderEvent(Base):
@@ -188,5 +198,9 @@ class OrderItem(Base):
     order = relationship("Order", back_populates="items")
 
 
+# Helpful indexes for production-ish query patterns
 Index("ix_partner_locations_partner_created", PartnerLocation.partner_id, PartnerLocation.created_at)
 Index("ix_order_events_order_created", OrderEvent.order_id, OrderEvent.created_at)
+Index("ix_orders_status_created", Order.status, Order.created_at)
+Index("ix_orders_vendor_created", Order.vendor_id, Order.created_at)
+Index("ix_orders_customer_created", Order.customer_id, Order.created_at)
