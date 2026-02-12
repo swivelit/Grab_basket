@@ -1,4 +1,9 @@
-"""Compatibility dependencies."""
+"""Compatibility dependency wrappers.
+
+Prefer importing directly from:
+- `app.db` for `get_db`
+- `app.auth` for `get_current_user` and `require_role`
+"""
 
 from __future__ import annotations
 

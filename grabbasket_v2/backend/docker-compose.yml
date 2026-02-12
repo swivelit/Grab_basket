@@ -13,6 +13,7 @@ services:
   api:
     build: .
     environment:
+      APP_ENV: dev
       DATABASE_URL: postgresql+psycopg://grabbasket:grabbasket@db:5432/grabbasket
       JWT_SECRET: change-me-in-prod
       ACCESS_TOKEN_MINUTES: "120"

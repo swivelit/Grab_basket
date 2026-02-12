@@ -15,8 +15,10 @@ ALLOWED_ROLES = {"CUSTOMER", "SELLER", "PARTNER"}
 @router.post("/register", response_model=Token)
 def register(data: RegisterIn, db: Session = Depends(get_db)):
     role = (data.role or "").upper().strip()
-    if role == "ADMIN" and settings.APP_ENV.lower() != "prod":
-        role = "ADMIN"
+    if role == "ADMIN":
+        # Only allow creating an ADMIN account outside production for testing.
+        if settings.APP_ENV.lower() == "prod":
+            raise HTTPException(status_code=400, detail="Invalid role")
     elif role not in ALLOWED_ROLES:
         raise HTTPException(status_code=400, detail="Invalid role")
 
