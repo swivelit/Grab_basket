@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import List
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,7 +11,6 @@ class Settings(BaseSettings):
     """Centralized runtime configuration.
 
     Keep this as the *single* source of truth for settings.
-    A few legacy modules still import from `app.settings`; those are now thin wrappers.
     """
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -26,7 +25,12 @@ class Settings(BaseSettings):
     # Auth
     JWT_SECRET: str = "dev-secret-change-me"
     JWT_ALG: str = "HS256"
-    ACCESS_TOKEN_MINUTES: int = 60 * 24 * 7  # 7 days
+    # Backward compatible env var: ACCESS_TOKEN_EXPIRE_MINUTES (used in older docker-compose)
+    ACCESS_TOKEN_MINUTES: int = Field(
+        default=60 * 24 * 7,
+        validation_alias=AliasChoices("ACCESS_TOKEN_MINUTES", "ACCESS_TOKEN_EXPIRE_MINUTES"),
+        description="Access token expiry (minutes).",
+    )
 
     # CORS
     # Provide as JSON list (e.g. ["https://example.com"]) or comma-separated.
@@ -61,6 +65,17 @@ class Settings(BaseSettings):
     @property
     def is_prod(self) -> bool:
         return self.APP_ENV.lower() == "prod"
+
+    @model_validator(mode="after")
+    def _validate_prod_safety(self):
+        # Basic production guardrails. These are intentionally strict.
+        if self.is_prod:
+            weak = {"dev-secret-change-me", "change-me", "change-me-in-prod"}
+            if self.JWT_SECRET in weak or len(self.JWT_SECRET) < 16:
+                raise ValueError("JWT_SECRET must be set to a strong secret in production")
+            if self.CORS_ORIGINS == ["*"]:
+                raise ValueError("CORS_ORIGINS must not be '*' in production")
+        return self
 
 
 settings = Settings()

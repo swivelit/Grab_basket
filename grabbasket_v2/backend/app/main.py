@@ -5,12 +5,14 @@ import time
 import uuid
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import Base, engine
-from .routers import auth, vendors, orders, seller, partner, addresses, tracking, admin
+from .routers import auth, vendors, orders, seller, partner, addresses, tracking, admin, me
 
 
 def _configure_logging() -> None:
@@ -31,6 +33,37 @@ def _startup() -> None:
     Base.metadata.create_all(bind=engine)
 
 
+def _req_id(request: Request) -> str | None:
+    return getattr(request.state, "request_id", None)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def starlette_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    # Handles 404s and other Starlette-generated errors.
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {"code": "HTTP_ERROR", "message": str(exc.detail)},
+            "request_id": _req_id(request),
+        },
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Invalid request",
+                "details": exc.errors(),
+            },
+            "request_id": _req_id(request),
+        },
+    )
+
+
 allow_origins = settings.CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
@@ -44,6 +77,8 @@ app.add_middleware(
 @app.middleware("http")
 async def request_context(request: Request, call_next):
     req_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+    request.state.request_id = req_id
+
     start = time.time()
     response = None
     try:
@@ -57,7 +92,14 @@ async def request_context(request: Request, call_next):
     finally:
         dur_ms = int((time.time() - start) * 1000)
         status = getattr(response, "status_code", "?")
-        logger.info("%s %s -> %s (%sms)", request.method, request.url.path, status, dur_ms, extra={"request_id": req_id})
+        logger.info(
+            "%s %s -> %s (%sms)",
+            request.method,
+            request.url.path,
+            status,
+            dur_ms,
+            extra={"request_id": req_id},
+        )
 
     response.headers["x-request-id"] = req_id
     return response
@@ -71,6 +113,7 @@ app.include_router(seller.router)
 app.include_router(partner.router)
 app.include_router(addresses.router)
 app.include_router(tracking.router)
+app.include_router(me.router)
 app.include_router(admin.router)
 
 
