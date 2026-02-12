@@ -9,9 +9,28 @@ from ..notifications import send_push
 
 router = APIRouter(prefix="/partner", tags=["partner"])
 
+# Partner order states that mean the partner is currently busy.
+ACTIVE_PARTNER_ORDER_STATUSES = {"ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP", "PICKED_UP"}
+
+
+def _has_active_order(db: Session, partner_id: int) -> bool:
+    row = (
+        db.query(Order.id)
+        .filter(Order.partner_id == partner_id)
+        .filter(Order.status.in_(ACTIVE_PARTNER_ORDER_STATUSES))
+        .first()
+    )
+    return row is not None
+
 
 @router.post("/availability", dependencies=[Depends(require_role("PARTNER"))])
 def set_availability(is_available: bool, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    # If the partner is currently handling an order, do not allow them to toggle "available" to True.
+    if is_available and _has_active_order(db, user.id):
+        user.is_partner_available = False
+        db.commit()
+        return {"ok": True, "is_available": False, "reason": "You have an active order"}
+
     user.is_partner_available = is_available
     db.commit()
     return {"ok": True, "is_available": user.is_partner_available}
@@ -38,6 +57,9 @@ def pickup(order_id: int, db: Session = Depends(get_db), user: User = Depends(ge
     if order.status not in {"ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP"}:
         raise HTTPException(status_code=400, detail="Cannot pickup at this stage")
 
+    # Partner is now busy.
+    user.is_partner_available = False
+
     order.status = "PICKED_UP"
     db.add(OrderEvent(order_id=order.id, status=order.status, note="Picked up by partner", actor_user_id=user.id))
     db.commit()
@@ -63,6 +85,9 @@ def deliver(order_id: int, db: Session = Depends(get_db), user: User = Depends(g
 
     if order.payment_method == "COD":
         order.payment_status = "PAID"
+
+    # Mark partner free again (simple MVP rule: one active order at a time).
+    user.is_partner_available = True
 
     db.commit()
     db.refresh(order)
