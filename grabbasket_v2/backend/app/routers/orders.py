@@ -17,6 +17,9 @@ from ..notifications import send_push
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
+# Partner order states that mean the partner is currently busy.
+ACTIVE_PARTNER_ORDER_STATUSES = {"ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP", "PICKED_UP"}
+
 
 def add_event(db: Session, order: Order, status: str, note: str = "", actor_user_id: int | None = None) -> None:
     order.status = status
@@ -27,6 +30,25 @@ def _seller_tokens(db: Session, vendor: Vendor) -> list[str]:
     if not vendor.seller_id:
         return []
     return [t.token for t in db.query(FcmToken).filter(FcmToken.user_id == vendor.seller_id).all()]
+
+
+def _partner_has_active_order(db: Session, partner_id: int) -> bool:
+    row = (
+        db.query(Order.id)
+        .filter(Order.partner_id == partner_id)
+        .filter(Order.status.in_(ACTIVE_PARTNER_ORDER_STATUSES))
+        .first()
+    )
+    return row is not None
+
+
+def _maybe_mark_partner_available(db: Session, partner_id: int) -> None:
+    partner = db.query(User).filter(User.id == partner_id, User.role == "PARTNER").first()
+    if not partner:
+        return
+    if _partner_has_active_order(db, partner_id):
+        return
+    partner.is_partner_available = True
 
 
 @router.post("", response_model=OrderOut, dependencies=[Depends(require_role("CUSTOMER"))])
@@ -145,15 +167,22 @@ def cancel_order(order_id: int, reason: str = "", db: Session = Depends(get_db),
     if order.status.startswith("CANCELLED"):
         return order
 
+    partner_id = order.partner_id
+    # Free the partner immediately for re-assignment to other orders.
+    order.partner_id = None
+
     add_event(db, order, "CANCELLED_BY_CUSTOMER", reason or "Cancelled", actor_user_id=user.id)
+    if partner_id:
+        _maybe_mark_partner_available(db, partner_id)
+
     db.commit()
     db.refresh(order)
 
     vendor = db.query(Vendor).filter(Vendor.id == order.vendor_id).first()
     if vendor:
         send_push(_seller_tokens(db, vendor), "Order cancelled", f"Order #{order.id} cancelled", data={"order_id": str(order.id)})
-    if order.partner_id:
-        ptokens = [t.token for t in db.query(FcmToken).filter(FcmToken.user_id == order.partner_id).all()]
+    if partner_id:
+        ptokens = [t.token for t in db.query(FcmToken).filter(FcmToken.user_id == partner_id).all()]
         send_push(ptokens, "Order cancelled", f"Order #{order.id} cancelled", data={"order_id": str(order.id)})
 
     return order
