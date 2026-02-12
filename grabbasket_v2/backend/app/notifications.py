@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Iterable, Optional
 
 from .config import settings
 
-try:
+logger = logging.getLogger("grabbasket.notifications")
+
+try:  # pragma: no cover
     import firebase_admin
     from firebase_admin import credentials, messaging
 except Exception:  # pragma: no cover
@@ -13,8 +16,8 @@ except Exception:  # pragma: no cover
     credentials = None
     messaging = None
 
-
-_fcm_app = None
+_initialized = False
+_app = None
 
 
 def _load_service_account() -> Optional[dict]:
@@ -22,6 +25,7 @@ def _load_service_account() -> Optional[dict]:
         try:
             return json.loads(settings.FCM_SERVICE_ACCOUNT_JSON)
         except Exception:
+            logger.warning("Invalid FCM_SERVICE_ACCOUNT_JSON")
             return None
 
     if settings.FCM_SERVICE_ACCOUNT_FILE:
@@ -29,66 +33,51 @@ def _load_service_account() -> Optional[dict]:
             with open(settings.FCM_SERVICE_ACCOUNT_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except FileNotFoundError:
+            logger.warning("FCM_SERVICE_ACCOUNT_FILE not found")
             return None
         except Exception:
+            logger.warning("Failed reading FCM_SERVICE_ACCOUNT_FILE")
             return None
-
     return None
 
 
-def _ensure_fcm_app():
-    """Initialize Firebase Admin app once (if credentials are provided)."""
-    global _fcm_app
+def _init_fcm() -> None:
+    global _initialized, _app
+    if _initialized:
+        return
+    _initialized = True
 
-    if _fcm_app is not None:
-        return _fcm_app
+    if not firebase_admin or not credentials:
+        return
 
     sa = _load_service_account()
-    if not sa or not firebase_admin or not credentials:
-        _fcm_app = False  # mark attempted
-        return _fcm_app
+    if not sa:
+        return
 
     try:
         cred = credentials.Certificate(sa)
-
-        # firebase_admin keeps a global registry; avoid double-init.
-        try:
-            _fcm_app = firebase_admin.get_app()
-        except Exception:
-            _fcm_app = firebase_admin.initialize_app(cred)
-
-        return _fcm_app
+        _app = firebase_admin.initialize_app(cred)
     except Exception:
-        _fcm_app = False
-        return _fcm_app
+        _app = None
 
 
 def send_push(tokens: Iterable[str], title: str, body: str, data: Optional[dict] = None) -> None:
-    """Send an FCM push to many tokens.
-
-    - If Firebase credentials are not configured, this becomes a safe no-op in prod,
-      and a console print in dev (so flows can still be tested).
-    """
-    tok_list = [t for t in tokens if t]
-    if not tok_list:
+    tokens = [t for t in tokens if t]
+    if not tokens:
         return
 
-    app = _ensure_fcm_app()
+    _init_fcm()
 
-    # Dev-friendly fallback
-    if not app or not messaging:
-        if settings.APP_ENV != "prod":
-            print("[PUSH][DEV]", {"tokens": len(tok_list), "title": title, "body": body, "data": data or {}})
+    if not _app or not messaging:
+        logger.info("[PUSH][DEV] tokens=%s title=%s", len(tokens), title)
         return
 
     msg = messaging.MulticastMessage(
         notification=messaging.Notification(title=title, body=body),
         data={k: str(v) for k, v in (data or {}).items()},
-        tokens=tok_list,
+        tokens=tokens,
     )
-
     try:
         messaging.send_multicast(msg)
-    except Exception as e:
-        if settings.APP_ENV != "prod":
-            print("[PUSH][ERROR]", str(e))
+    except Exception:
+        logger.exception("[PUSH][ERROR]")

@@ -1,23 +1,37 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+"""Compatibility wrapper.
+
+We now use `app.config.settings` as the single source of truth.
+Keep this module to avoid breaking old imports.
+"""
+
+from __future__ import annotations
+from .config import settings as _s
 
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+class _CompatSettings:
+    @property
+    def database_url(self) -> str:
+        return _s.DATABASE_URL
 
-    database_url: str = "postgresql+psycopg://postgres:postgres@db:5432/grabbasket"
+    @property
+    def jwt_secret(self) -> str:
+        return _s.JWT_SECRET
 
-    jwt_secret: str = "dev-secret-change-me"
-    jwt_algorithm: str = "HS256"
-    jwt_exp_minutes: int = 60 * 24 * 7  # 7 days
+    @property
+    def jwt_algorithm(self) -> str:
+        return _s.JWT_ALG
 
-    # Delivery fee base (you can improve later)
-    base_delivery_fee: float = 25.0
+    @property
+    def jwt_exp_minutes(self) -> int:
+        return _s.ACCESS_TOKEN_MINUTES
 
-    # FCM (optional)
-    firebase_service_account_json: str | None = None  # set env FIREBASE_SERVICE_ACCOUNT_JSON
+    @property
+    def firebase_service_account_json(self) -> str | None:
+        return _s.FCM_SERVICE_ACCOUNT_JSON
 
-    # Admin panel simple config
-    admin_panel_enabled: bool = True
+    @property
+    def admin_panel_enabled(self) -> bool:
+        return True
 
 
-settings = Settings()
+settings = _CompatSettings()

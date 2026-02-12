@@ -1,19 +1,8 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
-from .settings import settings
+"""Compatibility wrapper for the SQLAlchemy session.
 
+New code should import from `app.db`.
+"""
 
-class Base(DeclarativeBase):
-    pass
+from .db import Base, engine, SessionLocal, get_db
 
-
-engine = create_engine(settings.database_url, pool_pre_ping=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+__all__ = ["Base", "engine", "SessionLocal", "get_db"]
