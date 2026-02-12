@@ -25,8 +25,8 @@ class Token(BaseModel):
 
 # ---------- FCM ----------
 class FcmRegisterIn(BaseModel):
-    token: str
-    platform: str = "unknown"
+    token: str = Field(min_length=10, max_length=4096)
+    platform: str = Field(default="unknown", max_length=32)
 
 
 # ---------- Vendor / Product ----------
@@ -64,26 +64,26 @@ class ProductOut(BaseModel):
 
 
 class ProductCreateIn(BaseModel):
-    name: str
-    description: str = ""
-    price: float
+    name: str = Field(min_length=2, max_length=120)
+    description: str = Field(default="", max_length=2000)
+    price: float = Field(gt=0, le=200000)
     is_available: bool = True
 
 
 class ProductUpdateIn(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    price: Optional[float] = None
+    name: Optional[str] = Field(default=None, min_length=2, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    price: Optional[float] = Field(default=None, gt=0, le=200000)
     is_available: Optional[bool] = None
 
 
 class VendorUpdateIn(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    address: Optional[str] = None
-    lat: Optional[float] = None
-    lng: Optional[float] = None
-    delivery_radius_km: Optional[float] = None
+    name: Optional[str] = Field(default=None, min_length=2, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=5000)
+    address: Optional[str] = Field(default=None, max_length=500)
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
+    delivery_radius_km: Optional[float] = Field(default=None, gt=0, le=50)
     is_open: Optional[bool] = None
     open_time: Optional[time] = None
     close_time: Optional[time] = None
@@ -91,13 +91,13 @@ class VendorUpdateIn(BaseModel):
 
 # ---------- Address ----------
 class AddressCreateIn(BaseModel):
-    label: str = "Home"
-    line1: str
-    line2: str = ""
-    city: str = ""
-    pincode: str = ""
-    lat: float
-    lng: float
+    label: str = Field(default="Home", min_length=1, max_length=32)
+    line1: str = Field(min_length=3, max_length=200)
+    line2: str = Field(default="", max_length=200)
+    city: str = Field(default="", max_length=64)
+    pincode: str = Field(default="", max_length=12)
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
     is_default: bool = False
 
 
@@ -126,7 +126,7 @@ class OrderCreateIn(BaseModel):
     vendor_id: int
     items: List[OrderItemIn]
     delivery_address_id: Optional[int] = None
-    payment_method: str = "COD"  # COD / UPI
+    payment_method: str = Field(default="COD", max_length=16)  # COD / UPI
 
 
 class OrderItemOut(BaseModel):
@@ -178,7 +178,7 @@ class OrderTrackingOut(BaseModel):
 
 # ---------- Partner ----------
 class PartnerLocationIn(BaseModel):
-    lat: float
-    lng: float
-    heading: Optional[float] = None
-    speed: Optional[float] = None
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    heading: Optional[float] = Field(default=None, ge=0, le=360)
+    speed: Optional[float] = Field(default=None, ge=0, le=100)
