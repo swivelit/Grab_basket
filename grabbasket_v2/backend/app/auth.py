@@ -11,13 +11,11 @@ from .config import settings
 from .db import get_db
 from .models import User
 
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def hash_password(password: str) -> str:
-    # bcrypt max is 72 bytes; enforce at schema level too.
     if len(password.encode("utf-8")) > 72:
         password = password.encode("utf-8")[:72].decode("utf-8", errors="ignore")
     return pwd_context.hash(password)
@@ -34,13 +32,17 @@ def create_access_token(subject: str, role: str) -> str:
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALG)
 
 
-def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
+def decode_token(token: str) -> dict:
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALG])
-        email: Optional[str] = payload.get("sub")
-        if not email:
-            raise HTTPException(status_code=401, detail="Invalid token")
+        return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALG])
     except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
+    payload = decode_token(token)
+    email: Optional[str] = payload.get("sub")
+    if not email:
         raise HTTPException(status_code=401, detail="Invalid token")
 
     user = db.query(User).filter(User.email == email).first()
@@ -51,7 +53,11 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
 
 def require_role(*roles: str):
     def _guard(user: User = Depends(get_current_user)) -> User:
-        if user.role not in roles:
+        allowed = []
+        for r in roles:
+            allowed.append((getattr(r, "value", r) or "").__str__().upper())
+        if (user.role or "").upper() not in allowed:
             raise HTTPException(status_code=403, detail="Forbidden")
         return user
+
     return _guard

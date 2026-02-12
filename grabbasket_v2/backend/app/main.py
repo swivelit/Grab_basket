@@ -1,41 +1,69 @@
+from __future__ import annotations
+
 import logging
+import time
 import uuid
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from starlette.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import Base, engine
-from .routers import auth, vendors, orders, seller, partner, admin, addresses, tracking
+from .routers import auth, vendors, orders, seller, partner, addresses, tracking, admin
 
 
+def _configure_logging() -> None:
+    level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+    logging.getLogger().setLevel(level)
+
+
+_configure_logging()
 logger = logging.getLogger("grabbasket")
-logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
+
+app = FastAPI(title="Grabbasket API")
 
 
-class RequestIdMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        rid = request.headers.get("X-Request-ID") or str(uuid.uuid4())
-        request.state.request_id = rid
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = rid
-        return response
+@app.on_event("startup")
+def _startup() -> None:
+    # MVP: auto-create tables
+    # Production: use Alembic migrations
+    Base.metadata.create_all(bind=engine)
 
 
-app = FastAPI(title="Grabbasket API", version="0.2.0")
-
-# CORS (safe defaults for mobile dev; tighten in prod)
+allow_origins = settings.CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=allow_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"] if allow_origins == ["*"] else ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
-app.add_middleware(RequestIdMiddleware)
 
+@app.middleware("http")
+async def request_context(request: Request, call_next):
+    req_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+    start = time.time()
+    response = None
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception("Unhandled error", extra={"request_id": req_id})
+        return JSONResponse(
+            status_code=500,
+            content={"error": {"code": "INTERNAL_ERROR", "message": "Something went wrong"}, "request_id": req_id},
+        )
+    finally:
+        dur_ms = int((time.time() - start) * 1000)
+        status = getattr(response, "status_code", "?")
+        logger.info("%s %s -> %s (%sms)", request.method, request.url.path, status, dur_ms, extra={"request_id": req_id})
+
+    response.headers["x-request-id"] = req_id
+    return response
+
+
+# Routers
 app.include_router(auth.router)
 app.include_router(vendors.router)
 app.include_router(orders.router)
@@ -44,12 +72,6 @@ app.include_router(partner.router)
 app.include_router(addresses.router)
 app.include_router(tracking.router)
 app.include_router(admin.router)
-
-
-@app.on_event("startup")
-def _startup():
-    # Ensure tables exist (MVP). For production, switch to Alembic migrations.
-    Base.metadata.create_all(bind=engine)
 
 
 @app.get("/health")

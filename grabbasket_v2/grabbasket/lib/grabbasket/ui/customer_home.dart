@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../state.dart';
 import '../models.dart';
 import '../location.dart';
+import '../bootstrap.dart';
+import 'login.dart';
 import 'vendor_menu.dart';
 import 'orders.dart';
-import 'addresses.dart';
 
 class CustomerHome extends ConsumerStatefulWidget {
   const CustomerHome({super.key});
@@ -15,22 +17,33 @@ class CustomerHome extends ConsumerStatefulWidget {
 }
 
 class _CustomerHomeState extends ConsumerState<CustomerHome> {
+  final _search = TextEditingController();
   double? _lat;
   double? _lng;
-  String? _err;
+  bool _loadingLocation = false;
 
-  final _search = TextEditingController();
-  String _q = "";
+  Future<void> _fetchLocation() async {
+    setState(() => _loadingLocation = true);
+    try {
+      final pos = await LocationService.getCurrent();
+      setState(() {
+        _lat = pos.latitude;
+        _lng = pos.longitude;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _loadingLocation = false);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    _loadLocation();
-    _search.addListener(() {
-      final next = _search.text.trim();
-      if (next == _q) return;
-      setState(() => _q = next);
-    });
+    _fetchLocation();
+    _search.addListener(() => setState(() {}));
   }
 
   @override
@@ -39,134 +52,109 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
     super.dispose();
   }
 
-  Future<void> _loadLocation() async {
-    try {
-      final pos = await LocationService.getCurrent();
-      setState(() {
-        _lat = pos.latitude;
-        _lng = pos.longitude;
-        _err = null;
-      });
-    } catch (e) {
-      setState(() {
-        _err = e.toString();
-      });
-    }
-  }
-
-  String _subtitle(Vendor v) {
-    final parts = <String>[];
-    if (v.openNow == true) {
-      parts.add("Open now");
-    } else if (v.openNow == false) {
-      parts.add("Closed");
-    }
-
-    if (v.distanceKm != null) {
-      parts.add("${v.distanceKm!.toStringAsFixed(1)} km");
-    }
-
-    if (v.canDeliver == false) {
-      parts.add("Out of delivery area");
-    }
-
-    final base = (v.description.isNotEmpty ? v.description : v.address).trim();
-    if (base.isNotEmpty) parts.add(base);
-
-    return parts.join(" • ");
-  }
-
   @override
   Widget build(BuildContext context) {
     final api = ref.watch(apiProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Grabbasket"),
+        title: const Text('Grabbasket'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.location_on),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddressesScreen())),
-          ),
           IconButton(
             icon: const Icon(Icons.receipt_long),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OrdersScreen())),
           ),
+          IconButton(
+            icon: const Icon(Icons.login),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen(flavor: AppFlavor.customer))),
+          ),
         ],
       ),
-      body: Column(
-        children: [
-          if (_err != null)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text("Location: $_err", style: const TextStyle(color: Colors.red)),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _search,
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search),
+                      hintText: 'Search restaurants / stores',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: _loadingLocation ? null : _fetchLocation,
+                  icon: _loadingLocation
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.my_location),
+                  tooltip: 'Refresh location',
+                )
+              ],
             ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-            child: TextField(
-              controller: _search,
-              decoration: InputDecoration(
-                hintText: "Search restaurants/stores",
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _q.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _search.clear();
-                          FocusScope.of(context).unfocus();
-                        },
-                      ),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _loadLocation,
+            const SizedBox(height: 12),
+            Expanded(
               child: FutureBuilder<List<Vendor>>(
-                future: api.vendors(lat: _lat, lng: _lng, q: _q),
+                future: api.vendors(lat: _lat, lng: _lng, q: _search.text, openOnly: false),
                 builder: (context, snap) {
-                  if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snap.hasError) {
-                    return Center(child: Text("Failed: ${snap.error}"));
-                  }
-                  final vendors = snap.data ?? [];
-                  if (vendors.isEmpty) {
-                    return const Center(child: Text("No vendors found for your location/search."));
-                  }
+                  if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+                  final vendors = snap.data!;
+                  if (vendors.isEmpty) return const Center(child: Text('No stores found'));
+
                   return ListView.separated(
-                    physics: const AlwaysScrollableScrollPhysics(),
                     itemCount: vendors.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (context, i) {
                       final v = vendors[i];
-                      final disabled = v.canDeliver == false;
+                      final openNow = v.openNow ?? v.isOpen;
+                      final dist = v.distanceKm;
+                      final canDeliver = v.canDeliver;
                       return ListTile(
-                        enabled: !disabled,
                         title: Text(v.name),
-                        subtitle: Text(_subtitle(v)),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: disabled
-                            ? null
-                            : () => Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (_) => VendorMenuScreen(vendor: v)),
-                                ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (v.description.isNotEmpty)
+                              Text(v.description, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: [
+                                _chip(openNow ? 'Open' : 'Closed', openNow ? Colors.green : Colors.red),
+                                if (dist != null) _chip('${dist.toStringAsFixed(1)} km', Colors.blueGrey),
+                                if (canDeliver != null) _chip(canDeliver ? 'Delivers' : 'Out of range', canDeliver ? Colors.green : Colors.orange),
+                              ],
+                            )
+                          ],
+                        ),
+                        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VendorMenuScreen(vendor: v))),
                       );
                     },
                   );
                 },
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _loadLocation,
-        child: const Icon(Icons.my_location),
+    );
+  }
+
+  Widget _chip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.35)),
       ),
+      child: Text(text, style: TextStyle(color: color, fontSize: 12)),
     );
   }
 }

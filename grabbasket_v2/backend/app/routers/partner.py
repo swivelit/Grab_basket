@@ -35,7 +35,6 @@ def pickup(order_id: int, db: Session = Depends(get_db), user: User = Depends(ge
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    # Backward compatible: allow pickup when ASSIGNED or READY
     if order.status not in {"ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP"}:
         raise HTTPException(status_code=400, detail="Cannot pickup at this stage")
 
@@ -44,7 +43,6 @@ def pickup(order_id: int, db: Session = Depends(get_db), user: User = Depends(ge
     db.commit()
     db.refresh(order)
 
-    # notify customer
     ctokens = [t.token for t in db.query(FcmToken).filter(FcmToken.user_id == order.customer_id).all()]
     send_push(ctokens, "Order picked up", f"Order #{order.id} is on the way", data={"order_id": str(order.id)})
 
@@ -63,7 +61,6 @@ def deliver(order_id: int, db: Session = Depends(get_db), user: User = Depends(g
     order.status = "DELIVERED"
     db.add(OrderEvent(order_id=order.id, status=order.status, note="Delivered", actor_user_id=user.id))
 
-    # COD becomes paid on delivery
     if order.payment_method == "COD":
         order.payment_status = "PAID"
 
