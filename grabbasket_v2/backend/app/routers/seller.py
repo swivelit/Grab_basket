@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..auth import require_role, get_current_user
@@ -48,59 +49,98 @@ def _maybe_mark_partner_available(db: Session, partner_id: int) -> None:
     partner.is_partner_available = True
 
 
-def _pick_best_partner(db: Session, vendor: Vendor | None) -> User | None:
+def _latest_partner_locations(db: Session, partner_ids: list[int]) -> dict[int, PartnerLocation]:
+    """Fetch the latest PartnerLocation per partner_id using a single query."""
+    if not partner_ids:
+        return {}
+
+    sub = (
+        db.query(PartnerLocation.partner_id, func.max(PartnerLocation.id).label("max_id"))
+        .filter(PartnerLocation.partner_id.in_(partner_ids))
+        .group_by(PartnerLocation.partner_id)
+        .subquery()
+    )
+    rows = db.query(PartnerLocation).join(sub, PartnerLocation.id == sub.c.max_id).all()
+    return {r.partner_id: r for r in rows}
+
+
+def _candidate_partners(db: Session, vendor: Vendor | None) -> tuple[list[tuple[float | None, int]], dict[int, User]]:
     partners = (
         db.query(User)
         .filter(User.role == "PARTNER")
-        .filter(User.is_partner_available == True)  # noqa
+        .filter(User.is_partner_available == True)  # noqa: E712
         .all()
     )
     if not partners:
-        return None
+        return [], {}
 
-    # If we have vendor location, pick the nearest partner (based on last known partner location).
+    partner_by_id = {p.id: p for p in partners}
+    loc_map = _latest_partner_locations(db, list(partner_by_id.keys()))
+
     vendor_lat = getattr(vendor, "lat", None)
     vendor_lng = getattr(vendor, "lng", None)
 
-    candidates: list[tuple[float | None, User]] = []
-    for p in partners:
-        # Safety: don't assign a partner who is already handling another active order.
-        if _partner_has_active_order(db, p.id):
+    candidates: list[tuple[float | None, int]] = []
+    for pid, p in partner_by_id.items():
+        # Skip if they already have another active order (safety net).
+        if _partner_has_active_order(db, pid):
             continue
 
         dist: float | None = None
         if vendor_lat is not None and vendor_lng is not None:
-            loc = (
-                db.query(PartnerLocation)
-                .filter(PartnerLocation.partner_id == p.id)
-                .order_by(PartnerLocation.created_at.desc())
-                .first()
-            )
+            loc = loc_map.get(pid)
             if loc:
                 dist = haversine_km(loc.lat, loc.lng, vendor_lat, vendor_lng)
 
-        candidates.append((dist, p))
+        candidates.append((dist, pid))
 
-    if not candidates:
-        return None
+    # Prefer known distance; then nearest; then stable id.
+    candidates.sort(key=lambda x: (x[0] is None, x[0] if x[0] is not None else 10**12, x[1]))
+    return candidates, partner_by_id
 
-    # Prefer partners with known distance; otherwise fall back to stable ordering by id.
-    candidates.sort(key=lambda x: (x[0] is None, x[0] if x[0] is not None else 10**12, x[1].id))
-    return candidates[0][1]
+
+def _claim_partner_row(db: Session, partner_id: int) -> bool:
+    """Atomically claim a partner by flipping is_partner_available from True -> False.
+
+    This prevents double-assignment under concurrency.
+    """
+    updated = (
+        db.query(User)
+        .filter(User.id == partner_id)
+        .filter(User.role == "PARTNER")
+        .filter(User.is_partner_available == True)  # noqa: E712
+        .update({User.is_partner_available: False}, synchronize_session=False)
+    )
+    db.flush()
+    return updated == 1
+
+
+def _release_partner_row(db: Session, partner_id: int) -> None:
+    db.query(User).filter(User.id == partner_id, User.role == "PARTNER").update(
+        {User.is_partner_available: True}, synchronize_session=False
+    )
+    db.flush()
 
 
 def _try_assign_partner(db: Session, order: Order, vendor: Vendor | None) -> User | None:
     if order.partner_id:
         return None
 
-    partner = _pick_best_partner(db, vendor)
-    if not partner:
-        return None
+    candidates, partner_by_id = _candidate_partners(db, vendor)
+    for _dist, pid in candidates:
+        if not _claim_partner_row(db, pid):
+            continue
 
-    order.partner_id = partner.id
-    partner.is_partner_available = False  # mark busy
-    _add_event(db, order, "ASSIGNED_TO_PARTNER", "Partner assigned", actor_user_id=None)
-    return partner
+        # Re-check after claiming: if partner still has an active order, release and continue.
+        if _partner_has_active_order(db, pid):
+            _release_partner_row(db, pid)
+            continue
+
+        order.partner_id = pid
+        _add_event(db, order, "ASSIGNED_TO_PARTNER", "Partner assigned", actor_user_id=None)
+        return partner_by_id.get(pid) or db.query(User).filter(User.id == pid).first()
+
+    return None
 
 
 @router.get("/vendor", dependencies=[Depends(require_role("SELLER"))])
@@ -297,7 +337,6 @@ def mark_ready(order_id: int, db: Session = Depends(get_db), user: User = Depend
     if order.partner_id:
         send_push(_user_tokens(db, order.partner_id), "Pickup ready", f"Order #{order.id} ready for pickup", data={"order_id": str(order.id)})
     if assigned_partner:
-        # If we just assigned them now, also send the assignment message.
         send_push(_user_tokens(db, assigned_partner.id), "New pickup", f"Order #{order.id} assigned", data={"order_id": str(order.id)})
 
     return order

@@ -23,6 +23,18 @@ class _SellerHomeState extends ConsumerState<SellerHome> {
     setState(() {});
   }
 
+  Future<void> _logout() async {
+    await ref.read(secureStoreProvider).clear();
+    ref.read(cartProvider.notifier).clear();
+    ref.invalidate(sessionProvider);
+
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen(flavor: AppFlavor.seller)),
+      (_) => false,
+    );
+  }
+
   @override
   void dispose() {
     _vendorName.dispose();
@@ -38,10 +50,9 @@ class _SellerHomeState extends ConsumerState<SellerHome> {
         title: const Text("Seller"),
         actions: [
           IconButton(
-            icon: const Icon(Icons.login),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const LoginScreen(flavor: AppFlavor.seller)),
-            ),
+            icon: const Icon(Icons.logout),
+            tooltip: "Logout",
+            onPressed: _logout,
           ),
         ],
       ),

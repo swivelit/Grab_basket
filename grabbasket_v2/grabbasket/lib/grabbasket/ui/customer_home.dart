@@ -8,6 +8,7 @@ import '../bootstrap.dart';
 import 'login.dart';
 import 'vendor_menu.dart';
 import 'orders.dart';
+import 'addresses.dart';
 
 class CustomerHome extends ConsumerStatefulWidget {
   const CustomerHome({super.key});
@@ -39,6 +40,18 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
     }
   }
 
+  Future<void> _logout() async {
+    await ref.read(secureStoreProvider).clear();
+    ref.read(cartProvider.notifier).clear();
+    ref.invalidate(sessionProvider);
+
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen(flavor: AppFlavor.customer)),
+      (_) => false,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -61,12 +74,22 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
         title: const Text('Grabbasket'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.location_on_outlined),
+            tooltip: "Addresses",
+            onPressed: () async {
+              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddressesScreen()));
+              if (mounted) setState(() {});
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.receipt_long),
+            tooltip: "My orders",
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OrdersScreen())),
           ),
           IconButton(
-            icon: const Icon(Icons.login),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen(flavor: AppFlavor.customer))),
+            icon: const Icon(Icons.logout),
+            tooltip: "Logout",
+            onPressed: _logout,
           ),
         ],
       ),
@@ -128,7 +151,8 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
                               children: [
                                 _chip(openNow ? 'Open' : 'Closed', openNow ? Colors.green : Colors.red),
                                 if (dist != null) _chip('${dist.toStringAsFixed(1)} km', Colors.blueGrey),
-                                if (canDeliver != null) _chip(canDeliver ? 'Delivers' : 'Out of range', canDeliver ? Colors.green : Colors.orange),
+                                if (canDeliver != null)
+                                  _chip(canDeliver ? 'Delivers' : 'Out of range', canDeliver ? Colors.green : Colors.orange),
                               ],
                             )
                           ],

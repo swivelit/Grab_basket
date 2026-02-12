@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state.dart';
+import 'addresses.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -12,6 +13,12 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   String _paymentMethod = "COD"; // COD / UPI
   int? _selectedAddressId;
+
+  Future<void> _openAddresses() async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddressesScreen()));
+    if (!mounted) return;
+    setState(() {}); // refresh addresses FutureBuilder
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,10 +45,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 children: [
                   const Text("Add a delivery address first."),
                   const SizedBox(height: 12),
-                  FilledButton(
+                  FilledButton.icon(
+                    onPressed: _openAddresses,
+                    icon: const Icon(Icons.location_on_outlined),
+                    label: const Text("Add address"),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     child: const Text("Go back"),
-                  )
+                  ),
                 ],
               ),
             );
@@ -80,7 +93,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         ),
                       ),
                       const Divider(height: 24),
-                      const Text("Delivery address", style: TextStyle(fontWeight: FontWeight.bold)),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text("Delivery address", style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                          TextButton.icon(
+                            onPressed: _openAddresses,
+                            icon: const Icon(Icons.edit_location_alt_outlined),
+                            label: const Text("Manage"),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 8),
                       ...addresses.map(
                         (a) {
@@ -119,9 +143,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 const SizedBox(height: 12),
                 FilledButton(
                   onPressed: () async {
-                    final items = cart.lines
-                        .map((l) => {"product_id": l.product.id, "qty": l.qty})
-                        .toList();
+                    final items = cart.lines.map((l) => {"product_id": l.product.id, "qty": l.qty}).toList();
 
                     try {
                       final order = await api.createOrder(

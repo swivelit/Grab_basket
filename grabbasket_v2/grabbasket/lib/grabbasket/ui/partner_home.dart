@@ -34,6 +34,18 @@ class _PartnerHomeState extends ConsumerState<PartnerHome> {
     super.dispose();
   }
 
+  Future<void> _logout() async {
+    await ref.read(secureStoreProvider).clear();
+    ref.read(cartProvider.notifier).clear();
+    ref.invalidate(sessionProvider);
+
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen(flavor: AppFlavor.partner)),
+      (_) => false,
+    );
+  }
+
   Future<void> _startLocationStream() async {
     try {
       _sub?.cancel();
@@ -71,10 +83,9 @@ class _PartnerHomeState extends ConsumerState<PartnerHome> {
         title: const Text("Partner"),
         actions: [
           IconButton(
-            icon: const Icon(Icons.login),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const LoginScreen(flavor: AppFlavor.partner)),
-            ),
+            icon: const Icon(Icons.logout),
+            tooltip: "Logout",
+            onPressed: _logout,
           ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: () => setState(() {})),
         ],
@@ -87,8 +98,25 @@ class _PartnerHomeState extends ConsumerState<PartnerHome> {
               title: const Text("Available for deliveries"),
               value: _available,
               onChanged: (v) async {
+                final prev = _available;
                 setState(() => _available = v);
-                await api.partnerAvailability(v);
+
+                try {
+                  final resp = await api.partnerAvailability(v);
+                  final actual = resp["is_available"] == true;
+
+                  if (!mounted) return;
+                  if (actual != v) setState(() => _available = actual);
+
+                  final reason = resp["reason"];
+                  if (reason is String && reason.isNotEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(reason)));
+                  }
+                } catch (e) {
+                  if (!mounted) return;
+                  setState(() => _available = prev);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                }
               },
             ),
             if (_locErr != null)

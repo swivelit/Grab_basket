@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -12,6 +14,9 @@ router = APIRouter(prefix="/partner", tags=["partner"])
 # Partner order states that mean the partner is currently busy.
 ACTIVE_PARTNER_ORDER_STATUSES = {"ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP", "PICKED_UP"}
 
+# Retain only the latest N location points per partner to prevent DB bloat.
+MAX_LOCATION_POINTS_PER_PARTNER = 500
+
 
 def _has_active_order(db: Session, partner_id: int) -> bool:
     row = (
@@ -21,6 +26,11 @@ def _has_active_order(db: Session, partner_id: int) -> bool:
         .first()
     )
     return row is not None
+
+
+def _maybe_set_available(db: Session, partner: User) -> None:
+    # Available only if they do not have any active orders.
+    partner.is_partner_available = not _has_active_order(db, partner.id)
 
 
 @router.post("/availability", dependencies=[Depends(require_role("PARTNER"))])
@@ -38,7 +48,22 @@ def set_availability(is_available: bool, db: Session = Depends(get_db), user: Us
 
 @router.post("/location", dependencies=[Depends(require_role("PARTNER"))])
 def update_location(payload: PartnerLocationIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    db.add(PartnerLocation(partner_id=user.id, **payload.model_dump()))
+    loc = PartnerLocation(partner_id=user.id, **payload.model_dump())
+    db.add(loc)
+    db.flush()
+
+    # Cleanup: delete older points (keep latest N).
+    old_ids = (
+        db.query(PartnerLocation.id)
+        .filter(PartnerLocation.partner_id == user.id)
+        .order_by(PartnerLocation.id.desc())
+        .offset(MAX_LOCATION_POINTS_PER_PARTNER)
+        .all()
+    )
+    if old_ids:
+        ids = [x[0] for x in old_ids]
+        db.query(PartnerLocation).filter(PartnerLocation.id.in_(ids)).delete(synchronize_session=False)
+
     db.commit()
     return {"ok": True}
 
@@ -86,8 +111,8 @@ def deliver(order_id: int, db: Session = Depends(get_db), user: User = Depends(g
     if order.payment_method == "COD":
         order.payment_status = "PAID"
 
-    # Mark partner free again (simple MVP rule: one active order at a time).
-    user.is_partner_available = True
+    db.flush()
+    _maybe_set_available(db, user)
 
     db.commit()
     db.refresh(order)
