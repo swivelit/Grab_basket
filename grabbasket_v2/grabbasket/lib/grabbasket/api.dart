@@ -34,7 +34,6 @@ class Api {
           final status = err.response?.statusCode;
           final data = err.response?.data;
           String msg;
-
           if (data is Map && data['detail'] != null) {
             msg = data['detail'].toString();
           } else if (data is Map && data['error'] is Map) {
@@ -44,7 +43,6 @@ class Api {
           } else {
             msg = 'Request failed';
           }
-
           handler.reject(
             DioException(
               requestOptions: err.requestOptions,
@@ -83,18 +81,31 @@ class Api {
   }
 
   // ---------- Customer ----------
-  Future<List<Vendor>> vendors({double? lat, double? lng}) async {
+  Future<List<Vendor>> vendors({double? lat, double? lng, String? q, bool openOnly = false}) async {
     try {
-      final res = await _dio.get("/vendors", queryParameters: {"lat": lat, "lng": lng});
+      final res = await _dio.get(
+        "/vendors",
+        queryParameters: {
+          if (lat != null) "lat": lat,
+          if (lng != null) "lng": lng,
+          if (q != null && q.trim().isNotEmpty) "q": q.trim(),
+          if (openOnly) "open_only": true,
+        },
+      );
       return (res.data as List).map((x) => Vendor.fromJson((x as Map).cast<String, dynamic>())).toList();
     } catch (e) {
       throw _mapErr(e);
     }
   }
 
-  Future<List<Product>> products(int vendorId) async {
+  Future<List<Product>> products(int vendorId, {String? q}) async {
     try {
-      final res = await _dio.get("/vendors/$vendorId/products");
+      final res = await _dio.get(
+        "/vendors/$vendorId/products",
+        queryParameters: {
+          if (q != null && q.trim().isNotEmpty) "q": q.trim(),
+        },
+      );
       return (res.data as List).map((x) => Product.fromJson((x as Map).cast<String, dynamic>())).toList();
     } catch (e) {
       throw _mapErr(e);
@@ -110,6 +121,7 @@ class Api {
     }
   }
 
+  // ✅ MISSING BEFORE: used by AddressesScreen
   Future<Map<String, dynamic>> createAddress(Map<String, dynamic> data) async {
     try {
       final res = await _dio.post("/addresses", data: data);
@@ -119,6 +131,7 @@ class Api {
     }
   }
 
+  // ✅ MISSING BEFORE: used by AddressesScreen
   Future<void> setDefaultAddress(int addressId) async {
     try {
       await _dio.post("/addresses/$addressId/default");
@@ -129,20 +142,17 @@ class Api {
 
   Future<Order> createOrder({
     required int vendorId,
-    required List<CartLine> items,
-    int? deliveryAddressId,
-    String paymentMethod = "COD",
+    required List<Map<String, dynamic>> items,
+    required int deliveryAddressId,
+    required String paymentMethod,
   }) async {
     try {
-      final res = await _dio.post(
-        "/orders",
-        data: {
-          "vendor_id": vendorId,
-          "delivery_address_id": deliveryAddressId,
-          "payment_method": paymentMethod,
-          "items": items.map((l) => {"product_id": l.product.id, "qty": l.qty}).toList(),
-        },
-      );
+      final res = await _dio.post("/orders", data: {
+        "vendor_id": vendorId,
+        "items": items,
+        "delivery_address_id": deliveryAddressId,
+        "payment_method": paymentMethod,
+      });
       return Order.fromJson((res.data as Map).cast<String, dynamic>());
     } catch (e) {
       throw _mapErr(e);
@@ -185,8 +195,7 @@ class Api {
     }
   }
 
-  /// Used by the customer order detail screen for live-ish tracking.
-  /// Endpoint returns a flat map (lat/lng/ts) and some flags when not available yet.
+  // ✅ MISSING BEFORE: used by OrderDetailScreen
   Future<Map<String, dynamic>> partnerLatestForOrder(int orderId) async {
     try {
       final res = await _dio.get("/tracking/order/$orderId/partner_latest");
@@ -197,11 +206,20 @@ class Api {
   }
 
   // ---------- Seller ----------
-  Future<Map<String, dynamic>> sellerCreateVendor({required String name, String description = "", String address = ""}) async {
+  // ✅ MISSING BEFORE: used by SellerHome
+  Future<Map<String, dynamic>> sellerCreateVendor({
+    required String name,
+    String description = "",
+    String address = "",
+  }) async {
     try {
       final res = await _dio.post(
         "/seller/vendor",
-        queryParameters: {"name": name, "description": description, "address": address},
+        queryParameters: {
+          "name": name,
+          "description": description,
+          "address": address,
+        },
       );
       return (res.data as Map).cast<String, dynamic>();
     } catch (e) {
@@ -211,7 +229,7 @@ class Api {
 
   Future<List<Order>> sellerOrders() async {
     try {
-      final res = await _dio.get("/orders/me");
+      final res = await _dio.get("/seller/orders");
       return (res.data as List).map((x) => Order.fromJson((x as Map).cast<String, dynamic>())).toList();
     } catch (e) {
       throw _mapErr(e);

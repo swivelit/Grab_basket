@@ -62,7 +62,7 @@ def set_default(address_id: int, user: User = Depends(get_current_user), db: Ses
 
 @router.post("/fcm/register")
 def register_fcm(payload: FcmRegisterIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # Convenience alias for /auth/fcm/register
+    # Alias for /auth/fcm/register
     existing = db.query(FcmToken).filter(FcmToken.token == payload.token).first()
     if existing:
         return {"ok": True}

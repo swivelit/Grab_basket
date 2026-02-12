@@ -1,8 +1,6 @@
-"""Compatibility security wrapper.
+"""Compatibility wrapper for auth helpers.
 
-The canonical auth helpers live in `app.auth`.
-
-This module exists because some legacy code imports from `app.security`.
+Prefer importing from `app.auth`.
 """
 
 from __future__ import annotations

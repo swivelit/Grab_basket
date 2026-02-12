@@ -12,33 +12,35 @@ from starlette.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import Base, engine
-from .routers import auth, vendors, orders, seller, partner, admin, addresses, tracking, me
+from .routers import auth, vendors, orders, seller, partner, addresses, tracking, admin, me
 
+
+def _configure_logging() -> None:
+    level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+    logging.basicConfig(level=level)
+
+
+_configure_logging()
 logger = logging.getLogger("grabbasket")
-logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
 
-app = FastAPI(title="Grabbasket API", version="0.2.0")
+app = FastAPI(title="Grabbasket API")
 
 
 @app.on_event("startup")
-def _startup():
-    # Ensure tables exist (MVP). For production, switch to Alembic migrations.
+def _startup() -> None:
+    # MVP: auto-create tables
+    # Production: use Alembic migrations
     Base.metadata.create_all(bind=engine)
-
-
-def _request_id(request: Request) -> str | None:
-    return getattr(request.state, "request_id", None)
 
 
 @app.exception_handler(StarletteHTTPException)
 async def _http_exception_handler(request: Request, exc: StarletteHTTPException):
-    # Keep FastAPI-compatible 'detail' while also returning a consistent error envelope.
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "detail": exc.detail,
             "error": {"code": "HTTP_ERROR", "message": str(exc.detail)},
-            "request_id": _request_id(request),
+            "request_id": getattr(request.state, "request_id", None),
         },
     )
 
@@ -50,45 +52,44 @@ async def _validation_exception_handler(request: Request, exc: RequestValidation
         content={
             "detail": "Invalid request",
             "error": {"code": "VALIDATION_ERROR", "message": "Invalid request", "details": exc.errors()},
-            "request_id": _request_id(request),
+            "request_id": getattr(request.state, "request_id", None),
         },
     )
 
 
+allow_origins = settings.CORS_ORIGINS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allow_origins,
+    allow_credentials=True,
+    allow_methods=["*"] if allow_origins == ["*"] else ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+
 @app.middleware("http")
 async def request_context(request: Request, call_next):
-    rid = request.headers.get("x-request-id") or request.headers.get("X-Request-ID") or str(uuid.uuid4())
-    request.state.request_id = rid
+    req_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+    request.state.request_id = req_id
 
     start = time.time()
     response = None
     try:
         response = await call_next(request)
-        return response
     except Exception:
-        logger.exception("Unhandled error", extra={"request_id": rid})
+        logger.exception("Unhandled error", extra={"request_id": req_id})
         return JSONResponse(
             status_code=500,
-            content={
-                "detail": "Something went wrong",
-                "error": {"code": "INTERNAL_ERROR", "message": "Something went wrong"},
-                "request_id": rid,
-            },
+            content={"detail": "Something went wrong", "error": {"code": "INTERNAL_ERROR", "message": "Something went wrong"}, "request_id": req_id},
         )
     finally:
         dur_ms = int((time.time() - start) * 1000)
-        status = getattr(response, "status_code", "ERR")
-        logger.info("%s %s -> %s (%sms)", request.method, request.url.path, status, dur_ms, extra={"request_id": rid})
+        status = getattr(response, "status_code", "?")
+        logger.info("%s %s -> %s (%sms)", request.method, request.url.path, status, dur_ms, extra={"request_id": req_id})
 
+    response.headers["x-request-id"] = req_id
+    return response
 
-# CORS (safe defaults for mobile dev; tighten in prod)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"] if settings.CORS_ORIGINS == ["*"] else ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-)
 
 # Routers
 app.include_router(auth.router)
