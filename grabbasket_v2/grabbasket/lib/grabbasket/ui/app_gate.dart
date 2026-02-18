@@ -1,24 +1,42 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../bootstrap.dart';
+import '../notifications/push_notifications.dart';
 import '../state.dart';
 import 'login.dart';
 
-class AppGate extends ConsumerWidget {
+class AppGate extends ConsumerStatefulWidget {
   final AppFlavor flavor;
   final Widget child;
 
   const AppGate({super.key, required this.flavor, required this.child});
 
-  String get _expectedRole => switch (flavor) {
+  @override
+  ConsumerState<AppGate> createState() => _AppGateState();
+}
+
+class _AppGateState extends ConsumerState<AppGate> {
+  bool _pushInitAttempted = false;
+
+  String get _expectedRole => switch (widget.flavor) {
         AppFlavor.customer => "CUSTOMER",
         AppFlavor.seller => "SELLER",
         AppFlavor.partner => "PARTNER",
       };
 
+  void _maybeInitPush() {
+    if (_pushInitAttempted) return;
+    _pushInitAttempted = true;
+
+    // Fire-and-forget: if Firebase isn't configured yet, init will no-op.
+    unawaited(PushNotifications.instance.tryInit(api: ref.read(apiProvider)));
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider);
 
     return session.when(
@@ -29,7 +47,14 @@ class AppGate extends ConsumerWidget {
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Text("Failed to load session: $e"),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 40),
+                const SizedBox(height: 12),
+                Text("Failed to load session:\n$e", textAlign: TextAlign.center),
+              ],
+            ),
           ),
         ),
       ),
@@ -39,15 +64,18 @@ class AppGate extends ConsumerWidget {
 
         // No token -> login.
         if (token.isEmpty) {
-          return LoginScreen(flavor: flavor);
+          return LoginScreen(flavor: widget.flavor);
         }
 
         // Token exists but role mismatch -> force re-login for this flavor.
         if (role.isNotEmpty && role != _expectedRole) {
-          return LoginScreen(flavor: flavor);
+          return LoginScreen(flavor: widget.flavor);
         }
 
-        return child;
+        // Token is present and role matches: initialize push notifications.
+        _maybeInitPush();
+
+        return widget.child;
       },
     );
   }

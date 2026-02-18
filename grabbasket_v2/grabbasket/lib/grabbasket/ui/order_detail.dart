@@ -7,7 +7,12 @@ import '../models.dart';
 
 class OrderDetailScreen extends ConsumerStatefulWidget {
   final int orderId;
-  const OrderDetailScreen({super.key, required this.orderId});
+  final bool allowCancel;
+  const OrderDetailScreen({
+    super.key,
+    required this.orderId,
+    this.allowCancel = true,
+  });
 
   @override
   ConsumerState<OrderDetailScreen> createState() => _OrderDetailScreenState();
@@ -157,7 +162,25 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _err != null
-              ? Center(child: Text("Failed: $_err"))
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, size: 40),
+                        const SizedBox(height: 12),
+                        Text("Failed to load order.\n$_err", textAlign: TextAlign.center),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: () => _load(initial: true),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text("Retry"),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
               : o == null
                   ? const Center(child: Text("Order not found"))
                   : RefreshIndicator(
@@ -170,7 +193,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                             children: [
                               _statusChip(o.status),
                               const Spacer(),
-                              if (o.canCancel)
+                              if (widget.allowCancel && o.canCancel)
                                 TextButton.icon(
                                   onPressed: _cancelOrder,
                                   icon: const Icon(Icons.close),

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../state.dart';
+
 import '../location.dart';
+import '../state.dart';
 
 class AddressesScreen extends ConsumerStatefulWidget {
   const AddressesScreen({super.key});
@@ -12,6 +13,18 @@ class AddressesScreen extends ConsumerStatefulWidget {
 
 class _AddressesScreenState extends ConsumerState<AddressesScreen> {
   bool _busy = false;
+  Future<List<Map<String, dynamic>>>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = ref.read(apiProvider).addresses();
+  }
+
+  Future<void> _reload() async {
+    setState(() => _future = ref.read(apiProvider).addresses());
+    await _future;
+  }
 
   Future<void> _addFromCurrent() async {
     final api = ref.read(apiProvider);
@@ -20,19 +33,19 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
     try {
       final pos = await LocationService.getCurrent();
       await api.createAddress({
-        "label": "Current",
-        "line1": "Current Location",
-        "line2": "",
-        "city": "",
-        "pincode": "",
-        "lat": pos.latitude,
-        "lng": pos.longitude,
-        "is_default": true,
+        'label': 'Current',
+        'line1': 'Current Location',
+        'line2': '',
+        'city': '',
+        'pincode': '',
+        'lat': pos.latitude,
+        'lng': pos.longitude,
+        'is_default': true,
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Address saved")));
-      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Address saved')));
+      await _reload();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -48,8 +61,8 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
     try {
       await api.setDefaultAddress(id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Default address updated")));
-      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Default address updated')));
+      await _reload();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -60,41 +73,81 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final api = ref.watch(apiProvider);
+    final future = _future ?? ref.read(apiProvider).addresses();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Addresses"),
+        title: const Text('Addresses'),
         actions: [
           IconButton(
-            onPressed: _busy ? null : () => setState(() {}),
+            onPressed: _busy ? null : _reload,
             icon: const Icon(Icons.refresh),
-            tooltip: "Refresh",
+            tooltip: 'Refresh',
           ),
         ],
       ),
       body: Stack(
         children: [
-          FutureBuilder(
-            future: api.addresses(),
-            builder: (context, snap) {
-              if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-              final rows = snap.data as List<Map<String, dynamic>>;
-              if (rows.isEmpty) return const Center(child: Text("No addresses yet. Tap 'Use current' to add one."));
-              return ListView.separated(
-                itemCount: rows.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (context, i) {
-                  final a = rows[i];
-                  final isDefault = a["is_default"] == true;
-                  return ListTile(
-                    title: Text("${a["label"]} ${isDefault ? "• Default" : ""}"),
-                    subtitle: Text("${a["line1"]}"),
-                    trailing: isDefault ? const Icon(Icons.check_circle) : null,
-                    onTap: _busy ? null : () => _setDefault(a["id"] as int),
+          RefreshIndicator(
+            onRefresh: _reload,
+            child: FutureBuilder<List<Map<String, dynamic>>>(
+              future: future,
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snap.hasError) {
+                  return ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      const SizedBox(height: 32),
+                      const Icon(Icons.error_outline, size: 40),
+                      const SizedBox(height: 12),
+                      Text('Failed to load addresses.\n${snap.error}', textAlign: TextAlign.center),
+                      const SizedBox(height: 12),
+                      Center(
+                        child: FilledButton.icon(
+                          onPressed: _busy ? null : _reload,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry'),
+                        ),
+                      ),
+                    ],
                   );
-                },
-              );
-            },
+                }
+
+                final rows = snap.data ?? [];
+                if (rows.isEmpty) {
+                  return ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    children: const [
+                      SizedBox(height: 48),
+                      Icon(Icons.location_on_outlined, size: 48),
+                      SizedBox(height: 12),
+                      Center(child: Text("No addresses yet. Tap 'Use current' to add one.")),
+                    ],
+                  );
+                }
+
+                return ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  itemCount: rows.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, i) {
+                    final a = rows[i];
+                    final isDefault = a['is_default'] == true;
+                    return ListTile(
+                      title: Text('${a['label']} ${isDefault ? '• Default' : ''}'),
+                      subtitle: Text('${a['line1']}'),
+                      trailing: isDefault ? const Icon(Icons.check_circle) : null,
+                      onTap: _busy ? null : () => _setDefault(a['id'] as int),
+                    );
+                  },
+                );
+              },
+            ),
           ),
           if (_busy)
             const Positioned.fill(
@@ -110,7 +163,7 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _busy ? null : _addFromCurrent,
         icon: const Icon(Icons.add_location),
-        label: const Text("Use current"),
+        label: const Text('Use current'),
       ),
     );
   }
