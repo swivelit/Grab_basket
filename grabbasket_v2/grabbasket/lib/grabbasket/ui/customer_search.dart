@@ -8,11 +8,11 @@ import '../location.dart';
 import '../models.dart';
 import '../state.dart';
 
+enum _LocationSource { none, defaultAddress, gps }
+
 /// Dedicated Search tab.
 ///
-/// This mirrors Swiggy's search experience, but only uses the current backend:
-/// - vendor search via /vendors?q=
-/// - optional location-aware ranking if lat/lng is available
+/// Uses current backend vendor search via `/vendors?q=`.
 class CustomerSearchScreen extends ConsumerStatefulWidget {
   const CustomerSearchScreen({super.key});
 
@@ -28,7 +28,8 @@ class _CustomerSearchScreenState extends ConsumerState<CustomerSearchScreen> {
 
   double? _lat;
   double? _lng;
-  bool _loadingLocation = false;
+  _LocationSource _locationSource = _LocationSource.none;
+  bool _loadingGps = false;
 
   String _q = '';
 
@@ -52,9 +53,45 @@ class _CustomerSearchScreenState extends ConsumerState<CustomerSearchScreen> {
       if (mounted) _focus.requestFocus();
     });
 
-    // Load once quickly (no location), then refresh after we get location.
+    // Prefer default address location; if absent, fall back to GPS.
+    ref.listen<AsyncValue<Map<String, dynamic>?>>(defaultAddressProvider, (prev, next) {
+      next.when(
+        data: (addr) {
+          final lat = (addr?['lat'] as num?)?.toDouble();
+          final lng = (addr?['lng'] as num?)?.toDouble();
+
+          if (lat == null || lng == null) {
+            if (_locationSource == _LocationSource.none) {
+              unawaited(_useGpsLocation());
+            }
+            return;
+          }
+
+          // If user explicitly switched to GPS, don't override.
+          if (_locationSource == _LocationSource.gps) return;
+
+          final changed = _lat != lat || _lng != lng || _locationSource != _LocationSource.defaultAddress;
+          setState(() {
+            _lat = lat;
+            _lng = lng;
+            _locationSource = _LocationSource.defaultAddress;
+          });
+
+          if (changed) {
+            unawaited(_loadFirstPage());
+          }
+        },
+        error: (_, __) {
+          if (_locationSource == _LocationSource.none) {
+            unawaited(_useGpsLocation());
+          }
+        },
+        loading: () {},
+      );
+    });
+
+    // Quick initial load (no location); refresh once location resolves.
     unawaited(_loadFirstPage());
-    unawaited(_fetchLocation());
   }
 
   @override
@@ -137,30 +174,68 @@ class _CustomerSearchScreenState extends ConsumerState<CustomerSearchScreen> {
     }
   }
 
-  Future<void> _fetchLocation() async {
-    setState(() => _loadingLocation = true);
+  Future<void> _useGpsLocation() async {
+    if (_loadingGps) return;
+    setState(() => _loadingGps = true);
+
     try {
       final pos = await LocationService.getCurrent();
       if (!mounted) return;
 
-      final changed = _lat != pos.latitude || _lng != pos.longitude;
+      final changed = _lat != pos.latitude || _lng != pos.longitude || _locationSource != _LocationSource.gps;
       setState(() {
         _lat = pos.latitude;
         _lng = pos.longitude;
+        _locationSource = _LocationSource.gps;
       });
 
       if (changed) {
         await _loadFirstPage();
       }
-    } catch (_) {
-      // Search should still work without location.
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Using current location')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
     } finally {
-      if (mounted) setState(() => _loadingLocation = false);
+      if (mounted) setState(() => _loadingGps = false);
+    }
+  }
+
+  void _useDefaultAddress(Map<String, dynamic>? addr) {
+    if (addr == null) return;
+    final lat = (addr['lat'] as num?)?.toDouble();
+    final lng = (addr['lng'] as num?)?.toDouble();
+    if (lat == null || lng == null) return;
+
+    final changed = _lat != lat || _lng != lng || _locationSource != _LocationSource.defaultAddress;
+    setState(() {
+      _lat = lat;
+      _lng = lng;
+      _locationSource = _LocationSource.defaultAddress;
+    });
+
+    if (changed) {
+      unawaited(_loadFirstPage());
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final addrAsync = ref.watch(defaultAddressProvider);
+    final addr = addrAsync.valueOrNull;
+
+    final showUsingGps = _locationSource == _LocationSource.gps;
+    final label = (addr?['label'] ?? '').toString().trim();
+    final line1 = (addr?['line1'] ?? '').toString().trim();
+
+    final locationText = showUsingGps
+        ? 'Using current location'
+        : (label.isNotEmpty ? label : (addrAsync.isLoading ? 'Loading address…' : 'No saved address'));
+
     return Scaffold(
       appBar: AppBar(
         title: TextField(
@@ -181,18 +256,50 @@ class _CustomerSearchScreenState extends ConsumerState<CustomerSearchScreen> {
         ),
         actions: [
           IconButton(
-            onPressed: _loadingLocation ? null : _fetchLocation,
-            tooltip: 'Refresh location',
-            icon: _loadingLocation
+            tooltip: 'Use current location',
+            onPressed: _loadingGps ? null : _useGpsLocation,
+            icon: _loadingGps
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.my_location),
           ),
         ],
       ),
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _loadFirstPage,
-          child: _buildList(),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_on_outlined, size: 18),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      showUsingGps ? locationText : (line1.isNotEmpty ? '$locationText • $line1' : locationText),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  if (showUsingGps && addr != null)
+                    TextButton(
+                      onPressed: () => _useDefaultAddress(addr),
+                      child: const Text('Use address'),
+                    ),
+                  TextButton(
+                    onPressed: () => context.push('/addresses'),
+                    child: const Text('Change'),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _loadFirstPage,
+                child: _buildList(),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -206,10 +313,7 @@ class _CustomerSearchScreenState extends ConsumerState<CustomerSearchScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           const SizedBox(height: 20),
-          Text(
-            'Try searching for:',
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
+          const Text('Try searching for:', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 10),
           Wrap(
             spacing: 10,
@@ -226,10 +330,7 @@ class _CustomerSearchScreenState extends ConsumerState<CustomerSearchScreen> {
           const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 12),
-          const Text(
-            'Start typing to see results.',
-            textAlign: TextAlign.center,
-          ),
+          const Text('Start typing to see results.', textAlign: TextAlign.center),
         ],
       );
     }
