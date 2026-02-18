@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../state.dart';
+import 'package:go_router/go_router.dart';
+
+import '../config.dart';
 import '../models.dart';
-import 'order_detail.dart';
+import '../state.dart';
 
 class OrdersScreen extends ConsumerStatefulWidget {
   const OrdersScreen({super.key});
@@ -14,10 +16,19 @@ class OrdersScreen extends ConsumerStatefulWidget {
 class _OrdersScreenState extends ConsumerState<OrdersScreen> {
   Future<List<Order>>? _future;
 
+  String get _currency => AppConfig.defaultCurrency;
+
   @override
   void initState() {
     super.initState();
     _future = ref.read(apiProvider).myOrders();
+  }
+
+  String _money(double amount) {
+    if (_currency.toUpperCase() == 'INR') {
+      return '₹${amount.toStringAsFixed(2)}';
+    }
+    return '${amount.toStringAsFixed(2)} $_currency';
   }
 
   Future<void> _reload() async {
@@ -59,12 +70,10 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
                 final o = orders[i];
                 return ListTile(
                   title: Text("Order #${o.id} • ${o.status}"),
-                  subtitle: Text("Total ₹${o.totalAmount.toStringAsFixed(2)} • Items: ${o.items.length}"),
+                  subtitle: Text("Total ${_money(o.totalAmount)} • Items: ${o.items.length}"),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: o.id)),
-                    );
+                    await context.push('/order/${o.id}');
                     await _reload();
                   },
                 );

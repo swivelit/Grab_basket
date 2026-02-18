@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../api.dart';
 import '../app_globals.dart';
@@ -50,23 +51,13 @@ class PushNotifications {
       return;
     }
 
-    // 2) iOS/macOS permissions + foreground presentation
+    // Ensure FCM is active.
     try {
-      if (Platform.isIOS || Platform.isMacOS) {
-        await FirebaseMessaging.instance.requestPermission(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
-        await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
-      }
-    } catch (_) {
-      // Ignore permission issues.
-    }
+      await FirebaseMessaging.instance.setAutoInitEnabled(true);
+    } catch (_) {}
+
+    // 2) Permissions
+    await _requestPermissionsBestEffort();
 
     // 3) Token registration
     await _registerCurrentToken(api);
@@ -105,6 +96,38 @@ class PushNotifications {
           duration: const Duration(seconds: 4),
         );
       });
+    }
+  }
+
+  Future<void> _requestPermissionsBestEffort() async {
+    // iOS/macOS permissions + foreground presentation
+    try {
+      if (Platform.isIOS || Platform.isMacOS) {
+        await FirebaseMessaging.instance.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      }
+    } catch (_) {
+      // Ignore permission issues.
+    }
+
+    // Android 13+ runtime notification permission (POST_NOTIFICATIONS).
+    try {
+      if (Platform.isAndroid) {
+        final status = await Permission.notification.status;
+        if (!status.isGranted) {
+          await Permission.notification.request();
+        }
+      }
+    } catch (_) {
+      // Ignore; notifications are optional for app usability.
     }
   }
 
