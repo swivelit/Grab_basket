@@ -24,20 +24,20 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 
 	<!-- ✅ Meta SDK (Facebook App Events) -->
-	<!-- Replace placeholders with your real values from Meta Developers dashboard -->
+	<!-- Values are injected via ios/Flutter/Debug.xcconfig and Release.xcconfig -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>fbYOUR_FB_APP_ID</string>
+				<string>fb$(FACEBOOK_APP_ID)</string>
 			</array>
 		</dict>
 	</array>
 	<key>FacebookAppID</key>
-	<string>YOUR_FB_APP_ID</string>
+	<string>$(FACEBOOK_APP_ID)</string>
 	<key>FacebookClientToken</key>
-	<string>YOUR_FB_CLIENT_TOKEN</string>
+	<string>$(FACEBOOK_CLIENT_TOKEN)</string>
 	<key>FacebookDisplayName</key>
 	<string>Grabbasket</string>
 
@@ -46,6 +46,14 @@
 	<true/>
 	<key>FacebookAdvertiserIDCollectionEnabled</key>
 	<false/>
+
+	<!-- If you ever enable advertiser tracking on iOS, you'll need ATT text -->
+	<key>NSUserTrackingUsageDescription</key>
+	<string>We use device identifiers to measure ad performance and improve your experience.</string>
+
+	<!-- ✅ Location permission prompt -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We use your location to show nearby stores and deliver your orders.</string>
 
 	<key>LSRequiresIPhoneOS</key>
 	<true/>

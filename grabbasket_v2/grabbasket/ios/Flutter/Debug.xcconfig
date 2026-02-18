@@ -1,1 +1,6 @@
 #include "Generated.xcconfig"
+
+// ✅ Meta (Facebook) App Events
+// Replace with your real values from Meta Developers dashboard.
+FACEBOOK_APP_ID=YOUR_FB_APP_ID
+FACEBOOK_CLIENT_TOKEN=YOUR_FB_CLIENT_TOKEN

@@ -5,6 +5,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// ✅ Meta App Events values
+// Set these in android/gradle.properties (or ~/.gradle/gradle.properties) as:
+// FACEBOOK_APP_ID=1234567890
+// FACEBOOK_CLIENT_TOKEN=abcdef...
+val facebookAppId: String = (project.findProperty("FACEBOOK_APP_ID") as String?) ?: "YOUR_FB_APP_ID"
+val facebookClientToken: String = (project.findProperty("FACEBOOK_CLIENT_TOKEN") as String?) ?: "YOUR_FB_CLIENT_TOKEN"
+
 android {
     namespace = "com.example.grabbasket"
     compileSdk = flutter.compileSdkVersion
@@ -29,10 +36,10 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        // ✅ Meta SDK (Facebook App Events) resources (replace with real values)
-        resValue("string", "facebook_app_id", "YOUR_FB_APP_ID")
-        resValue("string", "facebook_client_token", "YOUR_FB_CLIENT_TOKEN")
-        resValue("string", "fb_login_protocol_scheme", "fbYOUR_FB_APP_ID")
+        // ✅ Meta SDK (Facebook App Events) resources
+        resValue("string", "facebook_app_id", facebookAppId)
+        resValue("string", "facebook_client_token", facebookClientToken)
+        resValue("string", "fb_login_protocol_scheme", "fb$facebookAppId")
     }
 
     // ✅ Grabbasket flavors (Customer/Seller/Partner)
