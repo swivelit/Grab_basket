@@ -16,6 +16,25 @@ final apiProvider = Provider<Api>((ref) {
   return Api(token: session?.token);
 });
 
+/// Customer addresses (raw backend shape).
+///
+/// The backend currently returns a list of maps. We keep it as-is to avoid
+/// breaking changes, and derive helpers like the default address in the UI.
+final addressesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final api = ref.read(apiProvider);
+  return api.addresses();
+});
+
+/// The user's default address, if any.
+///
+/// If no address is marked default, we return the first address (if present).
+final defaultAddressProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
+  final rows = await ref.watch(addressesProvider.future);
+  if (rows.isEmpty) return null;
+  final idx = rows.indexWhere((a) => a['is_default'] == true);
+  return idx == -1 ? rows.first : rows[idx];
+});
+
 class CartState {
   final int vendorId;
   final List<CartLine> lines;

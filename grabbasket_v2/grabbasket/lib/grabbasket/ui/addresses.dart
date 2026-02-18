@@ -24,6 +24,10 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
   Future<void> _reload() async {
     setState(() => _future = ref.read(apiProvider).addresses());
     await _future;
+
+    // Keep other screens (Home header, Search, etc.) in sync.
+    ref.invalidate(addressesProvider);
+    ref.invalidate(defaultAddressProvider);
   }
 
   Future<void> _addFromCurrent() async {
@@ -45,6 +49,8 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Address saved')));
+
+      // Refresh local list + global providers.
       await _reload();
     } catch (e) {
       if (!mounted) return;
@@ -62,6 +68,8 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
       await api.setDefaultAddress(id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Default address updated')));
+
+      // Refresh local list + global providers.
       await _reload();
     } catch (e) {
       if (!mounted) return;
@@ -138,9 +146,12 @@ class _AddressesScreenState extends ConsumerState<AddressesScreen> {
                   itemBuilder: (context, i) {
                     final a = rows[i];
                     final isDefault = a['is_default'] == true;
+                    final label = (a['label'] ?? '').toString();
+                    final line1 = (a['line1'] ?? '').toString();
+
                     return ListTile(
-                      title: Text('${a['label']} ${isDefault ? '• Default' : ''}'),
-                      subtitle: Text('${a['line1']}'),
+                      title: Text(label.isEmpty ? (isDefault ? 'Default' : 'Address') : '$label${isDefault ? ' • Default' : ''}'),
+                      subtitle: Text(line1),
                       trailing: isDefault ? const Icon(Icons.check_circle) : null,
                       onTap: _busy ? null : () => _setDefault(a['id'] as int),
                     );
