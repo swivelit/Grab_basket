@@ -160,7 +160,17 @@ class Order {
     required this.events,
   });
 
-  bool get canCancel => !(status == 'PICKED_UP' || status == 'DELIVERED' || status.startsWith('CANCELLED'));
+  /// Whether a customer should be allowed to cancel from the app.
+  ///
+  /// Backend rule (current): cannot cancel after PICKED_UP or DELIVERED.
+  /// We additionally treat REJECTED_* and CANCELLED_* as non-cancellable from UI.
+  bool get canCancel => !(
+        status == 'PICKED_UP' ||
+        status == 'DELIVERED' ||
+        status.startsWith('CANCELLED') ||
+        status.startsWith('REJECTED') ||
+        status.trim().isEmpty,
+      );
 
   factory Order.fromJson(Map<String, dynamic> j) {
     return Order(

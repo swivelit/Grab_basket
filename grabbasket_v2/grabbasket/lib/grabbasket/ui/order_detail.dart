@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app_globals.dart';
 import '../config.dart';
 import '../models.dart';
+import '../order_status.dart';
 import '../state.dart';
 
 class OrderDetailScreen extends ConsumerStatefulWidget {
@@ -38,45 +39,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
     final o = _order;
     if (o == null) return false;
     if (o.partnerId == null) return false;
-    return {
-      "ASSIGNED_TO_PARTNER",
-      "READY_FOR_PICKUP",
-      "PICKED_UP",
-    }.contains(o.status);
-  }
-
-  String _titleCase(String input) {
-    final parts = input
-        .trim()
-        .replaceAll('_', ' ')
-        .toLowerCase()
-        .split(RegExp(r'\s+'))
-        .where((p) => p.isNotEmpty)
-        .toList();
-    return parts.map((w) => w[0].toUpperCase() + w.substring(1)).join(' ');
-  }
-
-  String _statusLabel(String code) {
-    switch (code) {
-      case 'CREATED':
-        return 'Placed';
-      case 'ACCEPTED_BY_SELLER':
-        return 'Accepted';
-      case 'ASSIGNED_TO_PARTNER':
-        return 'Partner assigned';
-      case 'READY_FOR_PICKUP':
-        return 'Ready for pickup';
-      case 'PICKED_UP':
-        return 'Picked up';
-      case 'DELIVERED':
-        return 'Delivered';
-      case 'REJECTED_BY_SELLER':
-        return 'Rejected';
-      default:
-        if (code.startsWith('CANCELLED')) return 'Cancelled';
-        if (code.startsWith('REJECTED')) return 'Rejected';
-        return _titleCase(code);
-    }
+    return OrderStatus.shouldTrackPartner(o.status);
   }
 
   @override
@@ -110,6 +73,12 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
   String _money(double amount) {
     if (_currency.toUpperCase() == 'INR') return '₹${amount.toStringAsFixed(2)}';
     return '${amount.toStringAsFixed(2)} $_currency';
+  }
+
+  String _fmtTime(DateTime dt) {
+    final d = dt.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.day)}/${two(d.month)}/${d.year} ${two(d.hour)}:${two(d.minute)}';
   }
 
   Future<void> _load({bool initial = false}) async {
@@ -174,9 +143,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
     final o = _order;
     if (o == null) return;
 
-    // Backend allows cancellation up to pickup; also prevent cancelling rejected orders.
-    final canCancel = widget.allowCancel && o.canCancel && !o.status.startsWith('REJECTED');
-
+    final canCancel = widget.allowCancel && o.canCancel && OrderStatus.customerCanCancel(o.status);
     if (!canCancel) {
       AppGlobals.showSnack("This order can’t be cancelled now.");
       return;
@@ -285,6 +252,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
                           const SizedBox(height: 12),
                           _statusCard(o),
                           const SizedBox(height: 12),
+                          _eventsCard(o),
+                          if (o.events.isNotEmpty) const SizedBox(height: 12),
                           _itemsCard(o),
                           const SizedBox(height: 12),
                           _trackingCard(o),
@@ -304,6 +273,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
   }
 
   Widget _headerCard(Order o) {
+    final statusLabel = OrderStatus.label(o.status);
+    final statusColor = OrderStatus.color(o.status);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -314,7 +286,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
               children: [
                 Expanded(
                   child: Text(
-                    'Status: ${_statusLabel(o.status)}',
+                    'Status: $statusLabel',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                   ),
                 ),
@@ -325,11 +297,21 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
               ],
             ),
             const SizedBox(height: 10),
-            Text('Code: ${o.status}', style: TextStyle(color: Colors.black.withOpacity(0.55))),
-            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _pill('Code: ${o.status}', statusColor),
+                _pill('Payment: ${o.paymentMethod}', Colors.blueGrey),
+                if (o.partnerId != null) _pill('Partner #${o.partnerId}', Colors.deepOrange),
+              ],
+            ),
+            const SizedBox(height: 10),
             Text('Vendor ID: ${o.vendorId}'),
             const SizedBox(height: 6),
-            Text('Payment: ${o.paymentMethod}'),
+            Text('Subtotal: ${_money(o.subtotalAmount)}'),
+            const SizedBox(height: 6),
+            Text('Delivery fee: ${_money(o.deliveryFee)}'),
             const SizedBox(height: 6),
             Text('Total: ${_money(o.totalAmount)}', style: const TextStyle(fontWeight: FontWeight.w700)),
           ],
@@ -339,16 +321,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
   }
 
   Widget _statusCard(Order o) {
-    final steps = <({String code, String label})>[
-      (code: "CREATED", label: "Placed"),
-      (code: "ACCEPTED_BY_SELLER", label: "Accepted"),
-      (code: "ASSIGNED_TO_PARTNER", label: "Partner assigned"),
-      (code: "READY_FOR_PICKUP", label: "Ready for pickup"),
-      (code: "PICKED_UP", label: "Picked up"),
-      (code: "DELIVERED", label: "Delivered"),
-    ];
-
-    final currentIndex = steps.indexWhere((s) => s.code == o.status);
+    final steps = OrderStatus.steps();
+    final currentIndex = OrderStatus.indexInSteps(o.status);
     final showAll = currentIndex != -1;
 
     return Card(
@@ -370,17 +344,72 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
                       i < currentIndex ? Colors.green : (i == currentIndex ? Colors.blue : Colors.grey),
                     )
                 else
-                  _pill(o.status, Colors.blue),
+                  _pill(OrderStatus.label(o.status), OrderStatus.color(o.status)),
               ],
             ),
-            if (o.status.startsWith('CANCELLED')) ...[
+            if (OrderStatus.isCancelled(o.status)) ...[
               const SizedBox(height: 10),
               const Text('This order has been cancelled.', style: TextStyle(fontWeight: FontWeight.w700)),
             ],
-            if (o.status.startsWith('REJECTED')) ...[
+            if (OrderStatus.isRejected(o.status)) ...[
               const SizedBox(height: 10),
               const Text('This order was rejected by the seller.', style: TextStyle(fontWeight: FontWeight.w700)),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _eventsCard(Order o) {
+    if (o.events.isEmpty) return const SizedBox.shrink();
+    final events = [...o.events]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Updates', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            ...events.map(
+              (ev) {
+                final label = OrderStatus.label(ev.status);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        margin: const EdgeInsets.only(top: 4),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: OrderStatus.color(ev.status).withOpacity(0.8),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 2),
+                            Text(_fmtTime(ev.createdAt), style: TextStyle(color: Colors.black.withOpacity(0.55), fontSize: 12)),
+                            if (ev.note.trim().isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(ev.note),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -408,6 +437,20 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
                   ],
                 ),
               ),
+            ),
+            const Divider(height: 18),
+            Row(
+              children: [
+                Expanded(child: Text('Subtotal', style: TextStyle(color: Colors.black.withOpacity(0.7)))),
+                Text(_money(o.subtotalAmount), style: const TextStyle(fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(child: Text('Delivery fee', style: TextStyle(color: Colors.black.withOpacity(0.7)))),
+                Text(_money(o.deliveryFee), style: const TextStyle(fontWeight: FontWeight.w700)),
+              ],
             ),
             const Divider(height: 18),
             Align(
@@ -464,8 +507,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
                 runSpacing: 8,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: () => _copy('${lat.toStringAsFixed(6)},${lng.toStringAsFixed(6)}',
-                        doneMessage: 'Coordinates copied'),
+                    onPressed: () => _copy('${lat.toStringAsFixed(6)},${lng.toStringAsFixed(6)}', doneMessage: 'Coordinates copied'),
                     icon: const Icon(Icons.copy),
                     label: const Text('Copy coordinates'),
                   ),
