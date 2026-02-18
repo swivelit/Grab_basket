@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../config.dart';
 import '../models.dart';
+import '../order_status.dart';
 import '../state.dart';
 
 class OrdersScreen extends ConsumerStatefulWidget {
@@ -36,9 +37,24 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
     await _future;
   }
 
+  Widget _statusPill(String code) {
+    final c = OrderStatus.color(code);
+    final label = OrderStatus.label(code);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: c.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: c.withOpacity(0.35)),
+      ),
+      child: Text(label, style: TextStyle(color: c, fontWeight: FontWeight.w700, fontSize: 12)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final api = ref.watch(apiProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text("My orders")),
       body: RefreshIndicator(
@@ -52,16 +68,37 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
             if (snap.hasError) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                children: [Padding(padding: const EdgeInsets.all(16), child: Text("Failed: ${snap.error}"))],
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const SizedBox(height: 32),
+                  const Icon(Icons.wifi_off, size: 44),
+                  const SizedBox(height: 12),
+                  Text("Failed to load orders.\n${snap.error}", textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: FilledButton.icon(
+                      onPressed: _reload,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ),
+                ],
               );
             }
-            final orders = snap.data ?? [];
+
+            final orders = snap.data ?? const <Order>[];
             if (orders.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                children: const [Padding(padding: EdgeInsets.all(16), child: Text("No orders yet"))],
+                padding: const EdgeInsets.only(top: 56),
+                children: const [
+                  Icon(Icons.receipt_long, size: 48),
+                  SizedBox(height: 12),
+                  Center(child: Text("No orders yet")),
+                ],
               );
             }
+
             return ListView.separated(
               physics: const AlwaysScrollableScrollPhysics(),
               itemCount: orders.length,
@@ -69,9 +106,24 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
               itemBuilder: (context, i) {
                 final o = orders[i];
                 return ListTile(
-                  title: Text("Order #${o.id} • ${o.status}"),
-                  subtitle: Text("Total ${_money(o.totalAmount)} • Items: ${o.items.length}"),
-                  trailing: const Icon(Icons.chevron_right),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  title: Text(
+                    "Order #${o.id}",
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text("Total ${_money(o.totalAmount)} • Items: ${o.items.length}"),
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _statusPill(o.status),
+                      const SizedBox(height: 8),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
                   onTap: () async {
                     await context.push('/order/${o.id}');
                     await _reload();

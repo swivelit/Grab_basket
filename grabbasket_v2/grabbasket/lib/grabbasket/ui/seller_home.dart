@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../bootstrap.dart';
 import '../models.dart';
+import '../order_status.dart';
 import '../state.dart';
 import 'login.dart';
 import 'order_detail.dart';
@@ -227,7 +228,7 @@ class _SellerHomeState extends ConsumerState<SellerHome> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     const SizedBox(height: 4),
-                                    Text("Status: ${o.status}"),
+                                    Text("Status: ${OrderStatus.label(o.status)}"),
                                     const SizedBox(height: 4),
                                     Text("Total ₹${o.totalAmount.toStringAsFixed(2)} • Items: ${o.items.length}"),
                                   ],
