@@ -45,6 +45,40 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
     }.contains(o.status);
   }
 
+  String _titleCase(String input) {
+    final parts = input
+        .trim()
+        .replaceAll('_', ' ')
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    return parts.map((w) => w[0].toUpperCase() + w.substring(1)).join(' ');
+  }
+
+  String _statusLabel(String code) {
+    switch (code) {
+      case 'CREATED':
+        return 'Placed';
+      case 'ACCEPTED_BY_SELLER':
+        return 'Accepted';
+      case 'ASSIGNED_TO_PARTNER':
+        return 'Partner assigned';
+      case 'READY_FOR_PICKUP':
+        return 'Ready for pickup';
+      case 'PICKED_UP':
+        return 'Picked up';
+      case 'DELIVERED':
+        return 'Delivered';
+      case 'REJECTED_BY_SELLER':
+        return 'Rejected';
+      default:
+        if (code.startsWith('CANCELLED')) return 'Cancelled';
+        if (code.startsWith('REJECTED')) return 'Rejected';
+        return _titleCase(code);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -140,11 +174,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
     final o = _order;
     if (o == null) return;
 
-    final canCancel = widget.allowCancel &&
-        {
-          "PLACED",
-          "CONFIRMED",
-        }.contains(o.status);
+    // Backend allows cancellation up to pickup; also prevent cancelling rejected orders.
+    final canCancel = widget.allowCancel && o.canCancel && !o.status.startsWith('REJECTED');
 
     if (!canCancel) {
       AppGlobals.showSnack("This order can’t be cancelled now.");
@@ -283,7 +314,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
               children: [
                 Expanded(
                   child: Text(
-                    'Status: ${o.status}',
+                    'Status: ${_statusLabel(o.status)}',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                   ),
                 ),
@@ -294,6 +325,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
               ],
             ),
             const SizedBox(height: 10),
+            Text('Code: ${o.status}', style: TextStyle(color: Colors.black.withOpacity(0.55))),
+            const SizedBox(height: 6),
             Text('Vendor ID: ${o.vendorId}'),
             const SizedBox(height: 6),
             Text('Payment: ${o.paymentMethod}'),
@@ -307,9 +340,10 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
 
   Widget _statusCard(Order o) {
     final steps = <({String code, String label})>[
-      (code: "PLACED", label: "Placed"),
-      (code: "CONFIRMED", label: "Confirmed"),
+      (code: "CREATED", label: "Placed"),
+      (code: "ACCEPTED_BY_SELLER", label: "Accepted"),
       (code: "ASSIGNED_TO_PARTNER", label: "Partner assigned"),
+      (code: "READY_FOR_PICKUP", label: "Ready for pickup"),
       (code: "PICKED_UP", label: "Picked up"),
       (code: "DELIVERED", label: "Delivered"),
     ];
@@ -339,9 +373,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
                   _pill(o.status, Colors.blue),
               ],
             ),
-            if (o.status == "CANCELLED") ...[
+            if (o.status.startsWith('CANCELLED')) ...[
               const SizedBox(height: 10),
               const Text('This order has been cancelled.', style: TextStyle(fontWeight: FontWeight.w700)),
+            ],
+            if (o.status.startsWith('REJECTED')) ...[
+              const SizedBox(height: 10),
+              const Text('This order was rejected by the seller.', style: TextStyle(fontWeight: FontWeight.w700)),
             ],
           ],
         ),
