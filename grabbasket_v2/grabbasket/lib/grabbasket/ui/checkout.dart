@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../config.dart';
 import '../marketing/meta_events.dart';
 import '../state.dart';
-import 'addresses.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -19,7 +20,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   Future<List<Map<String, dynamic>>>? _addrFuture;
 
-  static const String _currency = 'INR';
+  String get _currency => AppConfig.defaultCurrency;
   bool _loggedInitiatedCheckout = false;
 
   @override
@@ -28,8 +29,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _addrFuture = ref.read(apiProvider).addresses();
   }
 
+  String _money(double amount) {
+    if (_currency.toUpperCase() == 'INR') {
+      return '₹${amount.toStringAsFixed(2)}';
+    }
+    return '${amount.toStringAsFixed(2)} $_currency';
+  }
+
   Future<void> _openAddresses() async {
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddressesScreen()));
+    await context.push('/addresses');
     if (!mounted) return;
     setState(() => _addrFuture = ref.read(apiProvider).addresses());
   }
@@ -55,8 +63,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       return const Scaffold(body: Center(child: Text('Cart is empty')));
     }
 
-    // ✅ Meta App Events: Initiated checkout
-    // Log once per screen visit.
+    // ✅ Meta App Events: Initiated checkout (log once per screen visit)
     if (!_loggedInitiatedCheckout) {
       _loggedInitiatedCheckout = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -128,7 +135,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
                   const SizedBox(height: 12),
                   TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => context.pop(),
                     child: const Text('Go back'),
                   ),
                 ],
@@ -165,7 +172,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                             return ListTile(
                               contentPadding: EdgeInsets.zero,
                               title: Text(line.product.name),
-                              subtitle: Text('₹${line.product.price.toStringAsFixed(2)}'),
+                              subtitle: Text(_money(line.product.price)),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -237,7 +244,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text('Subtotal: ₹${cart.subtotal.toStringAsFixed(2)}'),
+                  Text('Subtotal: ${_money(cart.subtotal)}'),
                   const SizedBox(height: 12),
                   FilledButton(
                     onPressed: _placingOrder
@@ -264,7 +271,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text('Order #${order.id} placed: ${order.status}')),
                               );
-                              Navigator.of(context).pop();
+                              context.pop();
                             } catch (e) {
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(

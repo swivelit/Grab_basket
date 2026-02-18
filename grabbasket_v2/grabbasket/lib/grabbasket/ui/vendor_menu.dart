@@ -2,11 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../config.dart';
 import '../marketing/meta_events.dart';
 import '../models.dart';
 import '../state.dart';
-import 'checkout.dart';
 
 class VendorMenuScreen extends ConsumerStatefulWidget {
   final Vendor vendor;
@@ -24,7 +25,7 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
   bool _includeUnavailable = false;
   Future<List<Product>>? _future;
 
-  static const String _currency = 'INR';
+  String get _currency => AppConfig.defaultCurrency;
 
   @override
   void initState() {
@@ -72,6 +73,13 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
     if (cart == null || cart.vendorId != p.vendorId) return 0;
     final idx = cart.lines.indexWhere((l) => l.product.id == p.id);
     return idx == -1 ? 0 : cart.lines[idx].qty;
+  }
+
+  String _money(double amount) {
+    if (_currency.toUpperCase() == 'INR') {
+      return '₹${amount.toStringAsFixed(2)}';
+    }
+    return '${amount.toStringAsFixed(2)} $_currency';
   }
 
   @override
@@ -128,7 +136,7 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
                             });
                           },
                         ),
-                        if (_q.isNotEmpty) Chip(label: Text('Search: "$_q"')),
+                        if (_q.isNotEmpty) Chip(label: Text('Search: \"$_q\"')),
                       ],
                     ),
                   ),
@@ -218,7 +226,7 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
                                 spacing: 8,
                                 children: [
                                   Text(
-                                    '₹${p.price.toStringAsFixed(2)}',
+                                    _money(p.price),
                                     style: TextStyle(
                                       fontWeight: FontWeight.w700,
                                       color: isDisabled ? Colors.grey : null,
@@ -271,9 +279,7 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
                     color: Theme.of(context).colorScheme.primary,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(14),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const CheckoutScreen()),
-                      ),
+                      onTap: () => context.push('/checkout'),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         child: Row(
@@ -282,7 +288,7 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                '${cartForVendor.count} item(s) • ₹${cartForVendor.subtotal.toStringAsFixed(2)}',
+                                '${cartForVendor.count} item(s) • ${_money(cartForVendor.subtotal)}',
                                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
                               ),
                             ),

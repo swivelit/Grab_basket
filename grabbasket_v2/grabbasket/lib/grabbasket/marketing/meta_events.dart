@@ -1,5 +1,8 @@
 import 'package:facebook_app_events/facebook_app_events.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb, debugPrint;
 
+import '../config.dart';
 import '../models.dart';
 import '../state.dart';
 
@@ -16,6 +19,23 @@ class MetaEvents {
 
   final FacebookAppEvents _fb = FacebookAppEvents();
 
+  bool get _isSupportedPlatform =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
+  bool get _enabled => AppConfig.enableMetaEvents && _isSupportedPlatform;
+
+  Future<void> _safe(Future<void> Function() fn, {String? label}) async {
+    if (!_enabled) return;
+    try {
+      await fn();
+    } catch (e) {
+      // Avoid crashing on missing native plugin registrations / unsupported platforms.
+      debugPrint('MetaEvents${label != null ? " ($label)" : ""} skipped: $e');
+    }
+  }
+
   /// Call once on app startup.
   ///
   /// Notes:
@@ -27,20 +47,25 @@ class MetaEvents {
     bool enableAutoLogAppEvents = true,
     bool enableAdvertiserTracking = false,
     bool collectAdvertiserId = false,
-  }) async {
-    await _fb.setAutoLogAppEventsEnabled(enableAutoLogAppEvents);
-    await _fb.setAdvertiserTracking(
-      enabled: enableAdvertiserTracking,
-      collectId: collectAdvertiserId,
-    );
+  }) {
+    return _safe(() async {
+      await _fb.setAutoLogAppEventsEnabled(enableAutoLogAppEvents);
+      await _fb.setAdvertiserTracking(
+        enabled: enableAdvertiserTracking,
+        collectId: collectAdvertiserId,
+      );
 
-    // Explicitly mark app activation (harmless if auto-logging is on).
-    await _fb.activateApp();
+      // Explicitly mark app activation (harmless if auto-logging is on).
+      await _fb.activateApp();
+    }, label: 'init');
   }
 
   /// Enable advertiser tracking after user consent.
   Future<void> setAdvertiserTrackingEnabled(bool enabled) {
-    return _fb.setAdvertiserTracking(enabled: enabled, collectId: enabled);
+    return _safe(
+      () => _fb.setAdvertiserTracking(enabled: enabled, collectId: enabled),
+      label: 'setAdvertiserTrackingEnabled',
+    );
   }
 
   Future<void> logAddToCart({
@@ -48,18 +73,20 @@ class MetaEvents {
     required Product product,
     required String currency,
   }) {
-    return _fb.logAddToCart(
-      id: product.id.toString(),
-      type: 'product',
-      currency: currency,
-      price: product.price,
-      content: {
-        'vendor_id': vendor.id.toString(),
-        'vendor_name': vendor.name,
-        'product_name': product.name,
-        'product_vendor_id': product.vendorId.toString(),
-      },
-    );
+    return _safe(() {
+      return _fb.logAddToCart(
+        id: product.id.toString(),
+        type: 'product',
+        currency: currency,
+        price: product.price,
+        content: {
+          'vendor_id': vendor.id.toString(),
+          'vendor_name': vendor.name,
+          'product_name': product.name,
+          'product_vendor_id': product.vendorId.toString(),
+        },
+      );
+    }, label: 'logAddToCart');
   }
 
   Future<void> logInitiatedCheckout({
@@ -67,46 +94,53 @@ class MetaEvents {
     required String currency,
     String? paymentMethod,
   }) {
-    return _fb.logInitiatedCheckout(
-      totalPrice: cart.subtotal,
-      currency: currency,
-      numItems: cart.count,
-      contentType: 'product',
-      contentId: cart.vendorId.toString(),
-      paymentInfoAvailable: (paymentMethod != null && paymentMethod.isNotEmpty),
-    );
+    return _safe(() {
+      return _fb.logInitiatedCheckout(
+        totalPrice: cart.subtotal,
+        currency: currency,
+        numItems: cart.count,
+        contentType: 'product',
+        contentId: cart.vendorId.toString(),
+        paymentInfoAvailable:
+            (paymentMethod != null && paymentMethod.isNotEmpty),
+      );
+    }, label: 'logInitiatedCheckout');
   }
 
   Future<void> logPurchase({
     required Order order,
     required String currency,
   }) {
-    return _fb.logPurchase(
-      amount: order.totalAmount,
-      currency: currency,
-      parameters: {
-        'order_id': order.id.toString(),
-        'vendor_id': order.vendorId.toString(),
-        'payment_method': order.paymentMethod,
-        'payment_status': order.paymentStatus,
-        'items_count': order.items.length,
-      },
-    );
+    return _safe(() {
+      return _fb.logPurchase(
+        amount: order.totalAmount,
+        currency: currency,
+        parameters: {
+          'order_id': order.id.toString(),
+          'vendor_id': order.vendorId.toString(),
+          'payment_method': order.paymentMethod,
+          'payment_status': order.paymentStatus,
+          'items_count': order.items.length,
+        },
+      );
+    }, label: 'logPurchase');
   }
 
   Future<void> logViewVendorMenu({
     required Vendor vendor,
     required String currency,
   }) {
-    // Optional: helps build audiences based on vendor/menu views.
-    return _fb.logViewContent(
-      id: vendor.id.toString(),
-      type: 'vendor_menu',
-      currency: currency,
-      content: {
-        'vendor_id': vendor.id.toString(),
-        'vendor_name': vendor.name,
-      },
-    );
+    return _safe(() {
+      // Optional: helps build audiences based on vendor/menu views.
+      return _fb.logViewContent(
+        id: vendor.id.toString(),
+        type: 'vendor_menu',
+        currency: currency,
+        content: {
+          'vendor_id': vendor.id.toString(),
+          'vendor_name': vendor.name,
+        },
+      );
+    }, label: 'logViewVendorMenu');
   }
 }

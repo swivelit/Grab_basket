@@ -1,9 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'api.dart';
 import 'models.dart';
 import 'storage.dart';
 
-final secureStoreProvider = Provider((ref) => SecureStore());
+final secureStoreProvider = Provider<SessionStore>((ref) => SecureStore());
 
 final sessionProvider = FutureProvider<({String? token, String? role})>((ref) async {
   final store = ref.read(secureStoreProvider);
