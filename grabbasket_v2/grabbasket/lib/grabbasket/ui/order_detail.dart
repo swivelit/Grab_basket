@@ -61,7 +61,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Stop polling when app goes background; resume when active.
     _active = state == AppLifecycleState.resumed;
     if (!_active) {
       _timer?.cancel();
@@ -90,7 +89,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
       final o = await api.getOrder(widget.orderId);
       Map<String, dynamic>? loc;
       if (o.partnerId != null) {
-        // Safe even if not picked up yet.
         loc = await api.partnerLatestForOrder(widget.orderId);
       }
 
@@ -134,7 +132,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
         _timer = null;
       }
     } catch (_) {
-      // Ignore transient polling failures; UI can still show last known info.
+      // Ignore transient polling failures; keep last known state.
     }
   }
 
@@ -264,11 +262,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
                             FilledButton.tonalIcon(
                               onPressed: _cancelling ? null : _cancelOrder,
                               icon: _cancelling
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    )
+                                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                                   : const Icon(Icons.cancel_outlined),
                               label: Text(_cancelling ? 'Cancelling…' : 'Cancel order'),
                             ),
@@ -312,7 +306,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
   }
 
   Widget _statusCard(Order o) {
-    // Swiggy-style: simple timeline chips
     final steps = <({String code, String label})>[
       (code: "PLACED", label: "Placed"),
       (code: "CONFIRMED", label: "Confirmed"),
@@ -348,10 +341,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
             ),
             if (o.status == "CANCELLED") ...[
               const SizedBox(height: 10),
-              const Text(
-                'This order has been cancelled.',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
+              const Text('This order has been cancelled.', style: TextStyle(fontWeight: FontWeight.w700)),
             ],
           ],
         ),
@@ -384,10 +374,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
             const Divider(height: 18),
             Align(
               alignment: Alignment.centerRight,
-              child: Text(
-                'Total: ${_money(o.totalAmount)}',
-                style: const TextStyle(fontWeight: FontWeight.w900),
-              ),
+              child: Text('Total: ${_money(o.totalAmount)}', style: const TextStyle(fontWeight: FontWeight.w900)),
             ),
           ],
         ),
@@ -415,9 +402,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
           children: [
             Row(
               children: [
-                const Expanded(
-                  child: Text('Live tracking', style: TextStyle(fontWeight: FontWeight.w800)),
-                ),
+                const Expanded(child: Text('Live tracking', style: TextStyle(fontWeight: FontWeight.w800))),
                 if (_shouldTrack) _pill('Live', Colors.green),
               ],
             ),
@@ -441,10 +426,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
                 runSpacing: 8,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: () => _copy(
-                      '${lat.toStringAsFixed(6)},${lng.toStringAsFixed(6)}',
-                      doneMessage: 'Coordinates copied',
-                    ),
+                    onPressed: () => _copy('${lat.toStringAsFixed(6)},${lng.toStringAsFixed(6)}',
+                        doneMessage: 'Coordinates copied'),
                     icon: const Icon(Icons.copy),
                     label: const Text('Copy coordinates'),
                   ),
@@ -470,10 +453,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: color.withOpacity(0.35)),
       ),
-      child: Text(
-        text,
-        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
-      ),
+      child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12)),
     );
   }
 }

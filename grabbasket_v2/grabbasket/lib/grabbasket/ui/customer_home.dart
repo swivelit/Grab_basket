@@ -170,6 +170,9 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
 
   @override
   Widget build(BuildContext context) {
+    final cart = ref.watch(cartProvider);
+    final cartCount = cart?.count ?? 0;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Grabbasket'),
@@ -187,6 +190,16 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
             icon: const Icon(Icons.receipt_long),
             tooltip: 'My orders',
             onPressed: () => context.push('/orders'),
+          ),
+          IconButton(
+            tooltip: 'Cart',
+            onPressed: cartCount > 0 ? () => context.push('/cart') : null,
+            icon: cartCount > 0
+                ? Badge(
+                    label: Text(cartCount.toString()),
+                    child: const Icon(Icons.shopping_basket_outlined),
+                  )
+                : const Icon(Icons.shopping_basket_outlined),
           ),
           IconButton(
             icon: const Icon(Icons.logout),
