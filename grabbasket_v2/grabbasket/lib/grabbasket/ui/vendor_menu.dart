@@ -279,7 +279,7 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
                     color: Theme.of(context).colorScheme.primary,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(14),
-                      onTap: () => context.push('/checkout'),
+                      onTap: () => context.push('/cart'),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         child: Row(
