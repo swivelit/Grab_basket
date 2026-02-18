@@ -1,11 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'marketing/meta_events.dart';
 import 'router.dart';
 
 enum AppFlavor { customer, seller, partner }
 
 void mainApp(AppFlavor flavor) {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Fire-and-forget: Meta SDK init should not block app startup.
+  unawaited(MetaEvents.instance.init());
+
   runApp(ProviderScope(child: GrabbasketApp(flavor: flavor)));
 }
 

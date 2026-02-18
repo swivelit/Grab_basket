@@ -1,10 +1,12 @@
+import 'dart:io';
+
 import 'package:geolocator/geolocator.dart';
 
 class LocationService {
   static Future<Position> getCurrent() async {
     final enabled = await Geolocator.isLocationServiceEnabled();
     if (!enabled) {
-      throw Exception("Location services are disabled");
+      throw Exception('Location services are disabled');
     }
 
     var perm = await Geolocator.checkPermission();
@@ -12,22 +14,40 @@ class LocationService {
       perm = await Geolocator.requestPermission();
     }
     if (perm == LocationPermission.deniedForever) {
-      throw Exception("Location permission denied forever");
+      throw Exception('Location permission denied forever');
     }
     if (perm == LocationPermission.denied) {
-      throw Exception("Location permission denied");
+      throw Exception('Location permission denied');
     }
 
     return Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
   }
 
+  /// A position stream that *actually* respects a rough update interval.
+  ///
+  /// Partner tracking uses this and expects updates around every [seconds].
   static Stream<Position> stream({int seconds = 5}) {
-    return Geolocator.getPositionStream(
-      locationSettings: LocationSettings(
+    final LocationSettings settings;
+
+    if (Platform.isAndroid) {
+      settings = AndroidSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 10,
-        timeLimit: Duration(seconds: seconds),
-      ),
-    );
+        intervalDuration: Duration(seconds: seconds),
+      );
+    } else if (Platform.isIOS || Platform.isMacOS) {
+      settings = AppleSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+        pauseLocationUpdatesAutomatically: false,
+      );
+    } else {
+      settings = LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      );
+    }
+
+    return Geolocator.getPositionStream(locationSettings: settings);
   }
 }

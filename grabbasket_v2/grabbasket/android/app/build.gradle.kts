@@ -28,6 +28,11 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // ✅ Meta SDK (Facebook App Events) resources (replace with real values)
+        resValue("string", "facebook_app_id", "YOUR_FB_APP_ID")
+        resValue("string", "facebook_client_token", "YOUR_FB_CLIENT_TOKEN")
+        resValue("string", "fb_login_protocol_scheme", "fbYOUR_FB_APP_ID")
     }
 
     // ✅ Grabbasket flavors (Customer/Seller/Partner)
