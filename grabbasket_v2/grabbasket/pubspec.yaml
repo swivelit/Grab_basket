@@ -36,7 +36,7 @@ dependencies:
   geolocator: ^14.0.2
   firebase_core: ^4.0.0
   firebase_messaging: ^17.0.0
-
+  facebook_app_events: ^0.24.0
 
   flutter:
     sdk: flutter
@@ -81,7 +81,7 @@ flutter:
   # To add custom fonts to your application, add a fonts section here,
   # in this "flutter" section. Each entry in this list should have a
   # "family" key with the font family name, and a "fonts" key with a
-  # list giving the asset and other descriptors for the font. For
+  # list giving the asset and other descriptors for the font.
   # example:
   # fonts:
   #   - family: Schyler

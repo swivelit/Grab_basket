@@ -5,4 +5,9 @@ class AppConfig {
     'API_BASE_URL',
     defaultValue: 'http://10.0.2.2:8000',
   );
+
+  /// Backwards-compatible alias.
+  ///
+  /// Some files may reference `AppConfig.baseUrl`.
+  static const String baseUrl = apiBaseUrl;
 }

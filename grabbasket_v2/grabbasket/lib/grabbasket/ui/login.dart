@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
 import '../bootstrap.dart';
 import '../api.dart';
-import '../storage.dart';
 import '../state.dart';
-import 'customer_home.dart';
-import 'seller_home.dart';
-import 'partner_home.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   final AppFlavor flavor;
@@ -17,74 +15,146 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
+
   bool _isRegister = false;
   bool _loading = false;
-  String? _error;
+  bool _hidePassword = true;
 
   String get _role => switch (widget.flavor) {
-    AppFlavor.customer => "CUSTOMER",
-    AppFlavor.seller => "SELLER",
-    AppFlavor.partner => "PARTNER",
-  };
+        AppFlavor.customer => 'CUSTOMER',
+        AppFlavor.seller => 'SELLER',
+        AppFlavor.partner => 'PARTNER',
+      };
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final ok = _formKey.currentState?.validate() ?? false;
+    if (!ok) return;
+
+    setState(() => _loading = true);
+    try {
+      final api = Api();
+      final email = _email.text.trim();
+      final password = _password.text;
+
+      final res = _isRegister
+          ? await api.register(email: email, password: password, role: _role)
+          : await api.login(email: email, password: password);
+
+      // Persist session.
+      await ref.read(secureStoreProvider).saveSession(token: res.accessToken, role: res.role);
+
+      // Refresh providers so subsequent API calls use the new token.
+      ref.invalidate(sessionProvider);
+
+      if (!mounted) return;
+      // Go back to app root; AppGate will show the correct home.
+      context.go('/');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final title = _isRegister ? 'Create account' : 'Login';
+
     return Scaffold(
-      appBar: AppBar(title: Text(_isRegister ? "Register" : "Login")),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(controller: _email, decoration: const InputDecoration(labelText: "Email")),
-            const SizedBox(height: 12),
-            TextField(controller: _password, obscureText: true, decoration: const InputDecoration(labelText: "Password")),
-            const SizedBox(height: 12),
-            if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: _loading ? null : () async {
-                setState(() { _loading = true; _error = null; });
-                try {
-                  final api = Api();
-                  final res = _isRegister
-                    ? await api.register(email: _email.text.trim(), password: _password.text, role: _role)
-                    : await api.login(email: _email.text.trim(), password: _password.text);
-
-                  final store = SecureStore();
-                  await store.saveSession(token: res.accessToken, role: res.role);
-
-                  // Refresh providers so subsequent API calls use the new token.
-                  ref.invalidate(sessionProvider);
-
-                  if (!context.mounted) return;
-                  final target = switch (widget.flavor) {
-                    AppFlavor.customer => const CustomerHome(),
-                    AppFlavor.seller => const SellerHome(),
-                    AppFlavor.partner => const PartnerHome(),
-                  };
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => target),
-                    (_) => false,
-                  );
-                } catch (e) {
-                  setState(() => _error = e.toString());
-                } finally {
-                  setState(() => _loading = false);
-                }
-              },
-              child: Text(_loading ? "Please wait..." : (_isRegister ? "Create account" : "Login")),
+      appBar: AppBar(title: Text(title)),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Role: $_role',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _email,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) {
+                        final s = (v ?? '').trim();
+                        if (s.isEmpty) return 'Email is required';
+                        if (!s.contains('@') || !s.contains('.')) return 'Enter a valid email';
+                        return null;
+                      },
+                      enabled: !_loading,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _password,
+                      obscureText: _hidePassword,
+                      autofillHints: _isRegister ? const [AutofillHints.newPassword] : const [AutofillHints.password],
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          onPressed: _loading ? null : () => setState(() => _hidePassword = !_hidePassword),
+                          icon: Icon(_hidePassword ? Icons.visibility : Icons.visibility_off),
+                        ),
+                      ),
+                      validator: (v) {
+                        final s = (v ?? '');
+                        if (s.isEmpty) return 'Password is required';
+                        if (_isRegister && s.length < 6) return 'Use at least 6 characters';
+                        return null;
+                      },
+                      enabled: !_loading,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: _loading ? null : _submit,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Text(_loading ? 'Please wait…' : (_isRegister ? 'Create account' : 'Login')),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _loading
+                          ? null
+                          : () {
+                              setState(() => _isRegister = !_isRegister);
+                            },
+                      child: Text(_isRegister ? 'Have an account? Login' : 'New here? Create an account'),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Tip: SELLER → create/attach vendor. PARTNER → set availability ON.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
             ),
-            TextButton(
-              onPressed: () => setState(() { _isRegister = !_isRegister; _error = null; }),
-              child: Text(_isRegister ? "Have an account? Login" : "New here? Register"),
-            ),
-            const SizedBox(height: 12),
-            Text("Role: $_role"),
-            const SizedBox(height: 8),
-            const Text("Tip: SELLER -> create vendor. PARTNER -> set availability ON."),
-          ],
+          ),
         ),
       ),
     );
