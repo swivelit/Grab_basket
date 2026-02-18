@@ -1,9 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../state.dart';
+
+import '../app_globals.dart';
+import '../config.dart';
 import '../models.dart';
+import '../state.dart';
 
 class OrderDetailScreen extends ConsumerStatefulWidget {
   final int orderId;
@@ -18,13 +22,17 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<OrderDetailScreen> createState() => _OrderDetailScreenState();
 }
 
-class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
+class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with WidgetsBindingObserver {
   Order? _order;
   Map<String, dynamic>? _partnerLatest;
   String? _err;
   bool _loading = true;
+  bool _cancelling = false;
 
   Timer? _timer;
+  bool _active = true;
+
+  String get _currency => AppConfig.defaultCurrency;
 
   bool get _shouldTrack {
     final o = _order;
@@ -40,13 +48,35 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load(initial: true);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Stop polling when app goes background; resume when active.
+    _active = state == AppLifecycleState.resumed;
+    if (!_active) {
+      _timer?.cancel();
+      _timer = null;
+    } else {
+      if (_shouldTrack) {
+        _timer?.cancel();
+        _timer = Timer.periodic(const Duration(seconds: 6), (_) => _refreshTracking());
+      }
+    }
+  }
+
+  String _money(double amount) {
+    if (_currency.toUpperCase() == 'INR') return '₹${amount.toStringAsFixed(2)}';
+    return '${amount.toStringAsFixed(2)} $_currency';
   }
 
   Future<void> _load({bool initial = false}) async {
@@ -60,7 +90,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       final o = await api.getOrder(widget.orderId);
       Map<String, dynamic>? loc;
       if (o.partnerId != null) {
-        // safe even if not picked up yet
+        // Safe even if not picked up yet.
         loc = await api.partnerLatestForOrder(widget.orderId);
       }
 
@@ -72,7 +102,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       });
 
       _timer?.cancel();
-      if (_shouldTrack) {
+      if (_active && _shouldTrack) {
         _timer = Timer.periodic(const Duration(seconds: 6), (_) => _refreshTracking());
       }
     } catch (e) {
@@ -93,6 +123,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         loc = await api.partnerLatestForOrder(widget.orderId);
       }
       if (!mounted) return;
+
       setState(() {
         _order = o;
         _partnerLatest = loc;
@@ -103,49 +134,77 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         _timer = null;
       }
     } catch (_) {
-      // ignore transient tracking failures
+      // Ignore transient polling failures; UI can still show last known info.
     }
   }
 
   Future<void> _cancelOrder() async {
-    final api = ref.read(apiProvider);
     final o = _order;
     if (o == null) return;
 
+    final canCancel = widget.allowCancel &&
+        {
+          "PLACED",
+          "CONFIRMED",
+        }.contains(o.status);
+
+    if (!canCancel) {
+      AppGlobals.showSnack("This order can’t be cancelled now.");
+      return;
+    }
+
+    final controller = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Cancel order?"),
-        content: const Text("If the restaurant has started preparing, cancellation may not be allowed."),
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel order?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Tell us why you want to cancel (optional).'),
+            const SizedBox(height: 10),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: 'Reason',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("No")),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text("Yes, cancel")),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes, cancel'),
+          ),
         ],
       ),
     );
 
     if (ok != true) return;
 
+    setState(() => _cancelling = true);
     try {
-      final updated = await api.cancelOrder(o.id);
+      final api = ref.read(apiProvider);
+      final updated = await api.cancelOrder(widget.orderId, reason: controller.text.trim());
       if (!mounted) return;
       setState(() => _order = updated);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Order cancelled")));
+      AppGlobals.showSnack("Order cancelled.");
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed: $e")));
+      AppGlobals.showSnack("Failed to cancel: $e");
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
     }
   }
 
-  Widget _statusChip(String text, {Color? color}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: (color ?? Colors.blueGrey).withOpacity(0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
-    );
+  Future<void> _copy(String text, {String doneMessage = "Copied"}) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    AppGlobals.showSnack(doneMessage);
   }
 
   @override
@@ -154,9 +213,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Order #${widget.orderId}"),
+        title: Text('Order #${widget.orderId}'),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: () => _load()),
+          IconButton(
+            onPressed: _loading ? null : () => _load(),
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+          ),
         ],
       ),
       body: _loading
@@ -168,115 +231,249 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.error_outline, size: 40),
-                        const SizedBox(height: 12),
-                        Text("Failed to load order.\n$_err", textAlign: TextAlign.center),
-                        const SizedBox(height: 12),
+                        const Icon(Icons.error_outline, size: 44),
+                        const SizedBox(height: 10),
+                        Text(_err!, textAlign: TextAlign.center),
+                        const SizedBox(height: 10),
                         FilledButton.icon(
-                          onPressed: () => _load(initial: true),
+                          onPressed: () => _load(),
                           icon: const Icon(Icons.refresh),
-                          label: const Text("Retry"),
+                          label: const Text('Retry'),
                         ),
                       ],
                     ),
                   ),
                 )
               : o == null
-                  ? const Center(child: Text("Order not found"))
+                  ? const Center(child: Text('Order not found'))
                   : RefreshIndicator(
                       onRefresh: () => _load(),
                       child: ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.all(16),
                         children: [
-                          Row(
-                            children: [
-                              _statusChip(o.status),
-                              const Spacer(),
-                              if (widget.allowCancel && o.canCancel)
-                                TextButton.icon(
-                                  onPressed: _cancelOrder,
-                                  icon: const Icon(Icons.close),
-                                  label: const Text("Cancel"),
-                                ),
-                            ],
-                          ),
+                          _headerCard(o),
                           const SizedBox(height: 12),
-                          Text(
-                            "Total ₹${o.totalAmount.toStringAsFixed(2)}",
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: 4),
-                          Text("Payment: ${o.paymentMethod} • ${o.paymentStatus}${o.paymentRef != null ? " • ${o.paymentRef}" : ""}"),
+                          _statusCard(o),
+                          const SizedBox(height: 12),
+                          _itemsCard(o),
+                          const SizedBox(height: 12),
+                          _trackingCard(o),
                           const SizedBox(height: 16),
-
-                          // Items
-                          Text("Items", style: Theme.of(context).textTheme.titleMedium),
-                          const SizedBox(height: 8),
-                          ...o.items.map(
-                            (it) => ListTile(
-                              dense: true,
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(it.name),
-                              subtitle: Text("₹${it.price.toStringAsFixed(2)} × ${it.qty}"),
-                              trailing: Text("₹${(it.price * it.qty).toStringAsFixed(2)}"),
-                            ),
-                          ),
-                          const Divider(height: 24),
-
-                          // Tracking
-                          if (_partnerLatest != null) ...[
-                            Text("Tracking", style: Theme.of(context).textTheme.titleMedium),
-                            const SizedBox(height: 8),
-                            Builder(builder: (context) {
-                              // Backend can return either a flat map {lat,lng,ts}
-                              // or a nested map {partner_latest_location:{...}}.
-                              Map<String, dynamic>? loc;
-                              if (_partnerLatest == null) loc = null;
-                              else if (_partnerLatest!.containsKey("lat")) {
-                                loc = _partnerLatest;
-                              } else if (_partnerLatest!["partner_latest_location"] is Map) {
-                                loc = (_partnerLatest!["partner_latest_location"] as Map).cast<String, dynamic>();
-                              } else if (_partnerLatest!["partner_latest"] is Map) {
-                                loc = (_partnerLatest!["partner_latest"] as Map).cast<String, dynamic>();
-                              }
-
-                              if (loc == null) {
-                                return const Text("Partner location not available yet.");
-                              }
-
-                              final lat = loc["lat"];
-                              final lng = loc["lng"];
-                              final ts = (loc["created_at"] ?? loc["ts"])?.toString() ?? "";
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text("Partner last location: $lat, $lng"),
-                                  if (ts.isNotEmpty) Text("Updated: $ts"),
-                                ],
-                              );
-                            }),
-                            const Divider(height: 24),
-                          ],
-
-                          // Timeline
-                          Text("Status timeline", style: Theme.of(context).textTheme.titleMedium),
-                          const SizedBox(height: 8),
-                          if (o.events.isEmpty)
-                            const Text("No events yet.")
-                          else
-                            ...o.events.map(
-                              (e) => ListTile(
-                                dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.check_circle_outline),
-                                title: Text(e.status),
-                                subtitle: Text("${e.createdAt.toLocal()}${e.note.isNotEmpty ? " • ${e.note}" : ""}"),
-                              ),
+                          if (widget.allowCancel)
+                            FilledButton.tonalIcon(
+                              onPressed: _cancelling ? null : _cancelOrder,
+                              icon: _cancelling
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.cancel_outlined),
+                              label: Text(_cancelling ? 'Cancelling…' : 'Cancel order'),
                             ),
                         ],
                       ),
                     ),
+    );
+  }
+
+  Widget _headerCard(Order o) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Status: ${o.status}',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
+                ),
+                _pill(
+                  o.paymentStatus,
+                  o.paymentStatus == "PAID" ? Colors.green : Colors.orange,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text('Vendor ID: ${o.vendorId}'),
+            const SizedBox(height: 6),
+            Text('Payment: ${o.paymentMethod}'),
+            const SizedBox(height: 6),
+            Text('Total: ${_money(o.totalAmount)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statusCard(Order o) {
+    // Swiggy-style: simple timeline chips
+    final steps = <({String code, String label})>[
+      (code: "PLACED", label: "Placed"),
+      (code: "CONFIRMED", label: "Confirmed"),
+      (code: "ASSIGNED_TO_PARTNER", label: "Partner assigned"),
+      (code: "PICKED_UP", label: "Picked up"),
+      (code: "DELIVERED", label: "Delivered"),
+    ];
+
+    final currentIndex = steps.indexWhere((s) => s.code == o.status);
+    final showAll = currentIndex != -1;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Progress', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (showAll)
+                  for (var i = 0; i < steps.length; i++)
+                    _pill(
+                      steps[i].label,
+                      i < currentIndex ? Colors.green : (i == currentIndex ? Colors.blue : Colors.grey),
+                    )
+                else
+                  _pill(o.status, Colors.blue),
+              ],
+            ),
+            if (o.status == "CANCELLED") ...[
+              const SizedBox(height: 10),
+              const Text(
+                'This order has been cancelled.',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _itemsCard(Order o) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Items', style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            ...o.items.map(
+              (it) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(it.name)),
+                    Text('x${it.qty}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    const SizedBox(width: 12),
+                    Text(_money(it.price * it.qty)),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 18),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                'Total: ${_money(o.totalAmount)}',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _trackingCard(Order o) {
+    final loc = _partnerLatest;
+    final canShow = loc != null && loc['lat'] != null && loc['lng'] != null;
+
+    final lat = canShow ? (loc!['lat'] as num).toDouble() : null;
+    final lng = canShow ? (loc!['lng'] as num).toDouble() : null;
+    final updatedAt = canShow ? (loc!['ts'] ?? loc!['updated_at'] ?? '').toString() : '';
+
+    final mapsUrl = (lat != null && lng != null)
+        ? 'https://www.google.com/maps?q=${lat.toStringAsFixed(6)},${lng.toStringAsFixed(6)}'
+        : '';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text('Live tracking', style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
+                if (_shouldTrack) _pill('Live', Colors.green),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (o.partnerId == null)
+              const Text('No delivery partner assigned yet.')
+            else if (!canShow)
+              const Text('Waiting for partner location…')
+            else ...[
+              Text(
+                'Partner location: ${lat!.toStringAsFixed(5)}, ${lng!.toStringAsFixed(5)}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              if (updatedAt.trim().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text('Updated: $updatedAt'),
+              ],
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _copy(
+                      '${lat.toStringAsFixed(6)},${lng.toStringAsFixed(6)}',
+                      doneMessage: 'Coordinates copied',
+                    ),
+                    icon: const Icon(Icons.copy),
+                    label: const Text('Copy coordinates'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _copy(mapsUrl, doneMessage: 'Maps link copied'),
+                    icon: const Icon(Icons.map_outlined),
+                    label: const Text('Copy maps link'),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _pill(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
+      ),
     );
   }
 }
