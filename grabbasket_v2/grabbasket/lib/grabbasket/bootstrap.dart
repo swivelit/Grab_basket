@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'app_globals.dart';
 import 'marketing/meta_events.dart';
 import 'router.dart';
 
@@ -32,6 +33,7 @@ class GrabbasketApp extends StatelessWidget {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: title,
+      scaffoldMessengerKey: AppGlobals.messengerKey,
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.deepOrange),
       routerConfig: buildRouter(flavor),
     );

@@ -4,12 +4,24 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../api.dart';
+import '../app_globals.dart';
+
+/// Required for Firebase background message delivery on Android.
+/// This must be a top-level function.
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // Firebase not configured or init failed; ignore.
+  }
+  // You can optionally send analytics/logs here later.
+}
 
 /// Best-effort push notifications init.
 ///
-/// Notes:
 /// - Safe to call multiple times; only initializes once.
-/// - If Firebase is not configured (missing google-services.json / GoogleService-Info.plist),
+/// - If Firebase isn't configured (missing google-services.json / GoogleService-Info.plist),
 ///   this will silently no-op so the app can still run.
 /// - Registers the FCM token with your backend (if your backend supports it).
 class PushNotifications {
@@ -18,6 +30,7 @@ class PushNotifications {
   static final PushNotifications instance = PushNotifications._();
 
   Future<void>? _initFuture;
+  bool _listenersAttached = false;
 
   Future<void> tryInit({required Api api}) {
     _initFuture ??= _doInit(api);
@@ -25,6 +38,9 @@ class PushNotifications {
   }
 
   Future<void> _doInit(Api api) async {
+    // Register background handler early.
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
     // 1) Firebase init
     try {
       await Firebase.initializeApp();
@@ -34,10 +50,15 @@ class PushNotifications {
       return;
     }
 
-    // 2) Permissions (iOS/macOS only; Android handled by manifest/runtime)
+    // 2) iOS/macOS permissions + foreground presentation
     try {
       if (Platform.isIOS || Platform.isMacOS) {
         await FirebaseMessaging.instance.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
           alert: true,
           badge: true,
           sound: true,
@@ -52,9 +73,39 @@ class PushNotifications {
 
     // 4) Token refresh
     FirebaseMessaging.instance.onTokenRefresh.listen((t) {
-      // Fire-and-forget; don't crash if backend unreachable.
       api.registerFcmToken(t, platform: Platform.operatingSystem).catchError((_) {});
     });
+
+    // 5) Foreground + tap handlers (attach once)
+    if (!_listenersAttached) {
+      _listenersAttached = true;
+
+      FirebaseMessaging.onMessage.listen((RemoteMessage m) {
+        final n = m.notification;
+        final title = (n?.title ?? '').trim();
+        final body = (n?.body ?? '').trim();
+
+        if (title.isEmpty && body.isEmpty) return;
+
+        // Swiggy-like behavior: surface something while user is in-app.
+        AppGlobals.showSnack(
+          title.isNotEmpty ? "$title${body.isNotEmpty ? " — $body" : ""}" : body,
+        );
+      });
+
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage m) {
+        final n = m.notification;
+        final title = (n?.title ?? '').trim();
+        final body = (n?.body ?? '').trim();
+        if (title.isEmpty && body.isEmpty) return;
+
+        // Later you can deep-link into OrderDetail using m.data (order_id).
+        AppGlobals.showSnack(
+          "Opened notification: ${title.isNotEmpty ? title : body}",
+          duration: const Duration(seconds: 4),
+        );
+      });
+    }
   }
 
   Future<void> _registerCurrentToken(Api api) async {
