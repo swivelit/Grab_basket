@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'app_globals.dart';
 import 'bootstrap.dart';
 import 'models.dart';
 import 'ui/account.dart';
@@ -19,7 +20,8 @@ import 'ui/seller_home.dart';
 import 'ui/vendor_menu.dart';
 
 GoRouter buildRouter(AppFlavor flavor) {
-  final rootNavigatorKey = GlobalKey<NavigatorState>();
+  // ✅ Use a global navigator key so push notifications can deep-link safely.
+  final rootNavigatorKey = AppGlobals.navigatorKey;
 
   Widget gated(Widget child) => AppGate(flavor: flavor, child: child);
 

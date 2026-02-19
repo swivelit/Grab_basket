@@ -33,7 +33,13 @@ class _AppGateState extends ConsumerState<AppGate> {
     _pushInitAttempted = true;
 
     // Fire-and-forget: if Firebase isn't configured yet, init will no-op.
-    unawaited(PushNotifications.instance.tryInit(api: ref.read(apiProvider)));
+    // ✅ Deep links only for customer app (seller/partner don't have /order/:id route).
+    unawaited(
+      PushNotifications.instance.tryInit(
+        api: ref.read(apiProvider),
+        enableOrderDeepLinks: widget.flavor == AppFlavor.customer,
+      ),
+    );
   }
 
   void _maybeRestoreCart() {
