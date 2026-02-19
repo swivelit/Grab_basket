@@ -258,18 +258,68 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> with Widg
                           const SizedBox(height: 12),
                           _trackingCard(o),
                           const SizedBox(height: 16),
-                          if (widget.allowCancel)
-                            FilledButton.tonalIcon(
-                              onPressed: _cancelling ? null : _cancelOrder,
-                              icon: _cancelling
-                                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                                  : const Icon(Icons.cancel_outlined),
-                              label: Text(_cancelling ? 'Cancelling…' : 'Cancel order'),
-                            ),
+                          if (widget.allowCancel) ...[
+                            if (widget.allowCancel && o.canCancel && OrderStatus.customerCanCancel(o.status))
+                              FilledButton.tonalIcon(
+                                onPressed: _cancelling ? null : _cancelOrder,
+                                icon: _cancelling
+                                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                    : const Icon(Icons.cancel_outlined),
+                                label: Text(_cancelling ? 'Cancelling…' : 'Cancel order'),
+                              )
+                            else
+                              _cancelInfoCard(o),
+                          ],
                         ],
                       ),
                     ),
     );
+  }
+
+  Widget _cancelInfoCard(Order o) {
+    final reason = _cancelDisabledReason(o);
+    if (reason == null || reason.trim().isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              reason,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String? _cancelDisabledReason(Order o) {
+    if (!widget.allowCancel) return null;
+    if (OrderStatus.isCancelled(o.status)) return 'This order is already cancelled.';
+    if (OrderStatus.isRejected(o.status)) return 'This order was rejected by the seller.';
+
+    // Backend flag wins if present.
+    if (!o.canCancel) return 'Cancellation is not available for this order right now.';
+
+    // UI guardrails based on status.
+    if (!OrderStatus.customerCanCancel(o.status)) {
+      if (OrderStatus.shouldTrackPartner(o.status)) {
+        return 'Cancellation is usually unavailable once the delivery partner is on the way.';
+      }
+      return 'Cancellation is not available at this stage.';
+    }
+
+    return null;
   }
 
   Widget _headerCard(Order o) {
