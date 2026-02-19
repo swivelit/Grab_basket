@@ -20,6 +20,7 @@ class AppGate extends ConsumerStatefulWidget {
 
 class _AppGateState extends ConsumerState<AppGate> {
   bool _pushInitAttempted = false;
+  bool _cartRestoreAttempted = false;
 
   String get _expectedRole => switch (widget.flavor) {
         AppFlavor.customer => "CUSTOMER",
@@ -33,6 +34,16 @@ class _AppGateState extends ConsumerState<AppGate> {
 
     // Fire-and-forget: if Firebase isn't configured yet, init will no-op.
     unawaited(PushNotifications.instance.tryInit(api: ref.read(apiProvider)));
+  }
+
+  void _maybeRestoreCart() {
+    if (_cartRestoreAttempted) return;
+    _cartRestoreAttempted = true;
+
+    if (widget.flavor != AppFlavor.customer) return;
+
+    // Fire-and-forget; restores persisted cart after login.
+    unawaited(ref.read(cartProvider.notifier).restore());
   }
 
   @override
@@ -74,6 +85,9 @@ class _AppGateState extends ConsumerState<AppGate> {
 
         // Token is present and role matches: initialize push notifications.
         _maybeInitPush();
+
+        // Customer-only: restore persisted cart.
+        _maybeRestoreCart();
 
         return widget.child;
       },

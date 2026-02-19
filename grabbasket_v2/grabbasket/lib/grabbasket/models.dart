@@ -98,6 +98,19 @@ class CartLine {
   double get lineTotal => product.price * qty;
 }
 
+/// In-memory (and persisted) customer cart.
+///
+/// Swiggy-style constraint: one vendor per cart.
+class CartState {
+  final int vendorId;
+  final String vendorName;
+  final List<CartLine> lines;
+  const CartState({required this.vendorId, required this.vendorName, required this.lines});
+
+  double get subtotal => lines.fold(0, (s, l) => s + l.lineTotal);
+  int get count => lines.fold(0, (s, l) => s + l.qty);
+}
+
 class OrderItem {
   final int productId;
   final String name;

@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../app_globals.dart';
 import '../config.dart';
 import '../marketing/meta_events.dart';
+import '../models.dart';
+import '../order_status.dart';
 import '../state.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
@@ -54,6 +57,50 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return idx == -1 ? 0 : cart.lines[idx].qty;
   }
 
+  Widget _billCard(CartState cart) {
+    // Backend currently returns final delivery fee only after order creation.
+    // We keep checkout honest: show item total now, and make delivery fee
+    // explicit as “calculated next”.
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Bill details', style: TextStyle(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Expanded(child: Text('Item total')),
+                Text(_money(cart.subtotal), style: const TextStyle(fontWeight: FontWeight.w800)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(child: Text('Delivery fee', style: TextStyle(color: Colors.black54))),
+                const Text('Calculated next', style: TextStyle(fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const Divider(height: 18),
+            Row(
+              children: [
+                const Expanded(child: Text('To pay (estimated)', style: TextStyle(fontWeight: FontWeight.w900))),
+                Text(_money(cart.subtotal), style: const TextStyle(fontWeight: FontWeight.w900)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Final bill (including delivery fee) will be shown on the order page.',
+              style: TextStyle(color: Colors.black.withOpacity(0.55), fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cart = ref.watch(cartProvider);
@@ -77,7 +124,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Checkout'),
+        title: Text('Checkout • ${cart.vendorName}'),
         actions: [
           IconButton(
             onPressed: _placingOrder ? null : _reloadAddresses,
@@ -244,7 +291,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text('Subtotal: ${_money(cart.subtotal)}'),
+                  _billCard(cart),
                   const SizedBox(height: 12),
                   FilledButton(
                     onPressed: _placingOrder
@@ -268,10 +315,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
                               ref.read(cartProvider.notifier).clear();
                               if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Order #${order.id} placed: ${order.status}')),
-                              );
-                              context.pop();
+
+                              AppGlobals.showSnack('Order #${order.id} placed • ${OrderStatus.label(order.status)}');
+
+                              // Swiggy-like flow: show order detail immediately.
+                              context.pushReplacement('/order/${order.id}');
                             } catch (e) {
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
