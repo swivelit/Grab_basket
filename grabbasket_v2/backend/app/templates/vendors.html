@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Vendors</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto; margin: 24px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid #eee; padding:10px; text-align:left; }
+    a { color:#d35400; text-decoration:none; }
+  </style>
+</head>
+<body>
+  <h1>Vendors</h1>
+  <a href="/admin">← Back</a>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Name</th><th>Open</th><th>Radius(km)</th><th>Lat</th><th>Lng</th></tr>
+    </thead>
+    <tbody>
+      {% for v in vendors %}
+        <tr>
+          <td>{{ v.id }}</td>
+          <td>{{ v.name }}</td>
+          <td>{{ v.is_open }}</td>
+          <td>{{ v.delivery_radius_km }}</td>
+          <td>{{ v.lat or "" }}</td>
+          <td>{{ v.lng or "" }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
