@@ -58,7 +58,20 @@ class CartScreen extends ConsumerWidget {
         title: const Text('Cart'),
         actions: [
           TextButton(
-            onPressed: () => ref.read(cartProvider.notifier).clear(),
+            onPressed: () async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Clear cart?'),
+                  content: const Text('This will remove all items from your cart.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Yes, clear')),
+                  ],
+                ),
+              );
+              if (ok == true) ref.read(cartProvider.notifier).clear();
+            },
             child: const Text('Clear'),
           ),
         ],
@@ -66,6 +79,23 @@ class CartScreen extends ConsumerWidget {
       body: SafeArea(
         child: Column(
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Row(
+                children: [
+                  const Icon(Icons.storefront, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'From: ${cart.vendorName}',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.all(16),

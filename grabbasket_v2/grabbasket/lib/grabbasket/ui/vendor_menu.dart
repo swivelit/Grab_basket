@@ -75,6 +75,23 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
     return idx == -1 ? 0 : cart.lines[idx].qty;
   }
 
+  Future<bool> _confirmSwitchVendor(CartState cart) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear cart?'),
+        content: Text(
+          'Your cart has items from "${cart.vendorName}". Swiggy-style carts can only contain items from one store at a time.\n\nClear the cart to add items from "${widget.vendor.name}"?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Yes, clear')),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   String _money(double amount) {
     if (_currency.toUpperCase() == 'INR') {
       return '₹${amount.toStringAsFixed(2)}';
@@ -88,6 +105,7 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
 
     final cart = ref.watch(cartProvider);
     final cartForVendor = (cart != null && cart.vendorId == widget.vendor.id) ? cart : null;
+    final otherVendorCart = (cart != null && cart.vendorId != widget.vendor.id && cart.count > 0) ? cart : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -242,7 +260,27 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
                             enabled: !isDisabled,
                             onAdd: () {
                               final before = _qtyFor(p, cartForVendor);
-                              ref.read(cartProvider.notifier).add(p);
+
+                              final currentCart = ref.read(cartProvider);
+                              if (currentCart != null && currentCart.vendorId != widget.vendor.id && currentCart.count > 0) {
+                                unawaited(() async {
+                                  final ok = await _confirmSwitchVendor(currentCart);
+                                  if (!ok || !mounted) return;
+                                  ref.read(cartProvider.notifier).clear();
+                                  ref.read(cartProvider.notifier).add(p, vendorName: widget.vendor.name);
+
+                                  if (before == 0) {
+                                    MetaEvents.instance.logAddToCart(
+                                      vendor: widget.vendor,
+                                      product: p,
+                                      currency: _currency,
+                                    );
+                                  }
+                                }());
+                                return;
+                              }
+
+                              ref.read(cartProvider.notifier).add(p, vendorName: widget.vendor.name);
 
                               // Log only when item is first added (0 -> 1)
                               if (before == 0) {
@@ -300,6 +338,41 @@ class _VendorMenuScreenState extends ConsumerState<VendorMenuScreen> {
                             const Icon(Icons.chevron_right, color: Colors.white),
                           ],
                         ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // If cart belongs to another vendor, show a soft banner so the user
+            // understands why ADD may prompt for clearing.
+            if (otherVendorCart != null)
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Material(
+                    borderRadius: BorderRadius.circular(14),
+                    color: Theme.of(context).colorScheme.surfaceVariant,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Cart: ${otherVendorCart.vendorName} • ${otherVendorCart.count} item(s)',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => context.push('/cart'),
+                            child: const Text('View'),
+                          ),
+                        ],
                       ),
                     ),
                   ),
