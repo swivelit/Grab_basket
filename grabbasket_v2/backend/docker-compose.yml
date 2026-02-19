@@ -1,0 +1,27 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: grabbasket
+      POSTGRES_USER: grabbasket
+      POSTGRES_PASSWORD: grabbasket
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: .
+    environment:
+      APP_ENV: dev
+      DATABASE_URL: postgresql+psycopg://grabbasket:grabbasket@db:5432/grabbasket
+      JWT_SECRET: change-me-in-prod
+      ACCESS_TOKEN_MINUTES: "120"
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:8080"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+volumes:
+  pgdata:

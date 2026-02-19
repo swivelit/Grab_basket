@@ -1,0 +1,48 @@
+name: grabbasket
+description: "A multi-role delivery app (customer/seller/partner)."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # Networking
+  dio: ^5.9.0
+
+  # Routing
+  go_router: ^16.0.0
+
+  # Location
+  geolocator: ^14.0.2
+
+  # Secure storage
+  flutter_secure_storage: ^9.2.4
+
+  # Firebase messaging (already present)
+  firebase_core: ^4.0.0
+  firebase_messaging: ^17.0.0
+
+  # ✅ Added for Swiggy-grade notification permission handling (Android 13+)
+  permission_handler: ^12.0.1
+
+  # ✅ Meta SDK wrapper for marketing events
+  facebook_app_events: ^0.24.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
