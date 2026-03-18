@@ -1,15 +1,20 @@
-import os, re, textwrap
+import os
+import re
+import textwrap
 
 ROOT = os.getcwd()
+
 
 def read(path: str) -> str:
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
+
 def write(path: str, content: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
+
 
 def append_pubspec_deps():
     path = os.path.join(ROOT, "pubspec.yaml")
@@ -31,883 +36,1164 @@ def append_pubspec_deps():
     write(path, s2)
     print("pubspec.yaml updated")
 
-def patch_build_gradle():
-    path = os.path.join(ROOT, "android", "app", "build.gradle")
-    s = read(path)
-    if "productFlavors" in s:
-        print("android/app/build.gradle already has flavors")
-        return
 
-    insert = textwrap.dedent('''
-    flavorDimensions "app"
-    productFlavors {
-        customer {
-            dimension "app"
-            applicationIdSuffix ".customer"
-            resValue "string", "app_name", "Grabbasket"
+def patch_gradle_groovy(path: str) -> bool:
+    s = read(path)
+    if "productFlavors" in s and 'customer {' in s and 'seller {' in s and 'partner {' in s:
+        print("android/app/build.gradle already has flavors")
+        return True
+
+    insert = textwrap.dedent(
+        '''
+        flavorDimensions "app"
+        productFlavors {
+            customer {
+                dimension "app"
+                applicationIdSuffix ".customer"
+                resValue "string", "app_name", "Grabbasket"
+            }
+            seller {
+                dimension "app"
+                applicationIdSuffix ".seller"
+                resValue "string", "app_name", "Grabbasket Seller"
+            }
+            partner {
+                dimension "app"
+                applicationIdSuffix ".partner"
+                resValue "string", "app_name", "Grabbasket Partner"
+            }
         }
-        seller {
-            dimension "app"
-            applicationIdSuffix ".seller"
-            resValue "string", "app_name", "Grabbasket Seller"
-        }
-        partner {
-            dimension "app"
-            applicationIdSuffix ".partner"
-            resValue "string", "app_name", "Grabbasket Partner"
-        }
-    }
-    ''').strip("\n")
+        '''
+    ).strip("\n")
 
     s2 = re.sub(r"(defaultConfig\s*\{[\s\S]*?\}\s*)", r"\1\n" + insert + "\n", s, count=1)
     if s2 == s:
-        print("Could not patch build.gradle automatically. Add flavors manually (see README).")
-        return
+        return False
     write(path, s2)
     print("android/app/build.gradle patched with flavors")
+    return True
+
+
+def patch_gradle_kts(path: str) -> bool:
+    s = read(path)
+    if "productFlavors" in s and 'create("customer")' in s and 'create("seller")' in s and 'create("partner")' in s:
+        print("android/app/build.gradle.kts already has flavors")
+        return True
+
+    insert = textwrap.dedent(
+        '''
+        flavorDimensions += "app"
+        productFlavors {
+            create("customer") {
+                dimension = "app"
+                applicationIdSuffix = ".customer"
+                resValue("string", "app_name", "Grabbasket")
+            }
+            create("seller") {
+                dimension = "app"
+                applicationIdSuffix = ".seller"
+                resValue("string", "app_name", "Grabbasket Seller")
+            }
+            create("partner") {
+                dimension = "app"
+                applicationIdSuffix = ".partner"
+                resValue("string", "app_name", "Grabbasket Partner")
+            }
+        }
+        '''
+    ).strip("\n")
+
+    s2 = re.sub(r"(defaultConfig\s*\{[\s\S]*?\}\s*)", r"\1\n" + insert + "\n", s, count=1)
+    if s2 == s:
+        return False
+    write(path, s2)
+    print("android/app/build.gradle.kts patched with flavors")
+    return True
+
+
+def patch_android_manifest_label():
+    path = os.path.join(ROOT, "android", "app", "src", "main", "AndroidManifest.xml")
+    if not os.path.exists(path):
+        return
+    s = read(path)
+    if 'android:label="@string/app_name"' in s:
+        print("AndroidManifest already uses @string/app_name")
+        return
+    s2 = re.sub(r'android:label="[^"]*"', 'android:label="@string/app_name"', s, count=1)
+    if s2 != s:
+        write(path, s2)
+        print("AndroidManifest.xml updated for flavored app name")
+
+
+def patch_android_build_files():
+    kts = os.path.join(ROOT, "android", "app", "build.gradle.kts")
+    groovy = os.path.join(ROOT, "android", "app", "build.gradle")
+
+    ok = False
+    if os.path.exists(kts):
+        ok = patch_gradle_kts(kts)
+    elif os.path.exists(groovy):
+        ok = patch_gradle_groovy(groovy)
+
+    if not ok:
+        print("Could not patch Android gradle file automatically. Add flavors manually.")
+    patch_android_manifest_label()
+
 
 def add_entrypoints_and_lib():
-    write(os.path.join(ROOT, "lib", "main_customer.dart"),
-          "import 'grabbasket/bootstrap.dart' as bootstrap;\n\nvoid main() => bootstrap.mainApp(bootstrap.AppFlavor.customer);\n")
-    write(os.path.join(ROOT, "lib", "main_seller.dart"),
-          "import 'grabbasket/bootstrap.dart' as bootstrap;\n\nvoid main() => bootstrap.mainApp(bootstrap.AppFlavor.seller);\n")
-    write(os.path.join(ROOT, "lib", "main_partner.dart"),
-          "import 'grabbasket/bootstrap.dart' as bootstrap;\n\nvoid main() => bootstrap.mainApp(bootstrap.AppFlavor.partner);\n")
+    write(
+        os.path.join(ROOT, "lib", "main_customer.dart"),
+        "import 'grabbasket/bootstrap.dart' as bootstrap;\n\nvoid main() => bootstrap.mainApp(bootstrap.AppFlavor.customer);\n",
+    )
+    write(
+        os.path.join(ROOT, "lib", "main_seller.dart"),
+        "import 'grabbasket/bootstrap.dart' as bootstrap;\n\nvoid main() => bootstrap.mainApp(bootstrap.AppFlavor.seller);\n",
+    )
+    write(
+        os.path.join(ROOT, "lib", "main_partner.dart"),
+        "import 'grabbasket/bootstrap.dart' as bootstrap;\n\nvoid main() => bootstrap.mainApp(bootstrap.AppFlavor.partner);\n",
+    )
 
-    write(os.path.join(ROOT, "lib", "grabbasket", "config.dart"),
-          textwrap.dedent('''\
-          class AppConfig {
-            // Android emulator: http://10.0.2.2:8000
-            // Real device (same Wi-Fi): http://<YOUR_LAPTOP_LAN_IP>:8000
-            static const String apiBaseUrl = String.fromEnvironment(
-              'API_BASE_URL',
-              defaultValue: 'http://10.0.2.2:8000',
-            );
-          }
-          '''))
-
-    write(os.path.join(ROOT, "lib", "grabbasket", "bootstrap.dart"),
-          textwrap.dedent('''\
-          import 'package:flutter/material.dart';
-          import 'package:flutter_riverpod/flutter_riverpod.dart';
-          import 'router.dart';
-
-          enum AppFlavor { customer, seller, partner }
-
-          void mainApp(AppFlavor flavor) {
-            WidgetsFlutterBinding.ensureInitialized();
-            runApp(ProviderScope(child: GrabbasketApp(flavor: flavor)));
-          }
-
-          class GrabbasketApp extends StatelessWidget {
-            final AppFlavor flavor;
-            const GrabbasketApp({super.key, required this.flavor});
-
-            @override
-            Widget build(BuildContext context) {
-              final title = switch (flavor) {
-                AppFlavor.customer => 'Grabbasket',
-                AppFlavor.seller => 'Grabbasket Seller',
-                AppFlavor.partner => 'Grabbasket Partner',
-              };
-
-              return MaterialApp.router(
-                debugShowCheckedModeBanner: false,
-                title: title,
-                theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.deepOrange),
-                routerConfig: buildRouter(flavor),
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "config.dart"),
+        textwrap.dedent(
+            '''\
+            class AppConfig {
+              // Android emulator local backend: http://10.0.2.2:8000
+              // Render backend example: https://grabbasket-api.onrender.com
+              static const String apiBaseUrl = String.fromEnvironment(
+                'API_BASE_URL',
+                defaultValue: 'http://10.0.2.2:8000',
               );
             }
-          }
-          '''))
+            '''
+        ),
+    )
 
-    write(os.path.join(ROOT, "lib", "grabbasket", "models.dart"),
-          textwrap.dedent('''\
-          class TokenResponse {
-            final String accessToken;
-            final String role;
-            TokenResponse({required this.accessToken, required this.role});
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "bootstrap.dart"),
+        textwrap.dedent(
+            '''\
+            import 'package:flutter/material.dart';
+            import 'package:flutter_riverpod/flutter_riverpod.dart';
+            import 'router.dart';
 
-            factory TokenResponse.fromJson(Map<String, dynamic> j) =>
-                TokenResponse(accessToken: j['access_token'], role: j['role']);
-          }
+            enum AppFlavor { customer, seller, partner }
 
-          class Vendor {
-            final int id;
-            final String name;
-            final String description;
-            final String address;
-            Vendor({required this.id, required this.name, required this.description, required this.address});
-            factory Vendor.fromJson(Map<String, dynamic> j) => Vendor(
-              id: j['id'],
-              name: j['name'],
-              description: j['description'] ?? '',
-              address: j['address'] ?? '',
-            );
-          }
+            void mainApp(AppFlavor flavor) {
+              WidgetsFlutterBinding.ensureInitialized();
+              runApp(ProviderScope(child: GrabbasketApp(flavor: flavor)));
+            }
 
-          class Product {
-            final int id;
-            final int vendorId;
-            final String name;
-            final String description;
-            final double price;
-            Product({required this.id, required this.vendorId, required this.name, required this.description, required this.price});
-            factory Product.fromJson(Map<String, dynamic> j) => Product(
-              id: j['id'],
-              vendorId: j['vendor_id'],
-              name: j['name'],
-              description: j['description'] ?? '',
-              price: (j['price'] as num).toDouble(),
-            );
-          }
+            class GrabbasketApp extends StatelessWidget {
+              final AppFlavor flavor;
+              const GrabbasketApp({super.key, required this.flavor});
 
-          class CartLine {
-            final Product product;
-            final int qty;
-            CartLine({required this.product, required this.qty});
-            double get lineTotal => product.price * qty;
-          }
+              @override
+              Widget build(BuildContext context) {
+                final title = switch (flavor) {
+                  AppFlavor.customer => 'Grabbasket',
+                  AppFlavor.seller => 'Grabbasket Seller',
+                  AppFlavor.partner => 'Grabbasket Partner',
+                };
 
-          class OrderItem {
-            final int productId;
-            final String name;
-            final double price;
-            final int qty;
-            OrderItem({required this.productId, required this.name, required this.price, required this.qty});
-            factory OrderItem.fromJson(Map<String, dynamic> j) => OrderItem(
-              productId: j['product_id'],
-              name: j['name_snapshot'],
-              price: (j['price_snapshot'] as num).toDouble(),
-              qty: j['qty'],
-            );
-          }
+                return MaterialApp.router(
+                  debugShowCheckedModeBanner: false,
+                  title: title,
+                  theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.deepOrange),
+                  routerConfig: buildRouter(flavor),
+                );
+              }
+            }
+            '''
+        ),
+    )
 
-          class Order {
-            final int id;
-            final int vendorId;
-            final int customerId;
-            final int? partnerId;
-            final String status;
-            final double totalAmount;
-            final double deliveryFee;
-            final List<OrderItem> items;
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "models.dart"),
+        textwrap.dedent(
+            '''\
+            class TokenResponse {
+              final String accessToken;
+              final String role;
+              TokenResponse({required this.accessToken, required this.role});
 
-            Order({
-              required this.id,
-              required this.vendorId,
-              required this.customerId,
-              required this.partnerId,
-              required this.status,
-              required this.totalAmount,
-              required this.deliveryFee,
-              required this.items,
+              factory TokenResponse.fromJson(Map<String, dynamic> j) =>
+                  TokenResponse(accessToken: j['access_token'], role: j['role']);
+            }
+
+            class Vendor {
+              final int id;
+              final String name;
+              final String description;
+              final String address;
+              Vendor({required this.id, required this.name, required this.description, required this.address});
+              factory Vendor.fromJson(Map<String, dynamic> j) => Vendor(
+                id: j['id'],
+                name: j['name'],
+                description: j['description'] ?? '',
+                address: j['address'] ?? '',
+              );
+            }
+
+            class Product {
+              final int id;
+              final int vendorId;
+              final String name;
+              final String description;
+              final double price;
+              Product({required this.id, required this.vendorId, required this.name, required this.description, required this.price});
+              factory Product.fromJson(Map<String, dynamic> j) => Product(
+                id: j['id'],
+                vendorId: j['vendor_id'],
+                name: j['name'],
+                description: j['description'] ?? '',
+                price: (j['price'] as num).toDouble(),
+              );
+            }
+
+            class CartLine {
+              final Product product;
+              final int qty;
+              CartLine({required this.product, required this.qty});
+              double get lineTotal => product.price * qty;
+            }
+
+            class OrderItem {
+              final int productId;
+              final String name;
+              final double price;
+              final int qty;
+              OrderItem({required this.productId, required this.name, required this.price, required this.qty});
+              factory OrderItem.fromJson(Map<String, dynamic> j) => OrderItem(
+                productId: j['product_id'],
+                name: j['name_snapshot'],
+                price: (j['price_snapshot'] as num).toDouble(),
+                qty: j['qty'],
+              );
+            }
+
+            class Order {
+              final int id;
+              final int vendorId;
+              final int customerId;
+              final int? partnerId;
+              final String status;
+              final double totalAmount;
+              final double deliveryFee;
+              final List<OrderItem> items;
+
+              Order({
+                required this.id,
+                required this.vendorId,
+                required this.customerId,
+                required this.partnerId,
+                required this.status,
+                required this.totalAmount,
+                required this.deliveryFee,
+                required this.items,
+              });
+
+              factory Order.fromJson(Map<String, dynamic> j) => Order(
+                id: j['id'],
+                vendorId: j['vendor_id'],
+                customerId: j['customer_id'],
+                partnerId: j['partner_id'],
+                status: j['status'],
+                totalAmount: (j['total_amount'] as num).toDouble(),
+                deliveryFee: (j['delivery_fee'] as num).toDouble(),
+                items: (j['items'] as List).map((x) => OrderItem.fromJson(x)).toList(),
+              );
+            }
+            '''
+        ),
+    )
+
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "storage.dart"),
+        textwrap.dedent(
+            '''\
+            import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+            class SecureStore {
+              static const _kToken = "token";
+              static const _kRole = "role";
+
+              final FlutterSecureStorage _s = const FlutterSecureStorage();
+
+              Future<void> saveSession({required String token, required String role}) async {
+                await _s.write(key: _kToken, value: token);
+                await _s.write(key: _kRole, value: role);
+              }
+
+              Future<String?> get token async => _s.read(key: _kToken);
+              Future<String?> get role async => _s.read(key: _kRole);
+
+              Future<void> clear() async {
+                await _s.delete(key: _kToken);
+                await _s.delete(key: _kRole);
+              }
+            }
+            '''
+        ),
+    )
+
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "api.dart"),
+        textwrap.dedent(
+            '''\
+            import 'package:dio/dio.dart';
+            import 'config.dart';
+            import 'models.dart';
+
+            class Api {
+              final Dio _dio;
+
+              Api({String? token})
+                  : _dio = Dio(BaseOptions(
+                      baseUrl: AppConfig.apiBaseUrl,
+                      connectTimeout: const Duration(seconds: 10),
+                      receiveTimeout: const Duration(seconds: 20),
+                      headers: token != null ? {"Authorization": "Bearer $token"} : null,
+                    ));
+
+              Future<TokenResponse> register({required String email, required String password, required String role}) async {
+                final res = await _dio.post("/auth/register", data: {"email": email, "password": password, "role": role});
+                return TokenResponse.fromJson(res.data);
+              }
+
+              Future<TokenResponse> login({required String email, required String password}) async {
+                final res = await _dio.post("/auth/login", data: {"email": email, "password": password});
+                return TokenResponse.fromJson(res.data);
+              }
+
+              Future<List<Vendor>> vendors() async {
+                final res = await _dio.get("/vendors");
+                return (res.data as List).map((x) => Vendor.fromJson(x)).toList();
+              }
+
+              Future<List<Product>> products(int vendorId) async {
+                final res = await _dio.get("/vendors/$vendorId/products");
+                return (res.data as List).map((x) => Product.fromJson(x)).toList();
+              }
+
+              Future<Order> createOrder(int vendorId, List<Map<String, dynamic>> items) async {
+                final res = await _dio.post("/orders", data: {"vendor_id": vendorId, "items": items});
+                return Order.fromJson(res.data);
+              }
+
+              Future<List<Order>> myOrders() async {
+                final res = await _dio.get("/orders/me");
+                return (res.data as List).map((x) => Order.fromJson(x)).toList();
+              }
+
+              Future<void> sellerCreateVendor({required String name, String description = "", String address = ""}) async {
+                await _dio.post("/seller/vendor", queryParameters: {"name": name, "description": description, "address": address});
+              }
+
+              Future<List<Product>> sellerProducts() async {
+                final res = await _dio.get("/seller/products");
+                return (res.data as List).map((x) => Product.fromJson(x)).toList();
+              }
+
+              Future<Product> sellerCreateProduct({required String name, required double price, String description = ""}) async {
+                final res = await _dio.post("/seller/products", data: {
+                  "name": name,
+                  "price": price,
+                  "description": description,
+                  "is_available": true,
+                });
+                return Product.fromJson(res.data);
+              }
+
+              Future<List<Order>> sellerOrders() async {
+                final res = await _dio.get("/seller/orders");
+                return (res.data as List).map((x) => Order.fromJson(x)).toList();
+              }
+
+              Future<Order> sellerAcceptOrder(int orderId) async {
+                final res = await _dio.post("/seller/orders/$orderId/accept");
+                return Order.fromJson(res.data);
+              }
+
+              Future<void> partnerAvailability(bool isAvailable) async {
+                await _dio.post("/partner/availability", queryParameters: {"is_available": isAvailable});
+              }
+
+              Future<List<Order>> partnerOrders() async {
+                final res = await _dio.get("/partner/orders");
+                return (res.data as List).map((x) => Order.fromJson(x)).toList();
+              }
+
+              Future<Order> partnerPickup(int orderId) async {
+                final res = await _dio.post("/partner/orders/$orderId/pickup");
+                return Order.fromJson(res.data);
+              }
+
+              Future<Order> partnerDeliver(int orderId) async {
+                final res = await _dio.post("/partner/orders/$orderId/deliver");
+                return Order.fromJson(res.data);
+              }
+            }
+            '''
+        ),
+    )
+
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "state.dart"),
+        textwrap.dedent(
+            '''\
+            import 'package:flutter_riverpod/flutter_riverpod.dart';
+            import 'api.dart';
+            import 'models.dart';
+            import 'storage.dart';
+
+            final secureStoreProvider = Provider((ref) => SecureStore());
+
+            final sessionProvider = FutureProvider<({String? token, String? role})>((ref) async {
+              final store = ref.read(secureStoreProvider);
+              return (token: await store.token, role: await store.role);
             });
 
-            factory Order.fromJson(Map<String, dynamic> j) => Order(
-              id: j['id'],
-              vendorId: j['vendor_id'],
-              customerId: j['customer_id'],
-              partnerId: j['partner_id'],
-              status: j['status'],
-              totalAmount: (j['total_amount'] as num).toDouble(),
-              deliveryFee: (j['delivery_fee'] as num).toDouble(),
-              items: (j['items'] as List).map((x) => OrderItem.fromJson(x)).toList(),
-            );
-          }
-          '''))
+            final apiProvider = Provider<Api>((ref) {
+              final session = ref.watch(sessionProvider).valueOrNull;
+              return Api(token: session?.token);
+            });
 
-    write(os.path.join(ROOT, "lib", "grabbasket", "storage.dart"),
-          textwrap.dedent('''\
-          import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+            class CartState {
+              final int vendorId;
+              final List<CartLine> lines;
+              const CartState({required this.vendorId, required this.lines});
 
-          class SecureStore {
-            static const _kToken = "token";
-            static const _kRole = "role";
-
-            final FlutterSecureStorage _s = const FlutterSecureStorage();
-
-            Future<void> saveSession({required String token, required String role}) async {
-              await _s.write(key: _kToken, value: token);
-              await _s.write(key: _kRole, value: role);
+              double get subtotal => lines.fold(0, (s, l) => s + l.lineTotal);
+              int get count => lines.fold(0, (s, l) => s + l.qty);
             }
 
-            Future<String?> get token async => _s.read(key: _kToken);
-            Future<String?> get role async => _s.read(key: _kRole);
+            class CartNotifier extends Notifier<CartState?> {
+              @override
+              CartState? build() => null;
 
-            Future<void> clear() async {
-              await _s.delete(key: _kToken);
-              await _s.delete(key: _kRole);
-            }
-          }
-          '''))
-
-    write(os.path.join(ROOT, "lib", "grabbasket", "api.dart"),
-          textwrap.dedent('''\
-          import 'package:dio/dio.dart';
-          import 'config.dart';
-          import 'models.dart';
-
-          class Api {
-            final Dio _dio;
-
-            Api({String? token})
-                : _dio = Dio(BaseOptions(
-                    baseUrl: AppConfig.apiBaseUrl,
-                    connectTimeout: const Duration(seconds: 10),
-                    receiveTimeout: const Duration(seconds: 20),
-                    headers: token != null ? {"Authorization": "Bearer $token"} : null,
-                  ));
-
-            Future<TokenResponse> register({required String email, required String password, required String role}) async {
-              final res = await _dio.post("/auth/register", data: {"email": email, "password": password, "role": role});
-              return TokenResponse.fromJson(res.data);
-            }
-
-            Future<TokenResponse> login({required String email, required String password}) async {
-              final res = await _dio.post("/auth/login", data: {"email": email, "password": password});
-              return TokenResponse.fromJson(res.data);
-            }
-
-            Future<List<Vendor>> vendors() async {
-              final res = await _dio.get("/vendors");
-              return (res.data as List).map((x) => Vendor.fromJson(x)).toList();
-            }
-
-            Future<List<Product>> products(int vendorId) async {
-              final res = await _dio.get("/vendors/$vendorId/products");
-              return (res.data as List).map((x) => Product.fromJson(x)).toList();
-            }
-
-            Future<Order> createOrder(int vendorId, List<Map<String, dynamic>> items) async {
-              final res = await _dio.post("/orders", data: {"vendor_id": vendorId, "items": items});
-              return Order.fromJson(res.data);
-            }
-
-            Future<List<Order>> myOrders() async {
-              final res = await _dio.get("/orders/me");
-              return (res.data as List).map((x) => Order.fromJson(x)).toList();
-            }
-
-            // Seller
-            Future<void> sellerCreateVendor({required String name, String description = "", String address = ""}) async {
-              await _dio.post("/seller/vendor", queryParameters: {"name": name, "description": description, "address": address});
-            }
-
-            Future<List<Order>> sellerOrders() async {
-              final res = await _dio.get("/seller/orders");
-              return (res.data as List).map((x) => Order.fromJson(x)).toList();
-            }
-
-            Future<Order> sellerAcceptOrder(int orderId) async {
-              final res = await _dio.post("/seller/orders/$orderId/accept");
-              return Order.fromJson(res.data);
-            }
-
-            // Partner
-            Future<void> partnerAvailability(bool isAvailable) async {
-              await _dio.post("/partner/availability", queryParameters: {"is_available": isAvailable});
-            }
-
-            Future<List<Order>> partnerOrders() async {
-              final res = await _dio.get("/partner/orders");
-              return (res.data as List).map((x) => Order.fromJson(x)).toList();
-            }
-
-            Future<Order> partnerPickup(int orderId) async {
-              final res = await _dio.post("/partner/orders/$orderId/pickup");
-              return Order.fromJson(res.data);
-            }
-
-            Future<Order> partnerDeliver(int orderId) async {
-              final res = await _dio.post("/partner/orders/$orderId/deliver");
-              return Order.fromJson(res.data);
-            }
-          }
-          '''))
-
-    write(os.path.join(ROOT, "lib", "grabbasket", "state.dart"),
-          textwrap.dedent('''\
-          import 'package:flutter_riverpod/flutter_riverpod.dart';
-          import 'api.dart';
-          import 'models.dart';
-          import 'storage.dart';
-
-          final secureStoreProvider = Provider((ref) => SecureStore());
-
-          final sessionProvider = FutureProvider<({String? token, String? role})>((ref) async {
-            final store = ref.read(secureStoreProvider);
-            return (token: await store.token, role: await store.role);
-          });
-
-          final apiProvider = Provider<Api>((ref) {
-            final session = ref.watch(sessionProvider).valueOrNull;
-            return Api(token: session?.token);
-          });
-
-          class CartState {
-            final int vendorId;
-            final List<CartLine> lines;
-            const CartState({required this.vendorId, required this.lines});
-
-            double get subtotal => lines.fold(0, (s, l) => s + l.lineTotal);
-            int get count => lines.fold(0, (s, l) => s + l.qty);
-          }
-
-          class CartNotifier extends Notifier<CartState?> {
-            @override
-            CartState? build() => null;
-
-            void add(Product p) {
-              final current = state;
-              if (current == null || current.vendorId != p.vendorId) {
-                state = CartState(vendorId: p.vendorId, lines: [CartLine(product: p, qty: 1)]);
-                return;
+              void add(Product p) {
+                final current = state;
+                if (current == null || current.vendorId != p.vendorId) {
+                  state = CartState(vendorId: p.vendorId, lines: [CartLine(product: p, qty: 1)]);
+                  return;
+                }
+                final idx = current.lines.indexWhere((l) => l.product.id == p.id);
+                if (idx == -1) {
+                  state = CartState(vendorId: current.vendorId, lines: [...current.lines, CartLine(product: p, qty: 1)]);
+                } else {
+                  final updated = [...current.lines];
+                  final old = updated[idx];
+                  updated[idx] = CartLine(product: old.product, qty: old.qty + 1);
+                  state = CartState(vendorId: current.vendorId, lines: updated);
+                }
               }
-              final idx = current.lines.indexWhere((l) => l.product.id == p.id);
-              if (idx == -1) {
-                state = CartState(vendorId: current.vendorId, lines: [...current.lines, CartLine(product: p, qty: 1)]);
-              } else {
+
+              void remove(Product p) {
+                final current = state;
+                if (current == null) return;
+                final idx = current.lines.indexWhere((l) => l.product.id == p.id);
+                if (idx == -1) return;
                 final updated = [...current.lines];
                 final old = updated[idx];
-                updated[idx] = CartLine(product: old.product, qty: old.qty + 1);
-                state = CartState(vendorId: current.vendorId, lines: updated);
+                if (old.qty <= 1) {
+                  updated.removeAt(idx);
+                } else {
+                  updated[idx] = CartLine(product: old.product, qty: old.qty - 1);
+                }
+                state = updated.isEmpty ? null : CartState(vendorId: current.vendorId, lines: updated);
               }
+
+              void clear() => state = null;
             }
 
-            void remove(Product p) {
-              final current = state;
-              if (current == null) return;
-              final idx = current.lines.indexWhere((l) => l.product.id == p.id);
-              if (idx == -1) return;
-              final updated = [...current.lines];
-              final old = updated[idx];
-              if (old.qty <= 1) {
-                updated.removeAt(idx);
-              } else {
-                updated[idx] = CartLine(product: old.product, qty: old.qty - 1);
-              }
-              state = updated.isEmpty ? null : CartState(vendorId: current.vendorId, lines: updated);
+            final cartProvider = NotifierProvider<CartNotifier, CartState?>(() => CartNotifier());
+            '''
+        ),
+    )
+
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "router.dart"),
+        textwrap.dedent(
+            '''\
+            import 'package:go_router/go_router.dart';
+            import 'bootstrap.dart';
+            import 'ui/login.dart';
+            import 'ui/customer_home.dart';
+            import 'ui/seller_home.dart';
+            import 'ui/partner_home.dart';
+
+            GoRouter buildRouter(AppFlavor flavor) {
+              final home = switch (flavor) {
+                AppFlavor.customer => const CustomerHome(),
+                AppFlavor.seller => const SellerHome(),
+                AppFlavor.partner => const PartnerHome(),
+              };
+
+              return GoRouter(
+                routes: [
+                  GoRoute(path: "/", builder: (c, s) => home),
+                  GoRoute(path: "/login", builder: (c, s) => LoginScreen(flavor: flavor)),
+                ],
+              );
+            }
+            '''
+        ),
+    )
+
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "ui", "login.dart"),
+        textwrap.dedent(
+            '''\
+            import 'package:flutter/material.dart';
+            import '../bootstrap.dart';
+            import '../api.dart';
+            import '../storage.dart';
+            import 'customer_home.dart';
+            import 'seller_home.dart';
+            import 'partner_home.dart';
+
+            class LoginScreen extends StatefulWidget {
+              final AppFlavor flavor;
+              const LoginScreen({super.key, required this.flavor});
+
+              @override
+              State<LoginScreen> createState() => _LoginScreenState();
             }
 
-            void clear() => state = null;
-          }
+            class _LoginScreenState extends State<LoginScreen> {
+              final _email = TextEditingController();
+              final _password = TextEditingController();
+              bool _isRegister = false;
+              bool _loading = false;
+              String? _error;
 
-          final cartProvider = NotifierProvider<CartNotifier, CartState?>(() => CartNotifier());
-          '''))
+              String get _role => switch (widget.flavor) {
+                AppFlavor.customer => "CUSTOMER",
+                AppFlavor.seller => "SELLER",
+                AppFlavor.partner => "PARTNER",
+              };
 
-    write(os.path.join(ROOT, "lib", "grabbasket", "router.dart"),
-          textwrap.dedent('''\
-          import 'package:go_router/go_router.dart';
-          import 'bootstrap.dart';
-          import 'ui/login.dart';
-          import 'ui/customer_home.dart';
-          import 'ui/seller_home.dart';
-          import 'ui/partner_home.dart';
+              @override
+              Widget build(BuildContext context) {
+                return Scaffold(
+                  appBar: AppBar(title: Text(_isRegister ? "Register" : "Login")),
+                  body: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        TextField(controller: _email, decoration: const InputDecoration(labelText: "Email")),
+                        const SizedBox(height: 12),
+                        TextField(controller: _password, obscureText: true, decoration: const InputDecoration(labelText: "Password")),
+                        const SizedBox(height: 12),
+                        if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
+                        const SizedBox(height: 12),
+                        FilledButton(
+                          onPressed: _loading ? null : () async {
+                            setState(() {
+                              _loading = true;
+                              _error = null;
+                            });
+                            try {
+                              final api = Api();
+                              final res = _isRegister
+                                  ? await api.register(email: _email.text.trim(), password: _password.text, role: _role)
+                                  : await api.login(email: _email.text.trim(), password: _password.text);
 
-          GoRouter buildRouter(AppFlavor flavor) {
-            final home = switch (flavor) {
-              AppFlavor.customer => const CustomerHome(),
-              AppFlavor.seller => const SellerHome(),
-              AppFlavor.partner => const PartnerHome(),
-            };
+                              final store = SecureStore();
+                              await store.saveSession(token: res.accessToken, role: res.role);
 
-            return GoRouter(
-              routes: [
-                GoRoute(path: "/", builder: (c, s) => home),
-                GoRoute(path: "/login", builder: (c, s) => LoginScreen(flavor: flavor)),
-              ],
-            );
-          }
-          '''))
+                              if (!context.mounted) return;
+                              final target = switch (widget.flavor) {
+                                AppFlavor.customer => const CustomerHome(),
+                                AppFlavor.seller => const SellerHome(),
+                                AppFlavor.partner => const PartnerHome(),
+                              };
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(builder: (_) => target),
+                                (_) => false,
+                              );
+                            } catch (e) {
+                              setState(() => _error = e.toString());
+                            } finally {
+                              if (mounted) {
+                                setState(() => _loading = false);
+                              }
+                            }
+                          },
+                          child: Text(_loading ? "Please wait..." : (_isRegister ? "Create account" : "Login")),
+                        ),
+                        TextButton(
+                          onPressed: () => setState(() {
+                            _isRegister = !_isRegister;
+                            _error = null;
+                          }),
+                          child: Text(_isRegister ? "Have an account? Login" : "New here? Register"),
+                        ),
+                        const SizedBox(height: 12),
+                        Text("Role: $_role"),
+                        const SizedBox(height: 8),
+                        const Text("Customer -> browse and order. Seller -> create vendor and products. Partner -> accept deliveries."),
+                      ],
+                    ),
+                  ),
+                );
+              }
+            }
+            '''
+        ),
+    )
 
-    write(os.path.join(ROOT, "lib", "grabbasket", "ui", "login.dart"),
-          textwrap.dedent('''\
-          import 'package:flutter/material.dart';
-          import 'package:flutter_riverpod/flutter_riverpod.dart';
-          import '../bootstrap.dart';
-          import '../api.dart';
-          import '../storage.dart';
-          import 'customer_home.dart';
-          import 'seller_home.dart';
-          import 'partner_home.dart';
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "ui", "customer_home.dart"),
+        textwrap.dedent(
+            '''\
+            import 'package:flutter/material.dart';
+            import 'package:flutter_riverpod/flutter_riverpod.dart';
+            import '../state.dart';
+            import '../models.dart';
+            import 'vendor_menu.dart';
+            import 'orders.dart';
+            import 'login.dart';
+            import '../bootstrap.dart';
 
-          class LoginScreen extends ConsumerStatefulWidget {
-            final AppFlavor flavor;
-            const LoginScreen({super.key, required this.flavor});
+            class CustomerHome extends ConsumerWidget {
+              const CustomerHome({super.key});
 
-            @override
-            ConsumerState<LoginScreen> createState() => _LoginScreenState();
-          }
-
-          class _LoginScreenState extends ConsumerState<LoginScreen> {
-            final _email = TextEditingController();
-            final _password = TextEditingController();
-            bool _isRegister = false;
-            bool _loading = false;
-            String? _error;
-
-            String get _role => switch (widget.flavor) {
-              AppFlavor.customer => "CUSTOMER",
-              AppFlavor.seller => "SELLER",
-              AppFlavor.partner => "PARTNER",
-            };
-
-            @override
-            Widget build(BuildContext context) {
-              return Scaffold(
-                appBar: AppBar(title: Text(_isRegister ? "Register" : "Login")),
-                body: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      TextField(controller: _email, decoration: const InputDecoration(labelText: "Email")),
-                      const SizedBox(height: 12),
-                      TextField(controller: _password, obscureText: true, decoration: const InputDecoration(labelText: "Password")),
-                      const SizedBox(height: 12),
-                      if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: _loading ? null : () async {
-                          setState(() { _loading = true; _error = null; });
-                          try {
-                            final api = Api();
-                            final res = _isRegister
-                              ? await api.register(email: _email.text.trim(), password: _password.text, role: _role)
-                              : await api.login(email: _email.text.trim(), password: _password.text);
-
-                            final store = SecureStore();
-                            await store.saveSession(token: res.accessToken, role: res.role);
-
-                            if (!context.mounted) return;
-                            final target = switch (widget.flavor) {
-                              AppFlavor.customer => const CustomerHome(),
-                              AppFlavor.seller => const SellerHome(),
-                              AppFlavor.partner => const PartnerHome(),
-                            };
-                            Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(builder: (_) => target),
-                              (_) => false,
-                            );
-                          } catch (e) {
-                            setState(() => _error = e.toString());
-                          } finally {
-                            setState(() => _loading = false);
-                          }
-                        },
-                        child: Text(_loading ? "Please wait..." : (_isRegister ? "Create account" : "Login")),
+              @override
+              Widget build(BuildContext context, WidgetRef ref) {
+                final api = ref.watch(apiProvider);
+                return Scaffold(
+                  appBar: AppBar(
+                    title: const Text("Grabbasket"),
+                    actions: [
+                      IconButton(
+                        icon: const Icon(Icons.receipt_long),
+                        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OrdersScreen())),
                       ),
-                      TextButton(
-                        onPressed: () => setState(() { _isRegister = !_isRegister; _error = null; }),
-                        child: Text(_isRegister ? "Have an account? Login" : "New here? Register"),
+                      IconButton(
+                        icon: const Icon(Icons.login),
+                        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen(flavor: AppFlavor.customer))),
                       ),
-                      const SizedBox(height: 12),
-                      Text("Role: $_role"),
-                      const SizedBox(height: 8),
-                      const Text("Tip: SELLER -> create vendor. PARTNER -> set availability ON."),
                     ],
                   ),
-                ),
-              );
+                  body: FutureBuilder<List<Vendor>>(
+                    future: api.vendors(),
+                    builder: (context, snap) {
+                      if (snap.connectionState != ConnectionState.done) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snap.hasError) {
+                        return Center(child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text("Backend not reachable. Check API_BASE_URL and backend status.\n\n${snap.error}"),
+                        ));
+                      }
+                      final vendors = snap.data ?? const <Vendor>[];
+                      if (vendors.isEmpty) {
+                        return const Center(child: Text("No vendors yet. Create one from the Seller app."));
+                      }
+                      return ListView.separated(
+                        itemCount: vendors.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, i) {
+                          final v = vendors[i];
+                          return ListTile(
+                            title: Text(v.name),
+                            subtitle: Text(v.description),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VendorMenuScreen(vendor: v))),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                );
+              }
             }
-          }
-          '''))
+            '''
+        ),
+    )
 
-    write(os.path.join(ROOT, "lib", "grabbasket", "ui", "customer_home.dart"),
-          textwrap.dedent('''\
-          import 'package:flutter/material.dart';
-          import 'package:flutter_riverpod/flutter_riverpod.dart';
-          import '../state.dart';
-          import '../models.dart';
-          import 'vendor_menu.dart';
-          import 'orders.dart';
-          import 'login.dart';
-          import '../bootstrap.dart';
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "ui", "vendor_menu.dart"),
+        textwrap.dedent(
+            '''\
+            import 'package:flutter/material.dart';
+            import 'package:flutter_riverpod/flutter_riverpod.dart';
+            import '../models.dart';
+            import '../state.dart';
+            import 'checkout.dart';
 
-          class CustomerHome extends ConsumerWidget {
-            const CustomerHome({super.key});
+            class VendorMenuScreen extends ConsumerWidget {
+              final Vendor vendor;
+              const VendorMenuScreen({super.key, required this.vendor});
 
-            @override
-            Widget build(BuildContext context, WidgetRef ref) {
-              final api = ref.watch(apiProvider);
-              return Scaffold(
-                appBar: AppBar(
-                  title: const Text("Grabbasket"),
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.receipt_long),
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OrdersScreen())),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.login),
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen(flavor: AppFlavor.customer))),
-                    ),
-                  ],
-                ),
-                body: FutureBuilder<List<Vendor>>(
-                  future: api.vendors(),
-                  builder: (context, snap) {
-                    if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-                    final vendors = snap.data!;
-                    return ListView.separated(
-                      itemCount: vendors.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, i) {
-                        final v = vendors[i];
-                        return ListTile(
-                          title: Text(v.name),
-                          subtitle: Text(v.description),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => VendorMenuScreen(vendor: v))),
-                        );
-                      },
-                    );
-                  },
-                ),
-              );
+              @override
+              Widget build(BuildContext context, WidgetRef ref) {
+                final api = ref.watch(apiProvider);
+                final cart = ref.watch(cartProvider);
+                return Scaffold(
+                  appBar: AppBar(
+                    title: Text(vendor.name),
+                    actions: [
+                      if (cart != null)
+                        TextButton.icon(
+                          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CheckoutScreen())),
+                          icon: const Icon(Icons.shopping_cart),
+                          label: Text("${cart.count}"),
+                        )
+                    ],
+                  ),
+                  body: FutureBuilder<List<Product>>(
+                    future: api.products(vendor.id),
+                    builder: (context, snap) {
+                      if (snap.connectionState != ConnectionState.done) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snap.hasError) {
+                        return Center(child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text("Could not load products.\n\n${snap.error}"),
+                        ));
+                      }
+                      final products = snap.data ?? const <Product>[];
+                      if (products.isEmpty) {
+                        return const Center(child: Text("No products yet. Add some from the Seller app."));
+                      }
+                      return ListView.separated(
+                        itemCount: products.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, i) {
+                          final p = products[i];
+                          return ListTile(
+                            title: Text(p.name),
+                            subtitle: Text("Rs ${p.price.toStringAsFixed(2)} • ${p.description}"),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.add_circle_outline),
+                              onPressed: () => ref.read(cartProvider.notifier).add(p),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                );
+              }
             }
-          }
-          '''))
+            '''
+        ),
+    )
 
-    write(os.path.join(ROOT, "lib", "grabbasket", "ui", "vendor_menu.dart"),
-          textwrap.dedent('''\
-          import 'package:flutter/material.dart';
-          import 'package:flutter_riverpod/flutter_riverpod.dart';
-          import '../models.dart';
-          import '../state.dart';
-          import 'checkout.dart';
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "ui", "checkout.dart"),
+        textwrap.dedent(
+            '''\
+            import 'package:flutter/material.dart';
+            import 'package:flutter_riverpod/flutter_riverpod.dart';
+            import '../state.dart';
 
-          class VendorMenuScreen extends ConsumerWidget {
-            final Vendor vendor;
-            const VendorMenuScreen({super.key, required this.vendor});
+            class CheckoutScreen extends ConsumerWidget {
+              const CheckoutScreen({super.key});
 
-            @override
-            Widget build(BuildContext context, WidgetRef ref) {
-              final api = ref.watch(apiProvider);
-              final cart = ref.watch(cartProvider);
-              return Scaffold(
-                appBar: AppBar(
-                  title: Text(vendor.name),
-                  actions: [
-                    if (cart != null)
-                      TextButton.icon(
-                        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CheckoutScreen())),
-                        icon: const Icon(Icons.shopping_cart),
-                        label: Text("${cart.count}"),
-                      )
-                  ],
-                ),
-                body: FutureBuilder<List<Product>>(
-                  future: api.products(vendor.id),
-                  builder: (context, snap) {
-                    if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-                    final products = snap.data!;
-                    return ListView.separated(
-                      itemCount: products.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, i) {
-                        final p = products[i];
-                        return ListTile(
-                          title: Text(p.name),
-                          subtitle: Text("Rs ${p.price.toStringAsFixed(2)} • ${p.description}"),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.add_circle_outline),
-                            onPressed: () => ref.read(cartProvider.notifier).add(p),
+              @override
+              Widget build(BuildContext context, WidgetRef ref) {
+                final cart = ref.watch(cartProvider);
+                final api = ref.watch(apiProvider);
+
+                if (cart == null) {
+                  return const Scaffold(body: Center(child: Text("Cart is empty")));
+                }
+
+                return Scaffold(
+                  appBar: AppBar(title: const Text("Checkout")),
+                  body: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: ListView(
+                            children: [
+                              for (final line in cart.lines)
+                                ListTile(
+                                  title: Text(line.product.name),
+                                  subtitle: Text("Rs ${line.product.price.toStringAsFixed(2)} x ${line.qty}"),
+                                  trailing: Text("Rs ${line.lineTotal.toStringAsFixed(2)}"),
+                                ),
+                            ],
                           ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              );
-            }
-          }
-          '''))
-
-    write(os.path.join(ROOT, "lib", "grabbasket", "ui", "checkout.dart"),
-          textwrap.dedent('''\
-          import 'package:flutter/material.dart';
-          import 'package:flutter_riverpod/flutter_riverpod.dart';
-          import '../state.dart';
-
-          class CheckoutScreen extends ConsumerWidget {
-            const CheckoutScreen({super.key});
-
-            @override
-            Widget build(BuildContext context, WidgetRef ref) {
-              final cart = ref.watch(cartProvider);
-              final api = ref.watch(apiProvider);
-
-              if (cart == null) {
-                return const Scaffold(body: Center(child: Text("Cart is empty")));
+                        ),
+                        const SizedBox(height: 8),
+                        Text("Subtotal: Rs ${cart.subtotal.toStringAsFixed(2)}"),
+                        const SizedBox(height: 12),
+                        FilledButton(
+                          onPressed: () async {
+                            try {
+                              final items = cart.lines.map((l) => {"product_id": l.product.id, "qty": l.qty}).toList();
+                              final order = await api.createOrder(cart.vendorId, items);
+                              ref.read(cartProvider.notifier).clear();
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Order #${order.id} placed: ${order.status}")));
+                              Navigator.of(context).pop();
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Order failed. Login first if needed.\n$e")));
+                            }
+                          },
+                          child: const Text("Place order"),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
               }
+            }
+            '''
+        ),
+    )
 
-              return Scaffold(
-                appBar: AppBar(title: const Text("Checkout")),
-                body: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: ListView(
-                          children: [
-                            for (final line in cart.lines)
-                              ListTile(
-                                title: Text(line.product.name),
-                                subtitle: Text("Rs ${line.product.price.toStringAsFixed(2)} x ${line.qty}"),
-                                trailing: Text("Rs ${line.lineTotal.toStringAsFixed(2)}"),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text("Subtotal: Rs ${cart.subtotal.toStringAsFixed(2)}"),
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: () async {
-                          final items = cart.lines.map((l) => {"product_id": l.product.id, "qty": l.qty}).toList();
-                          final order = await api.createOrder(cart.vendorId, items);
-                          ref.read(cartProvider.notifier).clear();
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Order #${order.id} placed: ${order.status}")));
-                          Navigator.of(context).pop();
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "ui", "orders.dart"),
+        textwrap.dedent(
+            '''\
+            import 'package:flutter/material.dart';
+            import 'package:flutter_riverpod/flutter_riverpod.dart';
+            import '../state.dart';
+            import '../models.dart';
+
+            class OrdersScreen extends ConsumerWidget {
+              const OrdersScreen({super.key});
+
+              @override
+              Widget build(BuildContext context, WidgetRef ref) {
+                final api = ref.watch(apiProvider);
+                return Scaffold(
+                  appBar: AppBar(title: const Text("My orders")),
+                  body: FutureBuilder<List<Order>>(
+                    future: api.myOrders(),
+                    builder: (context, snap) {
+                      if (snap.connectionState != ConnectionState.done) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snap.hasError) {
+                        return Center(child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text("Login as customer to view orders.\n\n${snap.error}"),
+                        ));
+                      }
+                      final orders = snap.data ?? const <Order>[];
+                      if (orders.isEmpty) return const Center(child: Text("No orders yet"));
+                      return ListView.separated(
+                        itemCount: orders.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, i) {
+                          final o = orders[i];
+                          return ListTile(
+                            title: Text("Order #${o.id} • ${o.status}"),
+                            subtitle: Text("Total Rs ${o.totalAmount.toStringAsFixed(2)} • Items: ${o.items.length}"),
+                          );
                         },
-                        child: const Text("Place order"),
+                      );
+                    },
+                  ),
+                );
+              }
+            }
+            '''
+        ),
+    )
+
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "ui", "seller_home.dart"),
+        textwrap.dedent(
+            '''\
+            import 'package:flutter/material.dart';
+            import 'package:flutter_riverpod/flutter_riverpod.dart';
+            import '../state.dart';
+            import '../models.dart';
+            import '../bootstrap.dart';
+            import 'login.dart';
+
+            class SellerHome extends ConsumerStatefulWidget {
+              const SellerHome({super.key});
+
+              @override
+              ConsumerState<SellerHome> createState() => _SellerHomeState();
+            }
+
+            class _SellerHomeState extends ConsumerState<SellerHome> {
+              final _vendorName = TextEditingController(text: "My Store");
+              final _productName = TextEditingController();
+              final _productPrice = TextEditingController();
+              final _productDescription = TextEditingController();
+
+              @override
+              Widget build(BuildContext context) {
+                final api = ref.watch(apiProvider);
+
+                return Scaffold(
+                  appBar: AppBar(
+                    title: const Text("Seller"),
+                    actions: [
+                      IconButton(
+                        icon: const Icon(Icons.login),
+                        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen(flavor: AppFlavor.seller))),
                       ),
                     ],
                   ),
-                ),
-              );
-            }
-          }
-          '''))
-
-    write(os.path.join(ROOT, "lib", "grabbasket", "ui", "orders.dart"),
-          textwrap.dedent('''\
-          import 'package:flutter/material.dart';
-          import 'package:flutter_riverpod/flutter_riverpod.dart';
-          import '../state.dart';
-          import '../models.dart';
-
-          class OrdersScreen extends ConsumerWidget {
-            const OrdersScreen({super.key});
-
-            @override
-            Widget build(BuildContext context, WidgetRef ref) {
-              final api = ref.watch(apiProvider);
-              return Scaffold(
-                appBar: AppBar(title: const Text("My orders")),
-                body: FutureBuilder<List<Order>>(
-                  future: api.myOrders(),
-                  builder: (context, snap) {
-                    if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-                    final orders = snap.data!;
-                    if (orders.isEmpty) return const Center(child: Text("No orders yet"));
-                    return ListView.separated(
-                      itemCount: orders.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, i) {
-                        final o = orders[i];
-                        return ListTile(
-                          title: Text("Order #${o.id} • ${o.status}"),
-                          subtitle: Text("Total Rs ${o.totalAmount.toStringAsFixed(2)} • Items: ${o.items.length}"),
-                        );
-                      },
-                    );
-                  },
-                ),
-              );
-            }
-          }
-          '''))
-
-    write(os.path.join(ROOT, "lib", "grabbasket", "ui", "seller_home.dart"),
-          textwrap.dedent('''\
-          import 'package:flutter/material.dart';
-          import 'package:flutter_riverpod/flutter_riverpod.dart';
-          import '../state.dart';
-          import '../models.dart';
-          import '../bootstrap.dart';
-          import 'login.dart';
-
-          class SellerHome extends ConsumerStatefulWidget {
-            const SellerHome({super.key});
-
-            @override
-            ConsumerState<SellerHome> createState() => _SellerHomeState();
-          }
-
-          class _SellerHomeState extends ConsumerState<SellerHome> {
-            final _vendorName = TextEditingController(text: "My Store");
-
-            @override
-            Widget build(BuildContext context) {
-              final api = ref.watch(apiProvider);
-
-              return Scaffold(
-                appBar: AppBar(
-                  title: const Text("Seller"),
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.login),
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen(flavor: AppFlavor.seller))),
+                  body: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        TextField(controller: _vendorName, decoration: const InputDecoration(labelText: "Vendor name")),
+                        const SizedBox(height: 8),
+                        FilledButton(
+                          onPressed: () async {
+                            try {
+                              await api.sellerCreateVendor(name: _vendorName.text.trim());
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vendor ready")));
+                              setState(() {});
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Login as seller first.\n$e")));
+                            }
+                          },
+                          child: const Text("Create/Attach vendor"),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(controller: _productName, decoration: const InputDecoration(labelText: "Product name")),
+                        const SizedBox(height: 8),
+                        TextField(controller: _productPrice, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: "Product price")),
+                        const SizedBox(height: 8),
+                        TextField(controller: _productDescription, decoration: const InputDecoration(labelText: "Product description")),
+                        const SizedBox(height: 8),
+                        FilledButton(
+                          onPressed: () async {
+                            try {
+                              final price = double.tryParse(_productPrice.text.trim());
+                              if (price == null || price <= 0) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Enter a valid price")));
+                                return;
+                              }
+                              await api.sellerCreateProduct(
+                                name: _productName.text.trim(),
+                                price: price,
+                                description: _productDescription.text.trim(),
+                              );
+                              _productName.clear();
+                              _productPrice.clear();
+                              _productDescription.clear();
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Product added")));
+                              setState(() {});
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Create vendor and login as seller first.\n$e")));
+                            }
+                          },
+                          child: const Text("Add product"),
+                        ),
+                        const SizedBox(height: 16),
+                        const Align(alignment: Alignment.centerLeft, child: Text("My products", style: TextStyle(fontWeight: FontWeight.bold))),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: FutureBuilder<List<Product>>(
+                            future: api.sellerProducts(),
+                            builder: (context, snap) {
+                              if (snap.connectionState != ConnectionState.done) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
+                              if (snap.hasError) {
+                                return const Center(child: Text("Login as seller to manage products"));
+                              }
+                              final products = snap.data ?? const <Product>[];
+                              if (products.isEmpty) {
+                                return const Center(child: Text("No products yet"));
+                              }
+                              return ListView.separated(
+                                itemCount: products.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1),
+                                itemBuilder: (context, i) {
+                                  final p = products[i];
+                                  return ListTile(
+                                    title: Text(p.name),
+                                    subtitle: Text("Rs ${p.price.toStringAsFixed(2)} • ${p.description}"),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Align(alignment: Alignment.centerLeft, child: Text("Incoming orders", style: TextStyle(fontWeight: FontWeight.bold))),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: FutureBuilder<List<Order>>(
+                            future: api.sellerOrders(),
+                            builder: (context, snap) {
+                              if (snap.connectionState != ConnectionState.done) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
+                              if (snap.hasError) {
+                                return const Center(child: Text("Login as seller to view orders"));
+                              }
+                              final orders = snap.data ?? const <Order>[];
+                              if (orders.isEmpty) return const Center(child: Text("No orders"));
+                              return ListView.separated(
+                                itemCount: orders.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1),
+                                itemBuilder: (context, i) {
+                                  final o = orders[i];
+                                  return ListTile(
+                                    title: Text("Order #${o.id} • ${o.status}"),
+                                    subtitle: Text("Total Rs ${o.totalAmount.toStringAsFixed(2)}"),
+                                    trailing: (o.status == "CREATED")
+                                        ? FilledButton(
+                                            onPressed: () async {
+                                              await api.sellerAcceptOrder(o.id);
+                                              setState(() {});
+                                            },
+                                            child: const Text("Accept"),
+                                          )
+                                        : null,
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                body: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      TextField(controller: _vendorName, decoration: const InputDecoration(labelText: "Vendor name")),
-                      const SizedBox(height: 8),
-                      FilledButton(
-                        onPressed: () async {
-                          await api.sellerCreateVendor(name: _vendorName.text.trim());
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vendor ready")));
-                          setState(() {});
-                        },
-                        child: const Text("Create/Attach vendor"),
+                  ),
+                );
+              }
+            }
+            '''
+        ),
+    )
+
+    write(
+        os.path.join(ROOT, "lib", "grabbasket", "ui", "partner_home.dart"),
+        textwrap.dedent(
+            '''\
+            import 'package:flutter/material.dart';
+            import 'package:flutter_riverpod/flutter_riverpod.dart';
+            import '../state.dart';
+            import '../models.dart';
+            import '../bootstrap.dart';
+            import 'login.dart';
+
+            class PartnerHome extends ConsumerStatefulWidget {
+              const PartnerHome({super.key});
+
+              @override
+              ConsumerState<PartnerHome> createState() => _PartnerHomeState();
+            }
+
+            class _PartnerHomeState extends ConsumerState<PartnerHome> {
+              bool _available = true;
+
+              @override
+              Widget build(BuildContext context) {
+                final api = ref.watch(apiProvider);
+
+                return Scaffold(
+                  appBar: AppBar(
+                    title: const Text("Partner"),
+                    actions: [
+                      IconButton(
+                        icon: const Icon(Icons.login),
+                        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen(flavor: AppFlavor.partner))),
                       ),
-                      const SizedBox(height: 16),
-                      const Align(alignment: Alignment.centerLeft, child: Text("Incoming orders", style: TextStyle(fontWeight: FontWeight.bold))),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: FutureBuilder<List<Order>>(
-                          future: api.sellerOrders(),
-                          builder: (context, snap) {
-                            if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-                            final orders = snap.data!;
-                            if (orders.isEmpty) return const Center(child: Text("No orders"));
-                            return ListView.separated(
-                              itemCount: orders.length,
-                              separatorBuilder: (_, __) => const Divider(height: 1),
-                              itemBuilder: (context, i) {
-                                final o = orders[i];
-                                return ListTile(
-                                  title: Text("Order #${o.id} • ${o.status}"),
-                                  subtitle: Text("Total Rs ${o.totalAmount.toStringAsFixed(2)}"),
-                                  trailing: (o.status == "CREATED")
-                                    ? FilledButton(
-                                        onPressed: () async {
-                                          await api.sellerAcceptOrder(o.id);
-                                          setState(() {});
-                                        },
-                                        child: const Text("Accept"),
-                                      )
-                                    : null,
-                                );
-                              },
-                            );
+                    ],
+                  ),
+                  body: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        SwitchListTile(
+                          title: const Text("Available for deliveries"),
+                          value: _available,
+                          onChanged: (v) async {
+                            setState(() => _available = v);
+                            try {
+                              await api.partnerAvailability(v);
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Login as partner first.\n$e")));
+                            }
                           },
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-          }
-          '''))
-
-    write(os.path.join(ROOT, "lib", "grabbasket", "ui", "partner_home.dart"),
-          textwrap.dedent('''\
-          import 'package:flutter/material.dart';
-          import 'package:flutter_riverpod/flutter_riverpod.dart';
-          import '../state.dart';
-          import '../models.dart';
-          import '../bootstrap.dart';
-          import 'login.dart';
-
-          class PartnerHome extends ConsumerStatefulWidget {
-            const PartnerHome({super.key});
-
-            @override
-            ConsumerState<PartnerHome> createState() => _PartnerHomeState();
-          }
-
-          class _PartnerHomeState extends ConsumerState<PartnerHome> {
-            bool _available = true;
-
-            @override
-            Widget build(BuildContext context) {
-              final api = ref.watch(apiProvider);
-
-              return Scaffold(
-                appBar: AppBar(
-                  title: const Text("Partner"),
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.login),
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen(flavor: AppFlavor.partner))),
-                    ),
-                  ],
-                ),
-                body: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      SwitchListTile(
-                        title: const Text("Available for deliveries"),
-                        value: _available,
-                        onChanged: (v) async {
-                          setState(() => _available = v);
-                          await api.partnerAvailability(v);
-                        },
-                      ),
-                      const Align(alignment: Alignment.centerLeft, child: Text("Assigned orders", style: TextStyle(fontWeight: FontWeight.bold))),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: FutureBuilder<List<Order>>(
-                          future: api.partnerOrders(),
-                          builder: (context, snap) {
-                            if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-                            final orders = snap.data!;
-                            if (orders.isEmpty) return const Center(child: Text("No assigned orders"));
-                            return ListView.separated(
-                              itemCount: orders.length,
-                              separatorBuilder: (_, __) => const Divider(height: 1),
-                              itemBuilder: (context, i) {
-                                final o = orders[i];
-                                return ListTile(
-                                  title: Text("Order #${o.id} • ${o.status}"),
-                                  subtitle: Text("Total Rs ${o.totalAmount.toStringAsFixed(2)}"),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (o.status == "ASSIGNED_TO_PARTNER")
-                                        FilledButton(
-                                          onPressed: () async { await api.partnerPickup(o.id); setState(() {}); },
-                                          child: const Text("Picked up"),
-                                        ),
-                                      if (o.status == "PICKED_UP")
-                                        FilledButton(
-                                          onPressed: () async { await api.partnerDeliver(o.id); setState(() {}); },
-                                          child: const Text("Delivered"),
-                                        ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            );
-                          },
+                        const Align(alignment: Alignment.centerLeft, child: Text("Assigned orders", style: TextStyle(fontWeight: FontWeight.bold))),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: FutureBuilder<List<Order>>(
+                            future: api.partnerOrders(),
+                            builder: (context, snap) {
+                              if (snap.connectionState != ConnectionState.done) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
+                              if (snap.hasError) {
+                                return const Center(child: Text("Login as partner to view orders"));
+                              }
+                              final orders = snap.data ?? const <Order>[];
+                              if (orders.isEmpty) return const Center(child: Text("No assigned orders"));
+                              return ListView.separated(
+                                itemCount: orders.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1),
+                                itemBuilder: (context, i) {
+                                  final o = orders[i];
+                                  return ListTile(
+                                    title: Text("Order #${o.id} • ${o.status}"),
+                                    subtitle: Text("Total Rs ${o.totalAmount.toStringAsFixed(2)}"),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (o.status == "ASSIGNED_TO_PARTNER")
+                                          FilledButton(
+                                            onPressed: () async {
+                                              await api.partnerPickup(o.id);
+                                              setState(() {});
+                                            },
+                                            child: const Text("Picked up"),
+                                          ),
+                                        if (o.status == "PICKED_UP")
+                                          FilledButton(
+                                            onPressed: () async {
+                                              await api.partnerDeliver(o.id);
+                                              setState(() {});
+                                            },
+                                            child: const Text("Delivered"),
+                                          ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              );
+                );
+              }
             }
-          }
-          '''))
+            '''
+        ),
+    )
 
     print("Flutter lib/ entrypoints created.")
 
+
 def main():
     append_pubspec_deps()
-    patch_build_gradle()
+    patch_android_build_files()
     add_entrypoints_and_lib()
+
 
 if __name__ == "__main__":
     main()
