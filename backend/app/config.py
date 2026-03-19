@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-from typing import Annotated, List
+from typing import List
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -27,7 +27,9 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ACCESS_TOKEN_MINUTES", "ACCESS_TOKEN_EXPIRE_MINUTES"),
     )
 
-    CORS_ORIGINS: Annotated[List[str], NoDecode] = Field(default_factory=lambda: ["*"])
+    # Mobile app does not need browser CORS restrictions.
+    # Keep this configurable for future web/admin panels.
+    CORS_ORIGINS: str | List[str] = Field(default="*")
 
     FCM_SERVICE_ACCOUNT_JSON: str | None = None
     FCM_SERVICE_ACCOUNT_FILE: str | None = None
@@ -37,13 +39,18 @@ class Settings(BaseSettings):
     def _normalize_database_url(cls, v):
         if not isinstance(v, str):
             return v
+
         s = v.strip()
+
         if s.startswith("postgresql+psycopg://"):
             return s
+
         if s.startswith("postgres://"):
             return "postgresql+psycopg://" + s[len("postgres://"):]
+
         if s.startswith("postgresql://"):
             return "postgresql+psycopg://" + s[len("postgresql://"):]
+
         return s
 
     @field_validator("CORS_ORIGINS", mode="before")
@@ -51,20 +58,32 @@ class Settings(BaseSettings):
     def _parse_cors(cls, v):
         if v is None:
             return ["*"]
+
         if isinstance(v, list):
-            return v
+            items = [str(x).strip() for x in v if str(x).strip()]
+            return items or ["*"]
+
         if isinstance(v, str):
             s = v.strip()
+
             if not s:
                 return ["*"]
+
+            if s == "*":
+                return ["*"]
+
             if s.startswith("["):
                 try:
                     parsed = json.loads(s)
                     if isinstance(parsed, list):
-                        return [str(x) for x in parsed if str(x).strip()]
+                        items = [str(x).strip() for x in parsed if str(x).strip()]
+                        return items or ["*"]
                 except Exception:
                     pass
-            return [x.strip() for x in s.split(",") if x.strip()]
+
+            items = [x.strip() for x in s.split(",") if x.strip()]
+            return items or ["*"]
+
         return ["*"]
 
     @property
@@ -77,8 +96,6 @@ class Settings(BaseSettings):
             weak = {"dev-secret-change-me", "change-me", "change-me-in-prod"}
             if self.JWT_SECRET in weak or len(self.JWT_SECRET) < 16:
                 raise ValueError("JWT_SECRET must be strong in production")
-            if self.CORS_ORIGINS == ["*"]:
-                raise ValueError("CORS_ORIGINS must not be '*' in production")
         return self
 
 
