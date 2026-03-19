@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
-  Pressable,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -17,41 +16,40 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from './src/config';
 
-const STORAGE_TOKEN = '@grab_basket/token';
-const STORAGE_ROLE = '@grab_basket/role';
+const STORAGE_CART = '@grab_basket/cart_v2';
+const STORAGE_FAVORITES = '@grab_basket/favorites_v1';
 
-const TOP_SECTIONS = [
-  { key: 'food', emoji: '🍔', label: 'Food' },
-  { key: 'instamart', emoji: '🛒', label: 'Instamart' },
-  { key: 'dineout', emoji: '🍽️', label: 'Dineout' },
-  { key: 'scenes', emoji: '🎉', label: 'Scenes' },
+const TOP_SERVICES = [
+  { key: 'food', emoji: '🍔', label: 'Food', subtitle: 'Restaurants' },
+  { key: 'instamart', emoji: '🛒', label: 'Instamart', subtitle: 'Groceries' },
+  { key: 'dineout', emoji: '🍽️', label: 'Dineout', subtitle: 'Dining deals' },
+  { key: 'scenes', emoji: '🎉', label: 'Scenes', subtitle: 'Events' },
 ];
 
-const HOME_FILTERS = ['All', 'Fresh', 'Maxxsaver', 'Ramzan', 'Exam Ready', 'Snacks', 'Drinks'];
+const HOME_FILTERS = ['All', 'Open now', 'Low to high', 'High to low', 'A-Z'];
 
-const FESTIVAL_CARDS = [
-  { title: 'Chaitra Navratri', subtitle: 'Puja items, fruits, sweets' },
-  { title: 'Eid-Ul-Fitr', subtitle: 'Dates, sharbat, dry fruits' },
-  { title: 'Ugadi', subtitle: 'Raw mango, jaggery, neem' },
-  { title: 'Gifting', subtitle: 'Desserts, celebration hampers' },
+const OFFER_STRIPS = [
+  { title: 'Season of celebration', subtitle: 'Festival baskets, gifting and quick grocery packs' },
+  { title: '₹9 everyday store', subtitle: 'Small add-ons and basket fillers at ultra-low prices' },
+  { title: 'Free delivery picks', subtitle: 'Build your MVP around these merchandising slots' },
 ];
 
-const CATEGORY_ITEMS = [
-  { emoji: '🥬', label: 'Fresh Vegetables' },
-  { emoji: '🍎', label: 'Fruits' },
-  { emoji: '🥛', label: 'Dairy & Bakery' },
-  { emoji: '🍫', label: 'Snacks & Chocolates' },
-  { emoji: '🥤', label: 'Cold Drinks' },
-  { emoji: '🍚', label: 'Rice & Staples' },
-  { emoji: '🧴', label: 'Personal Care' },
-  { emoji: '🧼', label: 'Home Essentials' },
+const CATEGORY_GRID = [
+  { emoji: '🥬', title: 'Vegetables' },
+  { emoji: '🍎', title: 'Fruits' },
+  { emoji: '🥛', title: 'Dairy' },
+  { emoji: '🍞', title: 'Bakery' },
+  { emoji: '🍫', title: 'Snacks' },
+  { emoji: '🥤', title: 'Drinks' },
+  { emoji: '🧴', title: 'Personal Care' },
+  { emoji: '🧼', title: 'Home Care' },
 ];
 
-const DEALS = [
-  '₹9 everyday picks',
-  'Free delivery on selected stores',
-  'Under 20 mins delivery',
-  'Weekend grocery refills',
+const ACCOUNT_ROWS = [
+  { icon: 'location-outline', label: 'Saved addresses', value: 'Hook with /addresses later' },
+  { icon: 'card-outline', label: 'Payments', value: 'Wallet / UPI / cards later' },
+  { icon: 'ticket-outline', label: 'Coupons', value: 'Promo engine later' },
+  { icon: 'chatbubble-ellipses-outline', label: 'Support', value: 'Help centre later' },
 ];
 
 function money(value) {
@@ -68,15 +66,51 @@ function initials(name = '') {
     .toUpperCase();
 }
 
-async function apiRequest(path, { method = 'GET', token, body } = {}) {
+function estimateEta(vendor) {
+  if (vendor?.distance_km != null) {
+    if (vendor.distance_km <= 2) return '15-20 mins';
+    if (vendor.distance_km <= 5) return '20-30 mins';
+    return '30-45 mins';
+  }
+  return '23 mins';
+}
+
+function buildVendorQuery(search, filter) {
+  const params = new URLSearchParams();
+  if (search.trim()) params.set('q', search.trim());
+  if (filter === 'Open now') params.set('open_only', 'true');
+  params.set('limit', '50');
+  return `/vendors?${params.toString()}`;
+}
+
+function sortVendors(list, filter) {
+  const cloned = [...list];
+
+  switch (filter) {
+    case 'Low to high':
+      return cloned.sort((a, b) => {
+        const av = a.distance_km ?? Number.MAX_SAFE_INTEGER;
+        const bv = b.distance_km ?? Number.MAX_SAFE_INTEGER;
+        return av - bv;
+      });
+    case 'High to low':
+      return cloned.sort((a, b) => {
+        const av = a.distance_km ?? 0;
+        const bv = b.distance_km ?? 0;
+        return bv - av;
+      });
+    case 'A-Z':
+      return cloned.sort((a, b) => a.name.localeCompare(b.name));
+    default:
+      return cloned;
+  }
+}
+
+async function apiRequest(path) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    method,
     headers: {
       Accept: 'application/json',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: body ? JSON.stringify(body) : undefined,
   });
 
   const raw = await response.text();
@@ -100,177 +134,147 @@ async function apiRequest(path, { method = 'GET', token, body } = {}) {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('instamart');
-  const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('home');
+  const [activeService, setActiveService] = useState('instamart');
+  const [homeSearch, setHomeSearch] = useState('');
+  const [homeFilter, setHomeFilter] = useState('All');
+
   const [vendors, setVendors] = useState([]);
   const [vendorsLoading, setVendorsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [selectedVendor, setSelectedVendor] = useState(null);
+  const [productSearch, setProductSearch] = useState('');
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
 
   const [cart, setCart] = useState({ vendorId: null, items: {} });
+  const [favorites, setFavorites] = useState({});
   const [showCart, setShowCart] = useState(false);
 
-  const [token, setToken] = useState(null);
-  const [role, setRole] = useState(null);
-
-  const [orders, setOrders] = useState([]);
-  const [ordersLoading, setOrdersLoading] = useState(false);
-
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-
-  const cartLines = useMemo(() => Object.values(cart.items), [cart]);
-  const cartCount = useMemo(
-    () => cartLines.reduce((sum, item) => sum + item.qty, 0),
-    [cartLines]
-  );
-  const cartSubtotal = useMemo(
-    () => cartLines.reduce((sum, item) => sum + item.price * item.qty, 0),
-    [cartLines]
-  );
-
   useEffect(() => {
-    let cancelled = false;
+    let active = true;
 
     (async () => {
-      const stored = await AsyncStorage.multiGet([STORAGE_TOKEN, STORAGE_ROLE]);
-      if (cancelled) return;
+      try {
+        const stored = await AsyncStorage.multiGet([STORAGE_CART, STORAGE_FAVORITES]);
+        if (!active) return;
 
-      const savedToken = stored[0]?.[1] || null;
-      const savedRole = stored[1]?.[1] || null;
+        const savedCart = stored[0]?.[1];
+        const savedFavorites = stored[1]?.[1];
 
-      setToken(savedToken);
-      setRole(savedRole);
+        if (savedCart) {
+          setCart(JSON.parse(savedCart));
+        }
+        if (savedFavorites) {
+          setFavorites(JSON.parse(savedFavorites));
+        }
+      } catch {
+        // ignore storage boot errors for first-pass MVP
+      }
     })();
 
     return () => {
-      cancelled = true;
+      active = false;
     };
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const timer = setTimeout(async () => {
-      try {
-        setVendorsLoading(true);
-        const query = search.trim()
-          ? `/vendors?q=${encodeURIComponent(search.trim())}`
-          : '/vendors';
-        const data = await apiRequest(query);
-        if (!cancelled) {
-          setVendors(Array.isArray(data) ? data : []);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setVendors([]);
-          Alert.alert('Vendor loading failed', error.message);
-        }
-      } finally {
-        if (!cancelled) {
-          setVendorsLoading(false);
-        }
-      }
-    }, 300);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [search]);
+    AsyncStorage.setItem(STORAGE_CART, JSON.stringify(cart)).catch(() => {});
+  }, [cart]);
 
   useEffect(() => {
-    let cancelled = false;
+    AsyncStorage.setItem(STORAGE_FAVORITES, JSON.stringify(favorites)).catch(() => {});
+  }, [favorites]);
 
-    if (!token) {
-      setOrders([]);
-      return;
-    }
-
-    (async () => {
+  const loadVendors = useCallback(
+    async ({ pullToRefresh = false } = {}) => {
       try {
-        setOrdersLoading(true);
-        const data = await apiRequest('/orders/me', { token });
-        if (!cancelled) {
-          setOrders(Array.isArray(data) ? data : []);
+        if (pullToRefresh) {
+          setRefreshing(true);
+        } else {
+          setVendorsLoading(true);
         }
-      } catch {
-        if (!cancelled) {
-          setOrders([]);
-        }
+
+        const data = await apiRequest(buildVendorQuery(homeSearch, homeFilter));
+        const parsed = Array.isArray(data) ? data : [];
+        setVendors(sortVendors(parsed, homeFilter));
+      } catch (error) {
+        setVendors([]);
+        Alert.alert('Could not load stores', error.message);
       } finally {
-        if (!cancelled) {
-          setOrdersLoading(false);
-        }
+        setVendorsLoading(false);
+        setRefreshing(false);
       }
-    })();
+    },
+    [homeSearch, homeFilter]
+  );
 
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadVendors();
+    }, 250);
 
-  const openAuth = (mode = 'login') => {
-    setAuthMode(mode);
-    setShowAuthModal(true);
-  };
+    return () => clearTimeout(timer);
+  }, [loadVendors]);
 
-  const submitAuth = async () => {
-    const cleanEmail = email.trim();
-
-    if (!cleanEmail || !password) {
-      Alert.alert('Missing details', 'Enter email and password.');
-      return;
-    }
-
+  const loadProducts = useCallback(async (vendor, searchValue = '') => {
     try {
-      setAuthLoading(true);
-
-      const path = authMode === 'register' ? '/auth/register' : '/auth/login';
-      const body =
-        authMode === 'register'
-          ? { email: cleanEmail, password, role: 'CUSTOMER' }
-          : { email: cleanEmail, password };
-
-      const data = await apiRequest(path, { method: 'POST', body });
-
-      await AsyncStorage.multiSet([
-        [STORAGE_TOKEN, data.access_token],
-        [STORAGE_ROLE, data.role],
-      ]);
-
-      setToken(data.access_token);
-      setRole(data.role);
-      setShowAuthModal(false);
-      setEmail('');
-      setPassword('');
-      setActiveTab('account');
-
-      Alert.alert(
-        authMode === 'register' ? 'Account created' : 'Logged in',
-        `Signed in as ${data.role}`
-      );
+      setProductsLoading(true);
+      const params = new URLSearchParams();
+      if (searchValue.trim()) params.set('q', searchValue.trim());
+      params.set('limit', '200');
+      const qs = params.toString();
+      const data = await apiRequest(`/vendors/${vendor.id}/products${qs ? `?${qs}` : ''}`);
+      setProducts(Array.isArray(data) ? data : []);
     } catch (error) {
-      Alert.alert('Auth failed', error.message);
+      setProducts([]);
+      Alert.alert('Could not load products', error.message);
     } finally {
-      setAuthLoading(false);
+      setProductsLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedVendor) return undefined;
+
+    const timer = setTimeout(() => {
+      loadProducts(selectedVendor, productSearch);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [selectedVendor, productSearch, loadProducts]);
+
+  const cartItems = useMemo(() => Object.values(cart.items), [cart]);
+  const cartCount = useMemo(
+    () => cartItems.reduce((sum, item) => sum + item.qty, 0),
+    [cartItems]
+  );
+  const cartSubtotal = useMemo(
+    () => cartItems.reduce((sum, item) => sum + Number(item.price || 0) * item.qty, 0),
+    [cartItems]
+  );
+  const cartVendorName = useMemo(() => {
+    if (!cart.vendorId) return 'your store';
+    const vendor = vendors.find((item) => item.id === cart.vendorId) || selectedVendor;
+    return vendor?.name || 'your store';
+  }, [cart.vendorId, vendors, selectedVendor]);
+
+  const featuredVendors = useMemo(() => vendors.slice(0, 6), [vendors]);
+  const favoriteVendors = useMemo(
+    () => vendors.filter((vendor) => favorites[vendor.id]),
+    [vendors, favorites]
+  );
+  const bestSellerProducts = useMemo(() => products.slice(0, 4), [products]);
+
+  const toggleFavorite = (vendorId) => {
+    setFavorites((current) => ({
+      ...current,
+      [vendorId]: !current[vendorId],
+    }));
   };
 
-  const logout = async () => {
-    await AsyncStorage.multiRemove([STORAGE_TOKEN, STORAGE_ROLE]);
-    setToken(null);
-    setRole(null);
-    setOrders([]);
-    Alert.alert('Logged out', 'Your session has been cleared.');
-  };
-
-  const replaceCartWithProduct = (product) => {
+  const replaceCartWith = (product) => {
     setCart({
       vendorId: product.vendor_id,
       items: {
@@ -286,13 +290,13 @@ export default function App() {
     if (cart.vendorId && cart.vendorId !== product.vendor_id) {
       Alert.alert(
         'Replace cart?',
-        'You can order from only one store at a time.',
+        'Swiggy-style flow usually keeps one active store in the cart. Replace the current basket?',
         [
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Replace',
             style: 'destructive',
-            onPress: () => replaceCartWithProduct(product),
+            onPress: () => replaceCartWith(product),
           },
         ]
       );
@@ -314,7 +318,7 @@ export default function App() {
     });
   };
 
-  const changeQty = (product, delta) => {
+  const updateQty = (product, delta) => {
     setCart((current) => {
       const existing = current.items[product.id];
       if (!existing) return current;
@@ -345,120 +349,53 @@ export default function App() {
   };
 
   const openVendor = async (vendor) => {
-    try {
-      setSelectedVendor(vendor);
-      setProductsLoading(true);
-      setProducts([]);
-      const data = await apiRequest(`/vendors/${vendor.id}/products`);
-      setProducts(Array.isArray(data) ? data : []);
-    } catch (error) {
-      Alert.alert('Store loading failed', error.message);
-    } finally {
-      setProductsLoading(false);
-    }
+    setSelectedVendor(vendor);
+    setProductSearch('');
+    setProducts([]);
+    await loadProducts(vendor, '');
   };
 
-  const placeOrder = async () => {
-    if (!token) {
-      setActiveTab('account');
-      setShowCart(false);
-      openAuth('login');
+  const previewCheckout = () => {
+    if (cartItems.length === 0) {
+      Alert.alert('Cart is empty', 'Add some products first.');
       return;
     }
 
-    if (role !== 'CUSTOMER') {
-      Alert.alert(
-        'Customer account required',
-        'Use a CUSTOMER account to place orders.'
-      );
-      return;
-    }
-
-    if (!cart.vendorId || cartLines.length === 0) {
-      Alert.alert('Cart is empty', 'Add products before placing an order.');
-      return;
-    }
-
-    try {
-      const payload = {
-        vendor_id: cart.vendorId,
-        payment_method: 'COD',
-        items: cartLines.map((item) => ({
-          product_id: item.id,
-          qty: item.qty,
-        })),
-      };
-
-      const result = await apiRequest('/orders', {
-        method: 'POST',
-        token,
-        body: payload,
-      });
-
-      clearCart();
-      setSelectedVendor(null);
-      setShowCart(false);
-      setActiveTab('orders');
-
-      const refreshed = await apiRequest('/orders/me', { token });
-      setOrders(Array.isArray(refreshed) ? refreshed : []);
-
-      Alert.alert('Order placed', `Order #${result.id} created successfully.`);
-    } catch (error) {
-      Alert.alert('Order failed', error.message);
-    }
+    Alert.alert(
+      'Checkout flow pending',
+      'Frontend guest flow is ready. Next Swiggy-level step is wiring address selection, payments, and customer auth back into /orders.'
+    );
   };
-
-  const renderOrdersList = (title, subtitle) => (
-    <ScrollView contentContainerStyle={styles.pageContent}>
-      <SectionHeader title={title} subtitle={subtitle} />
-      {!token ? (
-        <EmptyCard
-          title="Login required"
-          text="Login as a customer to view your order history and reorder quickly."
-          primaryLabel="Login"
-          onPrimary={() => openAuth('login')}
-          secondaryLabel="Create account"
-          onSecondary={() => openAuth('register')}
-        />
-      ) : ordersLoading ? (
-        <View style={styles.centerBox}>
-          <ActivityIndicator size="large" />
-        </View>
-      ) : orders.length === 0 ? (
-        <EmptyCard
-          title="No orders yet"
-          text="Your placed orders will show up here."
-        />
-      ) : (
-        orders.map((order) => <OrderCard key={order.id} order={order} />)
-      )}
-    </ScrollView>
-  );
 
   const renderHome = () => (
-    <ScrollView contentContainerStyle={styles.pageContent}>
-      <Text style={styles.heroEta}>23 mins</Text>
-      <View style={styles.addressRow}>
-        <Ionicons name="location-outline" size={18} color="#333" />
-        <Text style={styles.addressText}>
-          To Valliachans Place: 12b, Great Orchard...
-        </Text>
-        <Ionicons name="chevron-down" size={16} color="#333" />
+    <ScrollView
+      contentContainerStyle={styles.pageContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadVendors({ pullToRefresh: true })} />}>
+      <View style={styles.heroTopRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.heroEta}>23 mins</Text>
+          <View style={styles.addressRow}>
+            <Ionicons name="location-outline" size={16} color="#374151" />
+            <Text style={styles.addressText}>To Valliachans Place · 12b, Great Orchard...</Text>
+            <Ionicons name="chevron-down" size={14} color="#374151" />
+          </View>
+        </View>
+        <View style={styles.profileDot}>
+          <Ionicons name="person-outline" size={20} color="#111827" />
+        </View>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.railRow}
-      >
-        {TOP_SECTIONS.map((item) => (
-          <TopShortcutCard
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
+        {TOP_SERVICES.map((item) => (
+          <TouchableOpacity
             key={item.key}
-            emoji={item.emoji}
-            label={item.label}
-            active={item.key === 'instamart'}
-          />
+            activeOpacity={0.9}
+            style={[styles.serviceCard, activeService === item.key && styles.serviceCardActive]}
+            onPress={() => setActiveService(item.key)}>
+            <Text style={styles.serviceEmoji}>{item.emoji}</Text>
+            <Text style={styles.serviceLabel}>{item.label}</Text>
+            <Text style={styles.serviceSubLabel}>{item.subtitle}</Text>
+          </TouchableOpacity>
         ))}
       </ScrollView>
 
@@ -466,72 +403,74 @@ export default function App() {
         <Ionicons name="search-outline" size={20} color="#6b7280" />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search for sunscreen, stores, groceries..."
+          placeholder="Search for stores, groceries and quick items"
           placeholderTextColor="#9ca3af"
-          value={search}
-          onChangeText={setSearch}
+          value={homeSearch}
+          onChangeText={setHomeSearch}
         />
-        <Ionicons name="document-text-outline" size={20} color="#6b7280" />
+        <Ionicons name="list-outline" size={20} color="#6b7280" />
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.railRow}
-      >
-        {HOME_FILTERS.map((item, index) => (
-          <FilterChip key={item} label={item} active={index === 0} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRailCompact}>
+        {HOME_FILTERS.map((item) => (
+          <TouchableOpacity
+            key={item}
+            style={[styles.filterChip, homeFilter === item && styles.filterChipActive]}
+            onPress={() => setHomeFilter(item)}>
+            <Text style={[styles.filterChipText, homeFilter === item && styles.filterChipTextActive]}>{item}</Text>
+          </TouchableOpacity>
         ))}
       </ScrollView>
 
       <SectionHeader
         title="Season of celebration"
-        subtitle="Same section flow as your reference home screen"
+        subtitle="Structure is now much closer to the screenshot: service rail, search, chips, banners and store feed."
       />
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.railRow}
-      >
-        {FESTIVAL_CARDS.map((item) => (
-          <FestivalCard
-            key={item.title}
-            title={item.title}
-            subtitle={item.subtitle}
-          />
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
+        {OFFER_STRIPS.map((item) => (
+          <View key={item.title} style={styles.offerCard}>
+            <Text style={styles.offerEyebrow}>LIVE</Text>
+            <Text style={styles.offerTitle}>{item.title}</Text>
+            <Text style={styles.offerSubtitle}>{item.subtitle}</Text>
+          </View>
         ))}
       </ScrollView>
 
       <View style={styles.bannerCard}>
-        <View>
-          <Text style={styles.bannerTitle}>₹9 everyday</Text>
-          <Text style={styles.bannerText}>
-            Shop selected add-ons and quick basket fillers.
-          </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.bannerHeadline}>₹9 everyday</Text>
+          <Text style={styles.bannerCopy}>A Swiggy-like home needs promo blocks, merchandising slots and quick CTA modules.</Text>
         </View>
-        <Ionicons name="flash-outline" size={22} color="#111" />
+        <View style={styles.bannerIconWrap}>
+          <Ionicons name="flash-outline" size={22} color="#111827" />
+        </View>
       </View>
 
-      <SectionHeader
-        title="Popular stores near you"
-        subtitle="Loaded from your existing FastAPI backend"
-      />
+      <SectionHeader title="Popular categories" subtitle="These are visual modules for the home feed and categories tab." />
+      <View style={styles.categoryGrid}>
+        {CATEGORY_GRID.map((item) => (
+          <View key={item.title} style={styles.categoryTile}>
+            <Text style={styles.categoryEmoji}>{item.emoji}</Text>
+            <Text style={styles.categoryTitle}>{item.title}</Text>
+          </View>
+        ))}
+      </View>
+
+      <SectionHeader title="Featured stores" subtitle="Powered by your existing /vendors endpoint." />
 
       {vendorsLoading ? (
-        <View style={styles.centerBox}>
-          <ActivityIndicator size="large" />
-        </View>
-      ) : vendors.length === 0 ? (
-        <EmptyCard
-          title="No stores found"
-          text="Create seller/vendor data from your backend, then the home screen will fill automatically."
-        />
+        <LoadingBlock label="Loading stores..." />
+      ) : featuredVendors.length === 0 ? (
+        <EmptyState title="No stores found" text="Create vendor and product data in the backend and this feed will populate automatically." />
       ) : (
-        vendors.map((vendor) => (
+        featuredVendors.map((vendor) => (
           <StoreCard
             key={vendor.id}
             vendor={vendor}
-            onPress={() => openVendor(vendor)}
+            favorite={!!favorites[vendor.id]}
+            onOpen={() => openVendor(vendor)}
+            onToggleFavorite={() => toggleFavorite(vendor.id)}
           />
         ))
       )}
@@ -540,163 +479,167 @@ export default function App() {
 
   const renderCategories = () => (
     <ScrollView contentContainerStyle={styles.pageContent}>
-      <SectionHeader
-        title="Categories"
-        subtitle="Use this tab for the grocery-first sectioning"
-      />
+      <SectionHeader title="Categories" subtitle="This is the grocery-first browse view." />
 
       <View style={styles.categoryGrid}>
-        {CATEGORY_ITEMS.map((item) => (
-          <View key={item.label} style={styles.categoryCard}>
-            <Text style={styles.categoryEmoji}>{item.emoji}</Text>
-            <Text style={styles.categoryLabel}>{item.label}</Text>
+        {CATEGORY_GRID.map((item) => (
+          <View key={item.title} style={styles.categoryTileLarge}>
+            <Text style={styles.categoryEmojiLarge}>{item.emoji}</Text>
+            <Text style={styles.categoryTitleLarge}>{item.title}</Text>
+            <Text style={styles.tileMeta}>Top picks and bundles</Text>
           </View>
         ))}
       </View>
 
-      <SectionHeader
-        title="Deal strips"
-        subtitle="Secondary sections similar to Instamart category rails"
-      />
-
-      {DEALS.map((deal) => (
-        <View key={deal} style={styles.simpleRowCard}>
-          <Text style={styles.simpleRowText}>{deal}</Text>
-          <Ionicons name="chevron-forward" size={18} color="#111" />
-        </View>
-      ))}
-
-      <SectionHeader
-        title="Browse stores"
-        subtitle="Tap any store to open its product list"
-      />
-
-      {vendorsLoading ? (
-        <View style={styles.centerBox}>
-          <ActivityIndicator size="large" />
-        </View>
-      ) : vendors.length === 0 ? (
-        <EmptyCard
-          title="No stores available"
-          text="Vendor cards will appear here when backend data exists."
-        />
+      <SectionHeader title="Favorite stores" subtitle="Stored locally for guest mode right now." />
+      {favoriteVendors.length === 0 ? (
+        <EmptyState title="No favorites yet" text="Tap the heart icon on a store card to save it here." />
       ) : (
-        vendors.map((vendor) => (
+        favoriteVendors.map((vendor) => (
           <StoreCard
-            key={`cat-${vendor.id}`}
+            key={`fav-${vendor.id}`}
             vendor={vendor}
-            onPress={() => openVendor(vendor)}
+            favorite={!!favorites[vendor.id]}
+            onOpen={() => openVendor(vendor)}
+            onToggleFavorite={() => toggleFavorite(vendor.id)}
           />
         ))
       )}
     </ScrollView>
   );
 
-  const renderReorder = () =>
-    renderOrdersList(
-      'Reorder',
-      'This tab can later be upgraded to one-tap reorder flows'
-    );
-
-  const renderAccount = () => (
+  const renderReorder = () => (
     <ScrollView contentContainerStyle={styles.pageContent}>
-      <SectionHeader
-        title="Account"
-        subtitle="Customer auth, session state, and API connection"
-      />
-
-      {!token ? (
-        <EmptyCard
-          title="Not logged in"
-          text="Use customer login to place orders and fetch /orders/me."
-          primaryLabel="Login"
-          onPrimary={() => openAuth('login')}
-          secondaryLabel="Create account"
-          onSecondary={() => openAuth('register')}
+      <SectionHeader title="Reorder" subtitle="Since we are skipping sign-in, this is a guest-mode placeholder." />
+      {cartItems.length === 0 ? (
+        <EmptyState
+          title="No recent guest basket"
+          text="Once you add items, this tab becomes a useful reorder shortcut. For real reorders, connect it to /orders/me after auth is back."
         />
       ) : (
-        <View style={styles.accountCard}>
-          <View style={styles.accountHeader}>
-            <View style={styles.accountAvatar}>
-              <Text style={styles.accountAvatarText}>
-                {initials(email || role || 'GB')}
-              </Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.accountTitle}>Session active</Text>
-              <Text style={styles.accountSubtitle}>Role: {role}</Text>
-              <Text style={styles.accountSubtitle}>API: {API_BASE_URL}</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.primaryButton} onPress={() => setActiveTab('orders')}>
-            <Text style={styles.primaryButtonText}>View my orders</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.secondaryButton} onPress={logout}>
-            <Text style={styles.secondaryButtonText}>Logout</Text>
+        <View style={styles.panelCard}>
+          <Text style={styles.panelTitle}>Current basket snapshot</Text>
+          <Text style={styles.panelText}>{cartVendorName}</Text>
+          <Text style={styles.panelSubText}>{cartCount} items · {money(cartSubtotal)}</Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => setShowCart(true)}>
+            <Text style={styles.primaryButtonText}>Open cart</Text>
           </TouchableOpacity>
         </View>
       )}
+    </ScrollView>
+  );
 
-      <SectionHeader
-        title="What this screen already does"
-        subtitle="Built on top of your current backend"
-      />
-
-      <View style={styles.infoCard}>
-        <InfoLine text="Home screen sections follow the same structure as your screenshot." />
-        <InfoLine text="Store list comes from /vendors." />
-        <InfoLine text="Product list comes from /vendors/{id}/products." />
-        <InfoLine text="Order placement uses /orders." />
-        <InfoLine text="Order history uses /orders/me." />
+  const renderOffers = () => (
+    <ScrollView contentContainerStyle={styles.pageContent}>
+      <SectionHeader title="Offers" subtitle="These are the sections a Swiggy-like app needs even before real offer logic is added." />
+      {OFFER_STRIPS.map((item) => (
+        <View key={item.title} style={styles.offerListCard}>
+          <View style={styles.offerListBadge}>
+            <Ionicons name="pricetags-outline" size={18} color="#111827" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.offerListTitle}>{item.title}</Text>
+            <Text style={styles.offerListText}>{item.subtitle}</Text>
+          </View>
+        </View>
+      ))}
+      <View style={styles.noteCard}>
+        <Text style={styles.noteTitle}>Still missing for true Swiggy standards</Text>
+        <Text style={styles.noteText}>Dynamic coupons, offer eligibility, payments, live tracking, ratings, store images, search suggestions and address-aware ETA.</Text>
       </View>
     </ScrollView>
   );
 
-  const renderVendorScreen = () => (
-    <View style={styles.screen}>
-      <View style={styles.headerBar}>
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => setSelectedVendor(null)}
-        >
-          <Ionicons name="arrow-back-outline" size={20} color="#111" />
-        </TouchableOpacity>
-
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>{selectedVendor?.name}</Text>
-          <Text style={styles.headerSubtitle}>
-            {selectedVendor?.description || selectedVendor?.address || 'Store'}
-          </Text>
+  const renderAccount = () => (
+    <ScrollView contentContainerStyle={styles.pageContent}>
+      <SectionHeader title="Account" subtitle="Sign-in is intentionally skipped for now, so this tab stays informational." />
+      <View style={styles.accountCard}>
+        <View style={styles.accountAvatar}>
+          <Text style={styles.accountAvatarText}>{initials('Grab Basket')}</Text>
         </View>
+        <Text style={styles.accountTitle}>Guest mode active</Text>
+        <Text style={styles.accountText}>You can browse stores, search products, manage favorites and build a basket without auth.</Text>
+      </View>
 
-        <TouchableOpacity
-          style={styles.cartTopButton}
-          onPress={() => setShowCart(true)}
-        >
-          <Ionicons name="cart-outline" size={18} color="#fff" />
-          <Text style={styles.cartTopButtonText}>{cartCount}</Text>
+      {ACCOUNT_ROWS.map((row) => (
+        <View key={row.label} style={styles.accountRow}>
+          <View style={styles.accountRowIcon}>
+            <Ionicons name={row.icon} size={18} color="#111827" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.accountRowLabel}>{row.label}</Text>
+            <Text style={styles.accountRowValue}>{row.value}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+        </View>
+      ))}
+
+      <View style={styles.noteCard}>
+        <Text style={styles.noteTitle}>What is now fixed</Text>
+        <Text style={styles.noteText}>The app can be made to open your custom App.js instead of the Expo router demo screen. That was the biggest issue in the latest zip.</Text>
+      </View>
+    </ScrollView>
+  );
+
+  const renderVendorDetails = () => (
+    <View style={styles.screen}>
+      <View style={styles.innerHeader}>
+        <TouchableOpacity style={styles.iconButton} onPress={() => setSelectedVendor(null)}>
+          <Ionicons name="arrow-back-outline" size={20} color="#111827" />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.innerHeaderTitle}>{selectedVendor?.name}</Text>
+          <Text style={styles.innerHeaderSubtitle}>{estimateEta(selectedVendor)} · {selectedVendor?.open_now ? 'Open' : 'Store details'}</Text>
+        </View>
+        <TouchableOpacity style={styles.iconButton} onPress={() => toggleFavorite(selectedVendor.id)}>
+          <Ionicons name={favorites[selectedVendor.id] ? 'heart' : 'heart-outline'} size={18} color="#111827" />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.pageContent}>
-        <View style={styles.vendorHero}>
+        <View style={styles.vendorHeroCard}>
           <Text style={styles.vendorHeroTitle}>{selectedVendor?.name}</Text>
-          <Text style={styles.vendorHeroText}>
-            {selectedVendor?.address || 'Quick grocery and essentials'}
-          </Text>
+          <Text style={styles.vendorHeroText}>{selectedVendor?.description || selectedVendor?.address || 'Quick grocery and essentials store'}</Text>
+          <View style={styles.vendorBadgeRow}>
+            <MetaBadge text={selectedVendor?.open_now ? 'Open now' : 'Store'} />
+            <MetaBadge text={estimateEta(selectedVendor)} />
+            {selectedVendor?.distance_km != null ? <MetaBadge text={`${selectedVendor.distance_km.toFixed(1)} km`} /> : null}
+            {selectedVendor?.delivery_radius_km != null ? <MetaBadge text={`Radius ${selectedVendor.delivery_radius_km} km`} /> : null}
+          </View>
         </View>
 
-        {productsLoading ? (
-          <View style={styles.centerBox}>
-            <ActivityIndicator size="large" />
-          </View>
-        ) : products.length === 0 ? (
-          <EmptyCard
-            title="No products yet"
-            text="Add products from the seller side and they will appear here."
+        <View style={styles.searchBox}>
+          <Ionicons name="search-outline" size={20} color="#6b7280" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search inside store"
+            placeholderTextColor="#9ca3af"
+            value={productSearch}
+            onChangeText={setProductSearch}
           />
+        </View>
+
+        {productsLoading ? <LoadingBlock label="Loading products..." /> : null}
+
+        {!productsLoading && bestSellerProducts.length > 0 ? (
+          <>
+            <SectionHeader title="Bestsellers" subtitle="A high-conversion section for store detail pages." />
+            {bestSellerProducts.map((product) => (
+              <ProductCard
+                key={`best-${product.id}`}
+                product={product}
+                featured
+                qty={cart.items[product.id]?.qty || 0}
+                onAdd={() => addToCart(product)}
+                onRemove={() => updateQty(product, -1)}
+              />
+            ))}
+          </>
+        ) : null}
+
+        <SectionHeader title="All items" subtitle="Fetched from /vendors/{id}/products." />
+        {!productsLoading && products.length === 0 ? (
+          <EmptyState title="No products yet" text="Add products from the seller side and this page will start looking complete." />
         ) : (
           products.map((product) => (
             <ProductCard
@@ -704,7 +647,7 @@ export default function App() {
               product={product}
               qty={cart.items[product.id]?.qty || 0}
               onAdd={() => addToCart(product)}
-              onRemove={() => changeQty(product, -1)}
+              onRemove={() => updateQty(product, -1)}
             />
           ))
         )}
@@ -714,96 +657,60 @@ export default function App() {
         <TouchableOpacity style={styles.floatingCart} onPress={() => setShowCart(true)}>
           <View>
             <Text style={styles.floatingCartTitle}>View cart</Text>
-            <Text style={styles.floatingCartText}>
-              {cartCount} items • {money(cartSubtotal)}
-            </Text>
+            <Text style={styles.floatingCartSubtitle}>{cartCount} items · {money(cartSubtotal)}</Text>
           </View>
-          <Ionicons name="arrow-forward" size={20} color="#fff" />
+          <Ionicons name="arrow-forward" size={20} color="#ffffff" />
         </TouchableOpacity>
       ) : null}
     </View>
   );
 
-  const renderCartScreen = () => (
+  const renderCart = () => (
     <View style={styles.screen}>
-      <View style={styles.headerBar}>
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={() => setShowCart(false)}
-        >
-          <Ionicons name="arrow-back-outline" size={20} color="#111" />
+      <View style={styles.innerHeader}>
+        <TouchableOpacity style={styles.iconButton} onPress={() => setShowCart(false)}>
+          <Ionicons name="arrow-back-outline" size={20} color="#111827" />
         </TouchableOpacity>
-
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Your cart</Text>
-          <Text style={styles.headerSubtitle}>
-            {selectedVendor?.name || 'Grab Basket'}
-          </Text>
+          <Text style={styles.innerHeaderTitle}>Cart</Text>
+          <Text style={styles.innerHeaderSubtitle}>{cartVendorName}</Text>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.pageContent}>
-        {cartLines.length === 0 ? (
-          <EmptyCard
-            title="Cart is empty"
-            text="Add products from a store to continue."
-          />
+        {cartItems.length === 0 ? (
+          <EmptyState title="Your cart is empty" text="Add products from a single store and they will appear here." />
         ) : (
           <>
-            <View style={styles.cartCard}>
-              {cartLines.map((item) => (
+            <View style={styles.panelCard}>
+              {cartItems.map((item) => (
                 <View key={item.id} style={styles.cartLine}>
                   <View style={{ flex: 1, paddingRight: 12 }}>
                     <Text style={styles.cartLineTitle}>{item.name}</Text>
-                    <Text style={styles.cartLineSubtitle}>{money(item.price)} each</Text>
+                    <Text style={styles.cartLineMeta}>{money(item.price)} each</Text>
                   </View>
-
-                  <View style={styles.qtyPill}>
-                    <TouchableOpacity
-                      style={styles.qtyIcon}
-                      onPress={() => changeQty(item, -1)}
-                    >
-                      <Ionicons name="remove" size={16} color="#111" />
-                    </TouchableOpacity>
-                    <Text style={styles.qtyValue}>{item.qty}</Text>
-                    <TouchableOpacity
-                      style={styles.qtyIcon}
-                      onPress={() => addToCart(item)}
-                    >
-                      <Ionicons name="add" size={16} color="#111" />
-                    </TouchableOpacity>
-                  </View>
+                  <QtyStepper qty={item.qty} onAdd={() => addToCart(item)} onRemove={() => updateQty(item, -1)} />
                 </View>
               ))}
             </View>
 
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>Bill details</Text>
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Subtotal</Text>
-                <Text style={styles.summaryValue}>{money(cartSubtotal)}</Text>
-              </View>
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Delivery</Text>
-                <Text style={styles.summaryValue}>Calculated by backend</Text>
-              </View>
-
+            <View style={styles.panelCard}>
+              <Text style={styles.panelTitle}>Bill details</Text>
+              <SummaryRow label="Subtotal" value={money(cartSubtotal)} />
+              <SummaryRow label="Delivery fee" value="Later from backend" />
+              <SummaryRow label="Platform fee" value="Later" />
               <View style={styles.summaryDivider} />
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryTotalLabel}>Items</Text>
-                <Text style={styles.summaryTotalLabel}>{cartCount}</Text>
-              </View>
+              <SummaryRow label="Items" value={`${cartCount}`} strong />
             </View>
 
-            <TouchableOpacity style={styles.primaryButton} onPress={placeOrder}>
-              <Text style={styles.primaryButtonText}>
-                {token ? 'Place order' : 'Login to place order'}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.noteCard}>
+              <Text style={styles.noteTitle}>Guest flow only</Text>
+              <Text style={styles.noteText}>As requested, sign-in is skipped. This cart is production-like in UI, but checkout should be wired back to auth, addresses and /orders next.</Text>
+            </View>
 
+            <TouchableOpacity style={styles.primaryButton} onPress={previewCheckout}>
+              <Text style={styles.primaryButtonText}>Proceed to checkout</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.secondaryButton} onPress={clearCart}>
               <Text style={styles.secondaryButtonText}>Clear cart</Text>
             </TouchableOpacity>
@@ -813,20 +720,20 @@ export default function App() {
     </View>
   );
 
-  const renderTabContent = () => {
-    if (selectedVendor) return renderVendorScreen();
-    if (showCart) return renderCartScreen();
+  const renderContent = () => {
+    if (selectedVendor) return renderVendorDetails();
+    if (showCart) return renderCart();
 
     switch (activeTab) {
       case 'categories':
         return renderCategories();
       case 'reorder':
         return renderReorder();
-      case 'orders':
-        return renderOrdersList('Orders', 'Track customer orders from your backend');
+      case 'offers':
+        return renderOffers();
       case 'account':
         return renderAccount();
-      case 'instamart':
+      case 'home':
       default:
         return renderHome();
     }
@@ -834,86 +741,19 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      {renderTabContent()}
+      <StatusBar barStyle="dark-content" backgroundColor="#f7f8fa" />
+      {renderContent()}
 
       {!selectedVendor && !showCart ? (
-        <View style={styles.tabBar}>
-          <BottomTabButton
-            label="Instamart"
-            icon="bag-handle-outline"
-            active={activeTab === 'instamart'}
-            onPress={() => setActiveTab('instamart')}
-          />
-          <BottomTabButton
-            label="Categories"
-            icon="grid-outline"
-            active={activeTab === 'categories'}
-            onPress={() => setActiveTab('categories')}
-          />
-          <BottomTabButton
-            label="Reorder"
-            icon="reload-outline"
-            active={activeTab === 'reorder'}
-            onPress={() => setActiveTab('reorder')}
-          />
-          <BottomTabButton
-            label="Orders"
-            icon="receipt-outline"
-            active={activeTab === 'orders'}
-            onPress={() => setActiveTab('orders')}
-          />
-          <BottomTabButton
-            label="Account"
-            icon="person-outline"
-            active={activeTab === 'account'}
-            onPress={() => setActiveTab('account')}
-          />
+        <View style={styles.bottomTabBar}>
+          <BottomTab icon="bag-handle-outline" label="Instamart" active={activeTab === 'home'} onPress={() => setActiveTab('home')} />
+          <BottomTab icon="grid-outline" label="Categories" active={activeTab === 'categories'} onPress={() => setActiveTab('categories')} />
+          <BottomTab icon="reload-outline" label="Reorder" active={activeTab === 'reorder'} onPress={() => setActiveTab('reorder')} />
+          <BottomTab icon="pricetags-outline" label="Offers" active={activeTab === 'offers'} onPress={() => setActiveTab('offers')} />
+          <BottomTab icon="person-outline" label="Account" active={activeTab === 'account'} onPress={() => setActiveTab('account')} />
         </View>
       ) : null}
-
-      <AuthModal
-        visible={showAuthModal}
-        mode={authMode}
-        setMode={setAuthMode}
-        email={email}
-        setEmail={setEmail}
-        password={password}
-        setPassword={setPassword}
-        loading={authLoading}
-        onClose={() => setShowAuthModal(false)}
-        onSubmit={submitAuth}
-      />
     </SafeAreaView>
-  );
-}
-
-function TopShortcutCard({ emoji, label, active }) {
-  return (
-    <View style={[styles.shortcutCard, active && styles.shortcutCardActive]}>
-      <Text style={styles.shortcutEmoji}>{emoji}</Text>
-      <Text style={styles.shortcutLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function FilterChip({ label, active }) {
-  return (
-    <View style={[styles.filterChip, active && styles.filterChipActive]}>
-      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-function FestivalCard({ title, subtitle }) {
-  return (
-    <View style={styles.festivalCard}>
-      <Text style={styles.festivalEmoji}>🎊</Text>
-      <Text style={styles.festivalTitle}>{title}</Text>
-      <Text style={styles.festivalSubtitle}>{subtitle}</Text>
-    </View>
   );
 }
 
@@ -926,69 +766,85 @@ function SectionHeader({ title, subtitle }) {
   );
 }
 
-function StoreCard({ vendor, onPress }) {
+function LoadingBlock({ label }) {
   return (
-    <TouchableOpacity activeOpacity={0.9} style={styles.storeCard} onPress={onPress}>
-      <View style={styles.storeTop}>
+    <View style={styles.loadingWrap}>
+      <ActivityIndicator size="large" />
+      <Text style={styles.loadingText}>{label}</Text>
+    </View>
+  );
+}
+
+function EmptyState({ title, text }) {
+  return (
+    <View style={styles.emptyCard}>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyText}>{text}</Text>
+    </View>
+  );
+}
+
+function MetaBadge({ text }) {
+  return (
+    <View style={styles.metaBadge}>
+      <Text style={styles.metaBadgeText}>{text}</Text>
+    </View>
+  );
+}
+
+function StoreCard({ vendor, onOpen, onToggleFavorite, favorite }) {
+  return (
+    <TouchableOpacity activeOpacity={0.92} style={styles.storeCard} onPress={onOpen}>
+      <View style={styles.storeCardTop}>
         <View style={styles.storeAvatar}>
           <Text style={styles.storeAvatarText}>{initials(vendor.name)}</Text>
         </View>
-
         <View style={{ flex: 1 }}>
-          <Text style={styles.storeName}>{vendor.name}</Text>
-          <Text style={styles.storeDesc}>
+          <View style={styles.storeTitleRow}>
+            <Text style={styles.storeName}>{vendor.name}</Text>
+            <TouchableOpacity onPress={onToggleFavorite} style={styles.favoriteButton}>
+              <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={18} color="#111827" />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.storeDescription} numberOfLines={2}>
             {vendor.description || vendor.address || 'Daily essentials and groceries'}
           </Text>
-
-          <View style={styles.badgeRow}>
-            <Badge text={vendor.open_now ? 'Open now' : 'Store'} />
-            {vendor.can_deliver ? <Badge text="Deliverable" /> : null}
-            {vendor.distance_km != null ? (
-              <Badge text={`${vendor.distance_km.toFixed(1)} km`} />
-            ) : null}
-            {vendor.delivery_radius_km != null ? (
-              <Badge text={`Radius ${vendor.delivery_radius_km} km`} />
-            ) : null}
+          <View style={styles.vendorBadgeRow}>
+            <MetaBadge text={vendor.open_now ? 'Open now' : 'Store'} />
+            <MetaBadge text={estimateEta(vendor)} />
+            {vendor.distance_km != null ? <MetaBadge text={`${vendor.distance_km.toFixed(1)} km`} /> : null}
+            {vendor.delivery_radius_km != null ? <MetaBadge text={`Radius ${vendor.delivery_radius_km} km`} /> : null}
           </View>
         </View>
       </View>
-
-      <View style={styles.storeBottom}>
-        <Text style={styles.storeAddress} numberOfLines={1}>
-          {vendor.address || 'Tap to view store menu'}
-        </Text>
-        <View style={styles.browseButton}>
-          <Text style={styles.browseButtonText}>Browse</Text>
+      <View style={styles.storeCardBottom}>
+        <Text style={styles.storeAddress} numberOfLines={1}>{vendor.address || 'Tap to browse the store'}</Text>
+        <View style={styles.browsePill}>
+          <Text style={styles.browsePillText}>Browse</Text>
         </View>
       </View>
     </TouchableOpacity>
   );
 }
 
-function ProductCard({ product, qty, onAdd, onRemove }) {
+function ProductCard({ product, qty, onAdd, onRemove, featured = false }) {
   return (
     <View style={styles.productCard}>
-      <Text style={styles.productTitle}>{product.name}</Text>
-      <Text style={styles.productDescription}>
-        {product.description || 'Store product'}
-      </Text>
-
-      <View style={styles.productFooter}>
+      <View style={{ flex: 1, paddingRight: 12 }}>
+        {featured ? <Text style={styles.featuredLabel}>BESTSELLER</Text> : null}
+        <Text style={styles.productTitle}>{product.name}</Text>
+        <Text style={styles.productDescription}>{product.description || 'Store product'}</Text>
         <Text style={styles.productPrice}>{money(product.price)}</Text>
-
+      </View>
+      <View style={styles.productRightBlock}>
+        <View style={styles.productImageMock}>
+          <Ionicons name="cube-outline" size={24} color="#6b7280" />
+        </View>
         {qty > 0 ? (
-          <View style={styles.qtyPill}>
-            <TouchableOpacity style={styles.qtyIcon} onPress={onRemove}>
-              <Ionicons name="remove" size={16} color="#111" />
-            </TouchableOpacity>
-            <Text style={styles.qtyValue}>{qty}</Text>
-            <TouchableOpacity style={styles.qtyIcon} onPress={onAdd}>
-              <Ionicons name="add" size={16} color="#111" />
-            </TouchableOpacity>
-          </View>
+          <QtyStepper qty={qty} onAdd={onAdd} onRemove={onRemove} />
         ) : (
           <TouchableOpacity style={styles.addButton} onPress={onAdd}>
-            <Text style={styles.addButtonText}>Add</Text>
+            <Text style={styles.addButtonText}>ADD</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -996,242 +852,124 @@ function ProductCard({ product, qty, onAdd, onRemove }) {
   );
 }
 
-function OrderCard({ order }) {
+function QtyStepper({ qty, onAdd, onRemove }) {
   return (
-    <View style={styles.orderCard}>
-      <View style={styles.orderHeader}>
-        <Text style={styles.orderTitle}>Order #{order.id}</Text>
-        <View style={styles.statusBadge}>
-          <Text style={styles.statusBadgeText}>{order.status}</Text>
-        </View>
-      </View>
-
-      <Text style={styles.orderText}>
-        Total: {money(order.total_amount)} • Delivery: {money(order.delivery_fee)}
-      </Text>
-      <Text style={styles.orderText}>Items: {order.items?.length || 0}</Text>
-      <Text style={styles.orderText}>Payment: {order.payment_method}</Text>
+    <View style={styles.qtyStepper}>
+      <TouchableOpacity style={styles.qtyAction} onPress={onRemove}>
+        <Ionicons name="remove" size={16} color="#111827" />
+      </TouchableOpacity>
+      <Text style={styles.qtyText}>{qty}</Text>
+      <TouchableOpacity style={styles.qtyAction} onPress={onAdd}>
+        <Ionicons name="add" size={16} color="#111827" />
+      </TouchableOpacity>
     </View>
   );
 }
 
-function Badge({ text }) {
+function SummaryRow({ label, value, strong = false }) {
   return (
-    <View style={styles.badge}>
-      <Text style={styles.badgeText}>{text}</Text>
+    <View style={styles.summaryRow}>
+      <Text style={[styles.summaryLabel, strong && styles.summaryLabelStrong]}>{label}</Text>
+      <Text style={[styles.summaryValue, strong && styles.summaryValueStrong]}>{value}</Text>
     </View>
   );
 }
 
-function BottomTabButton({ label, icon, active, onPress }) {
+function BottomTab({ icon, label, active, onPress }) {
   return (
-    <TouchableOpacity style={styles.tabButton} onPress={onPress}>
-      <Ionicons name={icon} size={20} color={active ? '#111' : '#6b7280'} />
-      <Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>
+    <TouchableOpacity style={styles.bottomTab} onPress={onPress}>
+      <Ionicons name={icon} size={20} color={active ? '#111827' : '#6b7280'} />
+      <Text style={[styles.bottomTabLabel, active && styles.bottomTabLabelActive]}>{label}</Text>
     </TouchableOpacity>
-  );
-}
-
-function EmptyCard({
-  title,
-  text,
-  primaryLabel,
-  onPrimary,
-  secondaryLabel,
-  onSecondary,
-}) {
-  return (
-    <View style={styles.emptyCard}>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyText}>{text}</Text>
-
-      {primaryLabel ? (
-        <TouchableOpacity style={styles.primaryButton} onPress={onPrimary}>
-          <Text style={styles.primaryButtonText}>{primaryLabel}</Text>
-        </TouchableOpacity>
-      ) : null}
-
-      {secondaryLabel ? (
-        <TouchableOpacity style={styles.secondaryButton} onPress={onSecondary}>
-          <Text style={styles.secondaryButtonText}>{secondaryLabel}</Text>
-        </TouchableOpacity>
-      ) : null}
-    </View>
-  );
-}
-
-function InfoLine({ text }) {
-  return (
-    <View style={styles.infoLine}>
-      <Ionicons name="checkmark-circle-outline" size={18} color="#111" />
-      <Text style={styles.infoLineText}>{text}</Text>
-    </View>
-  );
-}
-
-function AuthModal({
-  visible,
-  mode,
-  setMode,
-  email,
-  setEmail,
-  password,
-  setPassword,
-  loading,
-  onClose,
-  onSubmit,
-}) {
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <Pressable style={styles.modalDismissArea} onPress={onClose} />
-        <View style={styles.modalCard}>
-          <View style={styles.modalHandle} />
-
-          <Text style={styles.modalTitle}>
-            {mode === 'register' ? 'Create customer account' : 'Customer login'}
-          </Text>
-          <Text style={styles.modalSubtitle}>
-            This connects directly to your existing FastAPI auth endpoints.
-          </Text>
-
-          <View style={styles.authSwitchRow}>
-            <TouchableOpacity
-              style={[styles.authSwitch, mode === 'login' && styles.authSwitchActive]}
-              onPress={() => setMode('login')}
-            >
-              <Text
-                style={[
-                  styles.authSwitchText,
-                  mode === 'login' && styles.authSwitchTextActive,
-                ]}
-              >
-                Login
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.authSwitch, mode === 'register' && styles.authSwitchActive]}
-              onPress={() => setMode('register')}
-            >
-              <Text
-                style={[
-                  styles.authSwitchText,
-                  mode === 'register' && styles.authSwitchTextActive,
-                ]}
-              >
-                Register
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={onSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text style={styles.primaryButtonText}>
-                {mode === 'register' ? 'Create account' : 'Login'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.secondaryButton} onPress={onClose}>
-            <Text style={styles.secondaryButtonText}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f6f7f9',
+    backgroundColor: '#f7f8fa',
   },
   screen: {
     flex: 1,
+    backgroundColor: '#f7f8fa',
   },
   pageContent: {
     padding: 16,
     paddingBottom: 120,
   },
-  centerBox: {
-    paddingVertical: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroEta: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: '#111',
-  },
-  addressRow: {
-    marginTop: 6,
+  heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  heroEta: {
+    fontSize: 35,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
   addressText: {
     flex: 1,
-    fontSize: 15,
-    color: '#4b5563',
     marginHorizontal: 6,
+    color: '#4b5563',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  railRow: {
+  profileDot: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#eceef2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  horizontalRail: {
     paddingTop: 18,
     paddingBottom: 2,
   },
-  shortcutCard: {
-    width: 96,
-    backgroundColor: '#fff',
-    borderRadius: 22,
+  horizontalRailCompact: {
+    paddingTop: 14,
+    paddingBottom: 2,
+  },
+  serviceCard: {
+    width: 108,
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
     paddingVertical: 16,
     paddingHorizontal: 12,
     marginRight: 12,
     borderWidth: 1,
-    borderColor: '#ececec',
-    alignItems: 'center',
+    borderColor: '#eceef2',
   },
-  shortcutCardActive: {
-    borderColor: '#111',
+  serviceCardActive: {
+    borderColor: '#111827',
   },
-  shortcutEmoji: {
+  serviceEmoji: {
     fontSize: 28,
   },
-  shortcutLabel: {
-    marginTop: 10,
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111',
+  serviceLabel: {
+    marginTop: 12,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  serviceSubLabel: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#6b7280',
   },
   searchBox: {
     marginTop: 18,
-    height: 56,
+    minHeight: 58,
     borderRadius: 18,
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#ececec',
+    borderColor: '#eceef2',
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1240,26 +978,28 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 10,
     fontSize: 16,
-    color: '#111',
+    color: '#111827',
+    paddingVertical: 14,
   },
   filterChip: {
-    backgroundColor: '#fff',
-    borderRadius: 999,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#e5e7eb',
+    borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 10,
     marginRight: 10,
   },
   filterChipActive: {
-    borderColor: '#111',
+    borderColor: '#111827',
+    backgroundColor: '#111827',
   },
   filterChipText: {
     color: '#4b5563',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   filterChipTextActive: {
-    color: '#111',
+    color: '#ffffff',
   },
   sectionHeader: {
     marginTop: 24,
@@ -1268,100 +1008,200 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#111',
+    color: '#111827',
   },
   sectionSubtitle: {
     marginTop: 4,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 19,
     color: '#6b7280',
   },
-  festivalCard: {
-    width: 150,
-    backgroundColor: '#fff',
+  offerCard: {
+    width: 210,
+    backgroundColor: '#111827',
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#ececec',
-    padding: 16,
+    padding: 18,
     marginRight: 12,
   },
-  festivalEmoji: {
-    fontSize: 28,
-  },
-  festivalTitle: {
-    marginTop: 12,
-    fontSize: 16,
+  offerEyebrow: {
+    color: '#86efac',
     fontWeight: '800',
-    color: '#111',
+    fontSize: 12,
+    letterSpacing: 1,
   },
-  festivalSubtitle: {
-    marginTop: 6,
+  offerTitle: {
+    marginTop: 12,
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  offerSubtitle: {
+    marginTop: 8,
+    color: '#d1d5db',
     fontSize: 13,
-    color: '#6b7280',
-    lineHeight: 18,
+    lineHeight: 19,
   },
   bannerCard: {
     marginTop: 18,
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#ececec',
+    borderColor: '#eceef2',
     padding: 18,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  bannerTitle: {
-    fontSize: 22,
+  bannerHeadline: {
+    fontSize: 24,
     fontWeight: '800',
-    color: '#111',
+    color: '#111827',
   },
-  bannerText: {
-    marginTop: 4,
+  bannerCopy: {
+    marginTop: 6,
     color: '#6b7280',
+    lineHeight: 19,
   },
-  storeCard: {
-    backgroundColor: '#fff',
+  bannerIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 16,
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  categoryTile: {
+    width: '23%',
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#eceef2',
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  categoryEmoji: {
+    fontSize: 24,
+  },
+  categoryTitle: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+  },
+  categoryTileLarge: {
+    width: '48%',
+    backgroundColor: '#ffffff',
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#ececec',
+    borderColor: '#eceef2',
     padding: 16,
     marginBottom: 12,
   },
-  storeTop: {
+  categoryEmojiLarge: {
+    fontSize: 32,
+  },
+  categoryTitleLarge: {
+    marginTop: 10,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  tileMeta: {
+    marginTop: 4,
+    color: '#6b7280',
+    fontSize: 13,
+  },
+  loadingWrap: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  emptyCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#eceef2',
+    padding: 20,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  emptyText: {
+    marginTop: 8,
+    color: '#6b7280',
+    lineHeight: 20,
+  },
+  storeCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#eceef2',
+    padding: 16,
+    marginBottom: 12,
+  },
+  storeCardTop: {
     flexDirection: 'row',
   },
   storeAvatar: {
     width: 56,
     height: 56,
     borderRadius: 18,
-    backgroundColor: '#111',
+    backgroundColor: '#111827',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   storeAvatarText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 18,
     fontWeight: '800',
+  },
+  storeTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   storeName: {
+    flex: 1,
     fontSize: 18,
     fontWeight: '800',
-    color: '#111',
+    color: '#111827',
   },
-  storeDesc: {
+  favoriteButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
+  storeDescription: {
     marginTop: 4,
     fontSize: 13,
     lineHeight: 18,
     color: '#6b7280',
   },
-  badgeRow: {
+  vendorBadgeRow: {
     marginTop: 10,
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
-  badge: {
+  metaBadge: {
     backgroundColor: '#f3f4f6',
     borderRadius: 999,
     paddingHorizontal: 10,
@@ -1369,76 +1209,168 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8,
   },
-  badgeText: {
+  metaBadgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#374151',
   },
-  storeBottom: {
-    marginTop: 10,
+  storeCardBottom: {
+    marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
   },
   storeAddress: {
     flex: 1,
-    fontSize: 13,
     color: '#4b5563',
-    marginRight: 12,
+    fontSize: 13,
+    marginRight: 10,
   },
-  browseButton: {
-    backgroundColor: '#111',
-    borderRadius: 14,
+  browsePill: {
+    backgroundColor: '#111827',
     paddingHorizontal: 16,
     paddingVertical: 10,
+    borderRadius: 14,
   },
-  browseButtonText: {
-    color: '#fff',
-    fontWeight: '700',
+  browsePillText: {
+    color: '#ffffff',
+    fontWeight: '800',
   },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  categoryCard: {
-    width: '48%',
-    backgroundColor: '#fff',
-    borderRadius: 20,
+  panelCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#ececec',
+    borderColor: '#eceef2',
     padding: 16,
     marginBottom: 12,
   },
-  categoryEmoji: {
-    fontSize: 30,
+  panelTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#111827',
   },
-  categoryLabel: {
+  panelText: {
     marginTop: 10,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#111',
+    color: '#111827',
   },
-  simpleRowCard: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
+  panelSubText: {
+    marginTop: 4,
+    color: '#6b7280',
+  },
+  offerListCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#ececec',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    marginBottom: 10,
+    borderColor: '#eceef2',
+    padding: 16,
+    marginBottom: 12,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  simpleRowText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111',
+  offerListBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  headerBar: {
-    backgroundColor: '#fff',
+  offerListTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  offerListText: {
+    marginTop: 4,
+    color: '#6b7280',
+    lineHeight: 19,
+  },
+  noteCard: {
+    backgroundColor: '#eef2ff',
+    borderRadius: 20,
+    padding: 16,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  noteTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  noteText: {
+    marginTop: 6,
+    color: '#374151',
+    lineHeight: 20,
+  },
+  accountCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#eceef2',
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  accountAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountAvatarText: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  accountTitle: {
+    marginTop: 12,
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  accountText: {
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 20,
+    color: '#6b7280',
+  },
+  accountRow: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#eceef2',
+    padding: 16,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  accountRowIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  accountRowLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  accountRowValue: {
+    marginTop: 4,
+    color: '#6b7280',
+    fontSize: 13,
+  },
+  innerHeader: {
+    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
-    borderColor: '#ececec',
+    borderBottomColor: '#eceef2',
     paddingHorizontal: 16,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -1453,116 +1385,124 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
   },
-  headerTitle: {
-    fontSize: 19,
+  innerHeaderTitle: {
+    fontSize: 18,
     fontWeight: '800',
-    color: '#111',
+    color: '#111827',
   },
-  headerSubtitle: {
+  innerHeaderSubtitle: {
     marginTop: 4,
-    fontSize: 13,
     color: '#6b7280',
+    fontSize: 13,
   },
-  cartTopButton: {
-    marginLeft: 12,
-    backgroundColor: '#111',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cartTopButtonText: {
-    marginLeft: 6,
-    color: '#fff',
-    fontWeight: '700',
-  },
-  vendorHero: {
-    backgroundColor: '#fff',
+  vendorHeroCard: {
+    backgroundColor: '#ffffff',
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#ececec',
+    borderColor: '#eceef2',
     padding: 18,
     marginBottom: 16,
   },
   vendorHeroTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#111',
+    color: '#111827',
   },
   vendorHeroText: {
     marginTop: 6,
     fontSize: 14,
     color: '#6b7280',
+    lineHeight: 20,
   },
   productCard: {
-    backgroundColor: '#fff',
-    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#ececec',
+    borderColor: '#eceef2',
     padding: 16,
     marginBottom: 12,
+    flexDirection: 'row',
+  },
+  featuredLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#16a34a',
+    letterSpacing: 0.7,
+    marginBottom: 8,
   },
   productTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
-    color: '#111',
+    color: '#111827',
   },
   productDescription: {
     marginTop: 6,
-    fontSize: 13,
-    lineHeight: 18,
     color: '#6b7280',
+    lineHeight: 18,
+    fontSize: 13,
   },
-  productFooter: {
-    marginTop: 14,
-    flexDirection: 'row',
+  productPrice: {
+    marginTop: 10,
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  productRightBlock: {
+    width: 104,
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  productPrice: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#111',
+  productImageMock: {
+    width: 92,
+    height: 92,
+    borderRadius: 18,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   addButton: {
-    backgroundColor: '#111',
+    minWidth: 92,
+    backgroundColor: '#111827',
     borderRadius: 14,
-    paddingHorizontal: 18,
     paddingVertical: 10,
-  },
-  addButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  qtyPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 999,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-  },
-  qtyIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  qtyValue: {
-    minWidth: 26,
+  addButtonText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  qtyStepper: {
+    minWidth: 92,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 14,
+    padding: 4,
+  },
+  qtyAction: {
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qtyText: {
+    minWidth: 24,
     textAlign: 'center',
     fontWeight: '800',
-    color: '#111',
+    color: '#111827',
   },
   floatingCart: {
     position: 'absolute',
     left: 16,
     right: 16,
     bottom: 16,
-    backgroundColor: '#111',
+    backgroundColor: '#111827',
     borderRadius: 20,
     paddingHorizontal: 18,
     paddingVertical: 16,
@@ -1571,290 +1511,102 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   floatingCartTitle: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '800',
   },
-  floatingCartText: {
+  floatingCartSubtitle: {
     marginTop: 4,
-    color: '#e5e7eb',
-  },
-  cartCard: {
-    backgroundColor: '#fff',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#ececec',
-    padding: 16,
-    marginBottom: 12,
+    color: '#d1d5db',
   },
   cartLine: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e5e7eb',
+    borderBottomColor: '#e5e7eb',
   },
   cartLineTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#111',
+    color: '#111827',
   },
-  cartLineSubtitle: {
+  cartLineMeta: {
     marginTop: 4,
     color: '#6b7280',
   },
-  summaryCard: {
-    backgroundColor: '#fff',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#ececec',
-    padding: 16,
-  },
-  summaryTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#111',
-    marginBottom: 10,
-  },
   summaryRow: {
-    paddingVertical: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    paddingVertical: 8,
   },
   summaryLabel: {
     color: '#4b5563',
   },
+  summaryLabelStrong: {
+    color: '#111827',
+    fontWeight: '800',
+  },
   summaryValue: {
-    color: '#111',
+    color: '#111827',
     fontWeight: '600',
+  },
+  summaryValueStrong: {
+    fontWeight: '800',
   },
   summaryDivider: {
     height: 1,
-    backgroundColor: '#ececec',
+    backgroundColor: '#e5e7eb',
     marginVertical: 8,
   },
-  summaryTotalLabel: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#111',
-  },
   primaryButton: {
-    marginTop: 16,
-    backgroundColor: '#111',
-    borderRadius: 16,
+    backgroundColor: '#111827',
+    borderRadius: 18,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 6,
   },
   primaryButtonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 15,
     fontWeight: '800',
   },
   secondaryButton: {
-    marginTop: 12,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    marginTop: 12,
   },
   secondaryButtonText: {
-    color: '#111',
+    color: '#111827',
     fontSize: 15,
     fontWeight: '700',
   },
-  emptyCard: {
-    backgroundColor: '#fff',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#ececec',
-    padding: 20,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#111',
-  },
-  emptyText: {
-    marginTop: 8,
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#6b7280',
-  },
-  orderCard: {
-    backgroundColor: '#fff',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#ececec',
-    padding: 16,
-    marginBottom: 12,
-  },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  orderTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#111',
-  },
-  statusBadge: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#111',
-  },
-  orderText: {
-    marginTop: 8,
-    color: '#4b5563',
-  },
-  accountCard: {
-    backgroundColor: '#fff',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#ececec',
-    padding: 16,
-  },
-  accountHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  accountAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: '#111',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  accountAvatarText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 18,
-  },
-  accountTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#111',
-  },
-  accountSubtitle: {
-    marginTop: 4,
-    color: '#6b7280',
-  },
-  infoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#ececec',
-    padding: 16,
-  },
-  infoLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  infoLineText: {
-    flex: 1,
-    marginLeft: 10,
-    color: '#374151',
-    lineHeight: 20,
-  },
-  tabBar: {
-    backgroundColor: '#fff',
+  bottomTabBar: {
+    backgroundColor: '#ffffff',
     borderTopWidth: 1,
-    borderColor: '#ececec',
+    borderTopColor: '#eceef2',
     flexDirection: 'row',
     paddingTop: 8,
     paddingBottom: 12,
   },
-  tabButton: {
+  bottomTab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tabText: {
+  bottomTabLabel: {
     marginTop: 4,
     fontSize: 12,
     color: '#6b7280',
   },
-  tabTextActive: {
-    color: '#111',
-    fontWeight: '700',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'flex-end',
-  },
-  modalDismissArea: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  modalCard: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 20,
-  },
-  modalHandle: {
-    width: 44,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: '#d1d5db',
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
+  bottomTabLabelActive: {
+    color: '#111827',
     fontWeight: '800',
-    color: '#111',
-  },
-  modalSubtitle: {
-    marginTop: 6,
-    color: '#6b7280',
-    lineHeight: 20,
-  },
-  authSwitchRow: {
-    marginTop: 16,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 16,
-    padding: 4,
-    flexDirection: 'row',
-  },
-  authSwitch: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  authSwitchActive: {
-    backgroundColor: '#fff',
-  },
-  authSwitchText: {
-    color: '#6b7280',
-    fontWeight: '700',
-  },
-  authSwitchTextActive: {
-    color: '#111',
-  },
-  input: {
-    marginTop: 12,
-    height: 52,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    paddingHorizontal: 14,
-    fontSize: 16,
-    color: '#111',
-    backgroundColor: '#fff',
   },
 });
