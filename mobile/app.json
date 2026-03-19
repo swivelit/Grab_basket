@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Grab Basket",
+    "slug": "grab-basket-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "package": "com.grabbasket.mobile",
+      "versionCode": 1
+    }
+  }
+}
