@@ -23,7 +23,10 @@ def _configure_logging() -> None:
 _configure_logging()
 logger = logging.getLogger("grabbasket")
 
-app = FastAPI(title="Grabbasket API")
+app = FastAPI(
+    title="Grabbasket API",
+    version="1.0.0",
+)
 
 
 @app.on_event("startup")
@@ -51,7 +54,11 @@ async def _validation_exception_handler(request: Request, exc: RequestValidation
         status_code=422,
         content={
             "detail": "Invalid request",
-            "error": {"code": "VALIDATION_ERROR", "message": "Invalid request", "details": exc.errors()},
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Invalid request",
+                "details": exc.errors(),
+            },
             "request_id": getattr(request.state, "request_id", None),
         },
     )
@@ -80,7 +87,11 @@ async def request_context(request: Request, call_next):
         logger.exception("Unhandled error", extra={"request_id": req_id})
         return JSONResponse(
             status_code=500,
-            content={"detail": "Something went wrong", "error": {"code": "INTERNAL_ERROR", "message": "Something went wrong"}, "request_id": req_id},
+            content={
+                "detail": "Something went wrong",
+                "error": {"code": "INTERNAL_ERROR", "message": "Something went wrong"},
+                "request_id": req_id,
+            },
         )
     finally:
         dur_ms = int((time.time() - start) * 1000)
@@ -89,6 +100,23 @@ async def request_context(request: Request, call_next):
 
     response.headers["x-request-id"] = req_id
     return response
+
+
+@app.get("/")
+def root():
+    return {
+        "ok": True,
+        "message": "GrabBasket backend is live",
+        "service": "grabbasket-api",
+        "env": settings.APP_ENV,
+        "health": "/health",
+        "docs": "/docs",
+    }
+
+
+@app.get("/health")
+def health():
+    return {"ok": True, "env": settings.APP_ENV}
 
 
 # Routers
@@ -101,8 +129,3 @@ app.include_router(addresses.router)
 app.include_router(tracking.router)
 app.include_router(me.router)
 app.include_router(admin.router)
-
-
-@app.get("/health")
-def health():
-    return {"ok": True, "env": settings.APP_ENV}
