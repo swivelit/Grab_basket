@@ -20,18 +20,34 @@ const STORAGE_CART = '@grab_basket/cart_v2';
 const STORAGE_FAVORITES = '@grab_basket/favorites_v1';
 
 const TOP_SERVICES = [
-  { key: 'food', emoji: '🍔', label: 'Food', subtitle: 'Restaurants' },
-  { key: 'instamart', emoji: '🛒', label: 'Instamart', subtitle: 'Groceries' },
-  { key: 'dineout', emoji: '🍽️', label: 'Dineout', subtitle: 'Dining deals' },
-  { key: 'scenes', emoji: '🎉', label: 'Scenes', subtitle: 'Events' },
+  { key: 'food', icon: 'restaurant-outline', label: 'Food', subtitle: 'Restaurants' },
+  { key: 'instamart', icon: 'basket-outline', label: 'Instamart', subtitle: 'Groceries' },
+  { key: 'dineout', icon: 'wine-outline', label: 'Dineout', subtitle: 'Dining deals' },
+  { key: 'scenes', icon: 'color-wand-outline', label: 'Scenes', subtitle: 'Events' },
 ];
 
 const HOME_FILTERS = ['All', 'Open now', 'Low to high', 'High to low', 'A-Z'];
 
-const OFFER_STRIPS = [
-  { title: 'Season of celebration', subtitle: 'Festival baskets, gifting and quick grocery packs' },
-  { title: '₹9 everyday store', subtitle: 'Small add-ons and basket fillers at ultra-low prices' },
-  { title: 'Free delivery picks', subtitle: 'Build your MVP around these merchandising slots' },
+const HOME_SHORTCUTS = [
+  { key: 'all', label: 'All', icon: 'apps-outline' },
+  { key: 'fresh', label: 'Fresh', icon: 'leaf-outline' },
+  { key: 'maxx', label: 'Maxxsaver', icon: 'pricetags-outline' },
+  { key: 'ramzan', label: 'Ramzan', icon: 'moon-outline' },
+  { key: 'exam', label: 'Exam Ready', icon: 'school-outline' },
+];
+
+const FESTIVAL_TILES = [
+  { key: 'navratri', title: 'Chaitra\nNavratri', emoji: '🪔', accent: '#f8c8e6' },
+  { key: 'eid', title: 'Eid-Ul-Fitr', emoji: '🥤', accent: '#f8c8e6' },
+  { key: 'ugadi', title: 'Ugadi', emoji: '🥣', accent: '#f8c8e6' },
+  { key: 'gudi', title: 'Gudi\nPadwa', emoji: '🌾', accent: '#f8c8e6' },
+];
+
+const MERCH_DEALS = [
+  { key: 'deal-1', name: 'Fresh Curd', price: '₹9', subtitle: 'Starter essential', emoji: '🥛' },
+  { key: 'deal-2', name: 'Chocolate Bar', price: '₹9', subtitle: 'Quick sweet bite', emoji: '🍫' },
+  { key: 'deal-3', name: 'Mixed Fruit Jam', price: '₹9', subtitle: 'Breakfast saver', emoji: '🍓' },
+  { key: 'deal-4', name: 'Classic Chips', price: '₹9', subtitle: 'Impulse add-on', emoji: '🥔' },
 ];
 
 const CATEGORY_GRID = [
@@ -46,11 +62,13 @@ const CATEGORY_GRID = [
 ];
 
 const ACCOUNT_ROWS = [
-  { icon: 'location-outline', label: 'Saved addresses', value: 'Hook with /addresses later' },
-  { icon: 'card-outline', label: 'Payments', value: 'Wallet / UPI / cards later' },
-  { icon: 'ticket-outline', label: 'Coupons', value: 'Promo engine later' },
-  { icon: 'chatbubble-ellipses-outline', label: 'Support', value: 'Help centre later' },
+  { icon: 'location-outline', label: 'Saved addresses', value: 'Connect this to /addresses when auth returns' },
+  { icon: 'card-outline', label: 'Payments', value: 'Wallet / UPI / cards next' },
+  { icon: 'ticket-outline', label: 'Coupons', value: 'Dynamic promo engine pending' },
+  { icon: 'chatbubble-ellipses-outline', label: 'Support', value: 'Help centre and order issue flows pending' },
 ];
+
+const STORE_TONES = ['#D9F99D', '#FDE68A', '#BFDBFE', '#FBCFE8', '#C7D2FE', '#A7F3D0'];
 
 function money(value) {
   return `₹${Number(value || 0).toFixed(0)}`;
@@ -73,6 +91,16 @@ function estimateEta(vendor) {
     return '30-45 mins';
   }
   return '23 mins';
+}
+
+function getDeliveryFee(vendor) {
+  if (vendor?.distance_km != null && vendor.distance_km <= 2) return 'Free delivery';
+  if (vendor?.distance_km != null && vendor.distance_km <= 5) return '₹19 delivery';
+  return '₹29 delivery';
+}
+
+function getStoreTone(seed = 0) {
+  return STORE_TONES[seed % STORE_TONES.length];
 }
 
 function buildVendorQuery(search, filter) {
@@ -136,6 +164,7 @@ async function apiRequest(path) {
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [activeService, setActiveService] = useState('instamart');
+  const [activeShortcut, setActiveShortcut] = useState('all');
   const [homeSearch, setHomeSearch] = useState('');
   const [homeFilter, setHomeFilter] = useState('All');
 
@@ -170,7 +199,7 @@ export default function App() {
           setFavorites(JSON.parse(savedFavorites));
         }
       } catch {
-        // ignore storage boot errors for first-pass MVP
+        // Ignore boot persistence errors for guest mode.
       }
     })();
 
@@ -254,6 +283,7 @@ export default function App() {
     () => cartItems.reduce((sum, item) => sum + Number(item.price || 0) * item.qty, 0),
     [cartItems]
   );
+
   const cartVendorName = useMemo(() => {
     if (!cart.vendorId) return 'your store';
     const vendor = vendors.find((item) => item.id === cart.vendorId) || selectedVendor;
@@ -290,7 +320,7 @@ export default function App() {
     if (cart.vendorId && cart.vendorId !== product.vendor_id) {
       Alert.alert(
         'Replace cart?',
-        'Swiggy-style flow usually keeps one active store in the cart. Replace the current basket?',
+        'Only one store is active in the basket. Replace the current basket with this item?',
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -363,122 +393,190 @@ export default function App() {
 
     Alert.alert(
       'Checkout flow pending',
-      'Frontend guest flow is ready. Next Swiggy-level step is wiring address selection, payments, and customer auth back into /orders.'
+      'Guest browsing is ready. The next step is wiring addresses, payments, and final order placement into /orders.'
     );
   };
 
   const renderHome = () => (
-    <ScrollView
-      contentContainerStyle={styles.pageContent}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadVendors({ pullToRefresh: true })} />}>
-      <View style={styles.heroTopRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.heroEta}>23 mins</Text>
-          <View style={styles.addressRow}>
-            <Ionicons name="location-outline" size={16} color="#374151" />
-            <Text style={styles.addressText}>To Valliachans Place · 12b, Great Orchard...</Text>
-            <Ionicons name="chevron-down" size={14} color="#374151" />
-          </View>
-        </View>
-        <View style={styles.profileDot}>
-          <Ionicons name="person-outline" size={20} color="#111827" />
-        </View>
-      </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
-        {TOP_SERVICES.map((item) => (
-          <TouchableOpacity
-            key={item.key}
-            activeOpacity={0.9}
-            style={[styles.serviceCard, activeService === item.key && styles.serviceCardActive]}
-            onPress={() => setActiveService(item.key)}>
-            <Text style={styles.serviceEmoji}>{item.emoji}</Text>
-            <Text style={styles.serviceLabel}>{item.label}</Text>
-            <Text style={styles.serviceSubLabel}>{item.subtitle}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={20} color="#6b7280" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search for stores, groceries and quick items"
-          placeholderTextColor="#9ca3af"
-          value={homeSearch}
-          onChangeText={setHomeSearch}
-        />
-        <Ionicons name="list-outline" size={20} color="#6b7280" />
-      </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRailCompact}>
-        {HOME_FILTERS.map((item) => (
-          <TouchableOpacity
-            key={item}
-            style={[styles.filterChip, homeFilter === item && styles.filterChipActive]}
-            onPress={() => setHomeFilter(item)}>
-            <Text style={[styles.filterChipText, homeFilter === item && styles.filterChipTextActive]}>{item}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <SectionHeader
-        title="Season of celebration"
-        subtitle="Structure is now much closer to the screenshot: service rail, search, chips, banners and store feed."
-      />
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
-        {OFFER_STRIPS.map((item) => (
-          <View key={item.title} style={styles.offerCard}>
-            <Text style={styles.offerEyebrow}>LIVE</Text>
-            <Text style={styles.offerTitle}>{item.title}</Text>
-            <Text style={styles.offerSubtitle}>{item.subtitle}</Text>
-          </View>
-        ))}
-      </ScrollView>
-
-      <View style={styles.bannerCard}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.bannerHeadline}>₹9 everyday</Text>
-          <Text style={styles.bannerCopy}>A Swiggy-like home needs promo blocks, merchandising slots and quick CTA modules.</Text>
-        </View>
-        <View style={styles.bannerIconWrap}>
-          <Ionicons name="flash-outline" size={22} color="#111827" />
-        </View>
-      </View>
-
-      <SectionHeader title="Popular categories" subtitle="These are visual modules for the home feed and categories tab." />
-      <View style={styles.categoryGrid}>
-        {CATEGORY_GRID.map((item) => (
-          <View key={item.title} style={styles.categoryTile}>
-            <Text style={styles.categoryEmoji}>{item.emoji}</Text>
-            <Text style={styles.categoryTitle}>{item.title}</Text>
-          </View>
-        ))}
-      </View>
-
-      <SectionHeader title="Featured stores" subtitle="Powered by your existing /vendors endpoint." />
-
-      {vendorsLoading ? (
-        <LoadingBlock label="Loading stores..." />
-      ) : featuredVendors.length === 0 ? (
-        <EmptyState title="No stores found" text="Create vendor and product data in the backend and this feed will populate automatically." />
-      ) : (
-        featuredVendors.map((vendor) => (
-          <StoreCard
-            key={vendor.id}
-            vendor={vendor}
-            favorite={!!favorites[vendor.id]}
-            onOpen={() => openVendor(vendor)}
-            onToggleFavorite={() => toggleFavorite(vendor.id)}
+    <View style={styles.homeScreen}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.homeScrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadVendors({ pullToRefresh: true })}
+            tintColor="#ffffff"
           />
-        ))
-      )}
-    </ScrollView>
+        }>
+        <View style={styles.heroShell}>
+          <View style={styles.heroTopRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.heroEta}>23 mins</Text>
+              <TouchableOpacity activeOpacity={0.85} style={styles.addressRow}>
+                <Text style={styles.addressText} numberOfLines={1}>
+                  To Valliachans Place: 12b, Great Orchard...
+                </Text>
+                <Ionicons name="chevron-down" size={16} color="#d1fae5" />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={styles.profileDot} activeOpacity={0.9}>
+              <Ionicons name="person-outline" size={22} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.serviceRail}>
+            {TOP_SERVICES.map((item) => {
+              const active = activeService === item.key;
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  activeOpacity={0.9}
+                  style={[styles.serviceCard, active && styles.serviceCardActive]}
+                  onPress={() => setActiveService(item.key)}>
+                  <View style={[styles.serviceIconWrap, active && styles.serviceIconWrapActive]}>
+                    <Ionicons name={item.icon} size={22} color={active ? '#0b7a5a' : '#ffffff'} />
+                  </View>
+                  <Text style={[styles.serviceLabel, active && styles.serviceLabelActive]}>{item.label}</Text>
+                  <Text style={[styles.serviceSubLabel, active && styles.serviceSubLabelActive]}>{item.subtitle}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.searchRow}>
+            <View style={styles.searchBoxHero}>
+              <Ionicons name="search-outline" size={20} color="#6b7280" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search for Sunscreen"
+                placeholderTextColor="#9ca3af"
+                value={homeSearch}
+                onChangeText={setHomeSearch}
+              />
+              <Ionicons name="receipt-outline" size={20} color="#6b7280" />
+            </View>
+            <TouchableOpacity style={styles.bookmarkButton} activeOpacity={0.9}>
+              <Ionicons name="bookmark-outline" size={22} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.shortcutRail}>
+            {HOME_SHORTCUTS.map((item) => {
+              const active = activeShortcut === item.key;
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  style={styles.shortcutItem}
+                  activeOpacity={0.9}
+                  onPress={() => setActiveShortcut(item.key)}>
+                  <View style={[styles.shortcutIconWrap, active && styles.shortcutIconWrapActive]}>
+                    <Ionicons name={item.icon} size={18} color={active ? '#ffffff' : '#d1fae5'} />
+                  </View>
+                  <Text style={[styles.shortcutLabel, active && styles.shortcutLabelActive]}>{item.label}</Text>
+                  {active ? <View style={styles.shortcutUnderline} /> : <View style={styles.shortcutUnderlineSpacer} />}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.celebrationWrap}>
+            <Text style={styles.celebrationEyebrow}>SEASON OF</Text>
+            <Text style={styles.celebrationTitle}>CELEBRATION</Text>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.festivalRail}>
+            {FESTIVAL_TILES.map((item) => (
+              <View key={item.key} style={[styles.festivalCard, { backgroundColor: item.accent }]}>
+                <Text style={styles.festivalTitle}>{item.title}</Text>
+                <Text style={styles.festivalEmoji}>{item.emoji}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={styles.bodySurface}>
+          <View style={styles.everydayBanner}>
+            <View style={styles.everydayBadge}>
+              <Text style={styles.everydayPrice}>₹9</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.everydayTitle}>everyday</Text>
+              <Text style={styles.everydayText}>Shop for ₹199 to get one item at ₹9</Text>
+            </View>
+          </View>
+
+          <View style={styles.dealGrid}>
+            {MERCH_DEALS.map((item) => (
+              <QuickDealCard key={item.key} item={item} />
+            ))}
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRail}>
+            {HOME_FILTERS.map((item) => (
+              <TouchableOpacity
+                key={item}
+                style={[styles.filterChip, homeFilter === item && styles.filterChipActive]}
+                onPress={() => setHomeFilter(item)}>
+                <Text style={[styles.filterChipText, homeFilter === item && styles.filterChipTextActive]}>{item}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <SectionHeader
+            title="Popular categories"
+            subtitle="The home now feels closer to the screenshot, but true Swiggy quality still needs real banners, real photos, dynamic ranking and personalization."
+          />
+
+          <View style={styles.categoryGrid}>
+            {CATEGORY_GRID.map((item) => (
+              <View key={item.title} style={styles.categoryTile}>
+                <Text style={styles.categoryEmoji}>{item.emoji}</Text>
+                <Text style={styles.categoryTitle}>{item.title}</Text>
+              </View>
+            ))}
+          </View>
+
+          <SectionHeader title="Featured stores" subtitle="Powered by your existing /vendors endpoint." />
+
+          {vendorsLoading ? (
+            <LoadingBlock label="Loading stores..." />
+          ) : featuredVendors.length === 0 ? (
+            <EmptyState
+              title="No stores found"
+              text="Create vendor and product data in the backend and this feed will populate automatically."
+            />
+          ) : (
+            featuredVendors.map((vendor, index) => (
+              <StoreCard
+                key={vendor.id}
+                vendor={vendor}
+                favorite={!!favorites[vendor.id]}
+                onOpen={() => openVendor(vendor)}
+                onToggleFavorite={() => toggleFavorite(vendor.id)}
+                tone={getStoreTone(index)}
+              />
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 
   const renderCategories = () => (
-    <ScrollView contentContainerStyle={styles.pageContent}>
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
       <SectionHeader title="Categories" subtitle="This is the grocery-first browse view." />
 
       <View style={styles.categoryGrid}>
@@ -495,13 +593,14 @@ export default function App() {
       {favoriteVendors.length === 0 ? (
         <EmptyState title="No favorites yet" text="Tap the heart icon on a store card to save it here." />
       ) : (
-        favoriteVendors.map((vendor) => (
+        favoriteVendors.map((vendor, index) => (
           <StoreCard
             key={`fav-${vendor.id}`}
             vendor={vendor}
             favorite={!!favorites[vendor.id]}
             onOpen={() => openVendor(vendor)}
             onToggleFavorite={() => toggleFavorite(vendor.id)}
+            tone={getStoreTone(index + 1)}
           />
         ))
       )}
@@ -509,8 +608,8 @@ export default function App() {
   );
 
   const renderReorder = () => (
-    <ScrollView contentContainerStyle={styles.pageContent}>
-      <SectionHeader title="Reorder" subtitle="Since we are skipping sign-in, this is a guest-mode placeholder." />
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
+      <SectionHeader title="Reorder" subtitle="Since we are skipping sign-in, this stays in guest mode." />
       {cartItems.length === 0 ? (
         <EmptyState
           title="No recent guest basket"
@@ -520,45 +619,35 @@ export default function App() {
         <View style={styles.panelCard}>
           <Text style={styles.panelTitle}>Current basket snapshot</Text>
           <Text style={styles.panelText}>{cartVendorName}</Text>
-          <Text style={styles.panelSubText}>{cartCount} items · {money(cartSubtotal)}</Text>
+          <Text style={styles.panelSubText}>
+            {cartCount} items · {money(cartSubtotal)}
+          </Text>
           <TouchableOpacity style={styles.primaryButton} onPress={() => setShowCart(true)}>
             <Text style={styles.primaryButtonText}>Open cart</Text>
           </TouchableOpacity>
         </View>
       )}
-    </ScrollView>
-  );
 
-  const renderOffers = () => (
-    <ScrollView contentContainerStyle={styles.pageContent}>
-      <SectionHeader title="Offers" subtitle="These are the sections a Swiggy-like app needs even before real offer logic is added." />
-      {OFFER_STRIPS.map((item) => (
-        <View key={item.title} style={styles.offerListCard}>
-          <View style={styles.offerListBadge}>
-            <Ionicons name="pricetags-outline" size={18} color="#111827" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.offerListTitle}>{item.title}</Text>
-            <Text style={styles.offerListText}>{item.subtitle}</Text>
-          </View>
-        </View>
-      ))}
       <View style={styles.noteCard}>
-        <Text style={styles.noteTitle}>Still missing for true Swiggy standards</Text>
-        <Text style={styles.noteText}>Dynamic coupons, offer eligibility, payments, live tracking, ratings, store images, search suggestions and address-aware ETA.</Text>
+        <Text style={styles.noteTitle}>What still blocks a true reorder experience</Text>
+        <Text style={styles.noteText}>
+          Reorder history, past invoices, repeat recommendations, unavailable-item substitution and scheduled delivery are still missing.
+        </Text>
       </View>
     </ScrollView>
   );
 
   const renderAccount = () => (
-    <ScrollView contentContainerStyle={styles.pageContent}>
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
       <SectionHeader title="Account" subtitle="Sign-in is intentionally skipped for now, so this tab stays informational." />
       <View style={styles.accountCard}>
         <View style={styles.accountAvatar}>
           <Text style={styles.accountAvatarText}>{initials('Grab Basket')}</Text>
         </View>
         <Text style={styles.accountTitle}>Guest mode active</Text>
-        <Text style={styles.accountText}>You can browse stores, search products, manage favorites and build a basket without auth.</Text>
+        <Text style={styles.accountText}>
+          You can browse stores, search products, manage favorites and build a basket without auth.
+        </Text>
       </View>
 
       {ACCOUNT_ROWS.map((row) => (
@@ -575,8 +664,10 @@ export default function App() {
       ))}
 
       <View style={styles.noteCard}>
-        <Text style={styles.noteTitle}>What is now fixed</Text>
-        <Text style={styles.noteText}>The app can be made to open your custom App.js instead of the Expo router demo screen. That was the biggest issue in the latest zip.</Text>
+        <Text style={styles.noteTitle}>Biggest product gaps vs Swiggy standard</Text>
+        <Text style={styles.noteText}>
+          Real image-led cards, smart search suggestions, address-aware ETA, dynamic promos, ratings, delivery fees, order tracking and checkout confidence layers.
+        </Text>
       </View>
     </ScrollView>
   );
@@ -589,26 +680,36 @@ export default function App() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.innerHeaderTitle}>{selectedVendor?.name}</Text>
-          <Text style={styles.innerHeaderSubtitle}>{estimateEta(selectedVendor)} · {selectedVendor?.open_now ? 'Open' : 'Store details'}</Text>
+          <Text style={styles.innerHeaderSubtitle}>
+            {estimateEta(selectedVendor)} · {selectedVendor?.open_now ? 'Open' : 'Store details'}
+          </Text>
         </View>
         <TouchableOpacity style={styles.iconButton} onPress={() => toggleFavorite(selectedVendor.id)}>
-          <Ionicons name={favorites[selectedVendor.id] ? 'heart' : 'heart-outline'} size={18} color="#111827" />
+          <Ionicons
+            name={favorites[selectedVendor.id] ? 'heart' : 'heart-outline'}
+            size={18}
+            color="#111827"
+          />
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.pageContent}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
         <View style={styles.vendorHeroCard}>
           <Text style={styles.vendorHeroTitle}>{selectedVendor?.name}</Text>
-          <Text style={styles.vendorHeroText}>{selectedVendor?.description || selectedVendor?.address || 'Quick grocery and essentials store'}</Text>
+          <Text style={styles.vendorHeroText}>
+            {selectedVendor?.description || selectedVendor?.address || 'Quick grocery and essentials store'}
+          </Text>
           <View style={styles.vendorBadgeRow}>
             <MetaBadge text={selectedVendor?.open_now ? 'Open now' : 'Store'} />
             <MetaBadge text={estimateEta(selectedVendor)} />
-            {selectedVendor?.distance_km != null ? <MetaBadge text={`${selectedVendor.distance_km.toFixed(1)} km`} /> : null}
-            {selectedVendor?.delivery_radius_km != null ? <MetaBadge text={`Radius ${selectedVendor.delivery_radius_km} km`} /> : null}
+            <MetaBadge text={getDeliveryFee(selectedVendor)} />
+            {selectedVendor?.distance_km != null ? (
+              <MetaBadge text={`${selectedVendor.distance_km.toFixed(1)} km`} />
+            ) : null}
           </View>
         </View>
 
-        <View style={styles.searchBox}>
+        <View style={styles.searchBoxPlain}>
           <Ionicons name="search-outline" size={20} color="#6b7280" />
           <TextInput
             style={styles.searchInput}
@@ -639,7 +740,10 @@ export default function App() {
 
         <SectionHeader title="All items" subtitle="Fetched from /vendors/{id}/products." />
         {!productsLoading && products.length === 0 ? (
-          <EmptyState title="No products yet" text="Add products from the seller side and this page will start looking complete." />
+          <EmptyState
+            title="No products yet"
+            text="Add products from the seller side and this page will start looking complete."
+          />
         ) : (
           products.map((product) => (
             <ProductCard
@@ -657,7 +761,9 @@ export default function App() {
         <TouchableOpacity style={styles.floatingCart} onPress={() => setShowCart(true)}>
           <View>
             <Text style={styles.floatingCartTitle}>View cart</Text>
-            <Text style={styles.floatingCartSubtitle}>{cartCount} items · {money(cartSubtotal)}</Text>
+            <Text style={styles.floatingCartSubtitle}>
+              {cartCount} items · {money(cartSubtotal)}
+            </Text>
           </View>
           <Ionicons name="arrow-forward" size={20} color="#ffffff" />
         </TouchableOpacity>
@@ -677,7 +783,7 @@ export default function App() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.pageContent}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
         {cartItems.length === 0 ? (
           <EmptyState title="Your cart is empty" text="Add products from a single store and they will appear here." />
         ) : (
@@ -689,7 +795,11 @@ export default function App() {
                     <Text style={styles.cartLineTitle}>{item.name}</Text>
                     <Text style={styles.cartLineMeta}>{money(item.price)} each</Text>
                   </View>
-                  <QtyStepper qty={item.qty} onAdd={() => addToCart(item)} onRemove={() => updateQty(item, -1)} />
+                  <QtyStepper
+                    qty={item.qty}
+                    onAdd={() => addToCart(item)}
+                    onRemove={() => updateQty(item, -1)}
+                  />
                 </View>
               ))}
             </View>
@@ -697,7 +807,7 @@ export default function App() {
             <View style={styles.panelCard}>
               <Text style={styles.panelTitle}>Bill details</Text>
               <SummaryRow label="Subtotal" value={money(cartSubtotal)} />
-              <SummaryRow label="Delivery fee" value="Later from backend" />
+              <SummaryRow label="Delivery fee" value="Dynamic next" />
               <SummaryRow label="Platform fee" value="Later" />
               <View style={styles.summaryDivider} />
               <SummaryRow label="Items" value={`${cartCount}`} strong />
@@ -705,7 +815,9 @@ export default function App() {
 
             <View style={styles.noteCard}>
               <Text style={styles.noteTitle}>Guest flow only</Text>
-              <Text style={styles.noteText}>As requested, sign-in is skipped. This cart is production-like in UI, but checkout should be wired back to auth, addresses and /orders next.</Text>
+              <Text style={styles.noteText}>
+                As requested, sign-in is skipped. This cart is production-like in UI, but checkout should be wired back to auth, addresses and /orders next.
+              </Text>
             </View>
 
             <TouchableOpacity style={styles.primaryButton} onPress={previewCheckout}>
@@ -729,8 +841,6 @@ export default function App() {
         return renderCategories();
       case 'reorder':
         return renderReorder();
-      case 'offers':
-        return renderOffers();
       case 'account':
         return renderAccount();
       case 'home':
@@ -739,18 +849,42 @@ export default function App() {
     }
   };
 
+  const isHomeRoot = !selectedVendor && !showCart && activeTab === 'home';
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f7f8fa" />
+    <SafeAreaView style={[styles.safeArea, isHomeRoot && styles.safeAreaHome]}>
+      <StatusBar
+        barStyle={isHomeRoot ? 'light-content' : 'dark-content'}
+        backgroundColor={isHomeRoot ? '#0b7a5a' : '#f7f8fa'}
+      />
       {renderContent()}
 
       {!selectedVendor && !showCart ? (
         <View style={styles.bottomTabBar}>
-          <BottomTab icon="bag-handle-outline" label="Instamart" active={activeTab === 'home'} onPress={() => setActiveTab('home')} />
-          <BottomTab icon="grid-outline" label="Categories" active={activeTab === 'categories'} onPress={() => setActiveTab('categories')} />
-          <BottomTab icon="reload-outline" label="Reorder" active={activeTab === 'reorder'} onPress={() => setActiveTab('reorder')} />
-          <BottomTab icon="pricetags-outline" label="Offers" active={activeTab === 'offers'} onPress={() => setActiveTab('offers')} />
-          <BottomTab icon="person-outline" label="Account" active={activeTab === 'account'} onPress={() => setActiveTab('account')} />
+          <BottomTab
+            icon="bag-handle-outline"
+            label="Instamart"
+            active={activeTab === 'home'}
+            onPress={() => setActiveTab('home')}
+          />
+          <BottomTab
+            icon="grid-outline"
+            label="Categories"
+            active={activeTab === 'categories'}
+            onPress={() => setActiveTab('categories')}
+          />
+          <BottomTab
+            icon="reload-outline"
+            label="Reorder"
+            active={activeTab === 'reorder'}
+            onPress={() => setActiveTab('reorder')}
+          />
+          <BottomTab
+            icon="person-outline"
+            label="Account"
+            active={activeTab === 'account'}
+            onPress={() => setActiveTab('account')}
+          />
         </View>
       ) : null}
     </SafeAreaView>
@@ -792,35 +926,64 @@ function MetaBadge({ text }) {
   );
 }
 
-function StoreCard({ vendor, onOpen, onToggleFavorite, favorite }) {
+function QuickDealCard({ item }) {
   return (
-    <TouchableOpacity activeOpacity={0.92} style={styles.storeCard} onPress={onOpen}>
-      <View style={styles.storeCardTop}>
-        <View style={styles.storeAvatar}>
-          <Text style={styles.storeAvatarText}>{initials(vendor.name)}</Text>
+    <View style={styles.quickDealCard}>
+      <TouchableOpacity style={styles.quickDealSelect} activeOpacity={0.9}>
+        <Text style={styles.quickDealSelectText}>Select</Text>
+      </TouchableOpacity>
+      <View style={styles.quickDealImageMock}>
+        <Text style={styles.quickDealEmoji}>{item.emoji}</Text>
+      </View>
+      <Text style={styles.quickDealTitle} numberOfLines={1}>
+        {item.name}
+      </Text>
+      <Text style={styles.quickDealSubtitle}>{item.subtitle}</Text>
+      <Text style={styles.quickDealPrice}>{item.price}</Text>
+    </View>
+  );
+}
+
+function StoreCard({ vendor, onOpen, onToggleFavorite, favorite, tone }) {
+  return (
+    <TouchableOpacity activeOpacity={0.94} style={styles.storeCard} onPress={onOpen}>
+      <View style={[styles.storeHero, { backgroundColor: tone }]}>
+        <View style={styles.storeHeroBadgeRow}>
+          <View style={styles.storePromoBadge}>
+            <Text style={styles.storePromoBadgeText}>{estimateEta(vendor)}</Text>
+          </View>
+          <TouchableOpacity onPress={onToggleFavorite} style={styles.favoriteButton}>
+            <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={18} color="#111827" />
+          </TouchableOpacity>
         </View>
-        <View style={{ flex: 1 }}>
-          <View style={styles.storeTitleRow}>
-            <Text style={styles.storeName}>{vendor.name}</Text>
-            <TouchableOpacity onPress={onToggleFavorite} style={styles.favoriteButton}>
-              <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={18} color="#111827" />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.storeDescription} numberOfLines={2}>
-            {vendor.description || vendor.address || 'Daily essentials and groceries'}
-          </Text>
-          <View style={styles.vendorBadgeRow}>
-            <MetaBadge text={vendor.open_now ? 'Open now' : 'Store'} />
-            <MetaBadge text={estimateEta(vendor)} />
-            {vendor.distance_km != null ? <MetaBadge text={`${vendor.distance_km.toFixed(1)} km`} /> : null}
-            {vendor.delivery_radius_km != null ? <MetaBadge text={`Radius ${vendor.delivery_radius_km} km`} /> : null}
-          </View>
+        <View style={styles.storeHeroCircle}>
+          <Text style={styles.storeHeroCircleText}>{initials(vendor.name)}</Text>
         </View>
       </View>
-      <View style={styles.storeCardBottom}>
-        <Text style={styles.storeAddress} numberOfLines={1}>{vendor.address || 'Tap to browse the store'}</Text>
-        <View style={styles.browsePill}>
-          <Text style={styles.browsePillText}>Browse</Text>
+
+      <View style={styles.storeContent}>
+        <View style={styles.storeTitleRow}>
+          <Text style={styles.storeName} numberOfLines={1}>
+            {vendor.name}
+          </Text>
+          <Text style={styles.storeRating}>4.4</Text>
+        </View>
+        <Text style={styles.storeDescription} numberOfLines={2}>
+          {vendor.description || vendor.address || 'Daily essentials and groceries'}
+        </Text>
+        <View style={styles.vendorBadgeRow}>
+          <MetaBadge text={vendor.open_now ? 'Open now' : 'Store'} />
+          <MetaBadge text={estimateEta(vendor)} />
+          <MetaBadge text={getDeliveryFee(vendor)} />
+          {vendor.distance_km != null ? <MetaBadge text={`${vendor.distance_km.toFixed(1)} km`} /> : null}
+        </View>
+        <View style={styles.storeCardBottom}>
+          <Text style={styles.storeAddress} numberOfLines={1}>
+            {vendor.address || 'Tap to browse the store'}
+          </Text>
+          <View style={styles.browsePill}>
+            <Text style={styles.browsePillText}>Browse</Text>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -877,7 +1040,7 @@ function SummaryRow({ label, value, strong = false }) {
 
 function BottomTab({ icon, label, active, onPress }) {
   return (
-    <TouchableOpacity style={styles.bottomTab} onPress={onPress}>
+    <TouchableOpacity style={styles.bottomTab} onPress={onPress} activeOpacity={0.9}>
       <Ionicons name={icon} size={20} color={active ? '#111827' : '#6b7280'} />
       <Text style={[styles.bottomTabLabel, active && styles.bottomTabLabelActive]}>{label}</Text>
     </TouchableOpacity>
@@ -889,82 +1052,122 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f7f8fa',
   },
+  safeAreaHome: {
+    backgroundColor: '#0b7a5a',
+  },
   screen: {
     flex: 1,
     backgroundColor: '#f7f8fa',
   },
+  homeScreen: {
+    flex: 1,
+    backgroundColor: '#0b7a5a',
+  },
+  homeScrollContent: {
+    paddingBottom: 110,
+  },
   pageContent: {
     padding: 16,
     paddingBottom: 120,
+  },
+  heroShell: {
+    backgroundColor: '#0b7a5a',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 24,
   },
   heroTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   heroEta: {
-    fontSize: 35,
+    fontSize: 28,
     fontWeight: '800',
-    color: '#111827',
+    color: '#ffffff',
   },
   addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
+    alignSelf: 'flex-start',
   },
   addressText: {
-    flex: 1,
-    marginHorizontal: 6,
-    color: '#4b5563',
-    fontSize: 14,
+    maxWidth: 260,
+    color: '#d1fae5',
+    fontSize: 15,
     fontWeight: '600',
+    marginRight: 4,
   },
   profileDot: {
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(255,255,255,0.22)',
     borderWidth: 1,
-    borderColor: '#eceef2',
+    borderColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  horizontalRail: {
+  serviceRail: {
     paddingTop: 18,
-    paddingBottom: 2,
-  },
-  horizontalRailCompact: {
-    paddingTop: 14,
-    paddingBottom: 2,
   },
   serviceCard: {
-    width: 108,
-    backgroundColor: '#ffffff',
+    width: 112,
+    backgroundColor: 'rgba(0,0,0,0.14)',
     borderRadius: 24,
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 12,
     marginRight: 12,
     borderWidth: 1,
-    borderColor: '#eceef2',
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   serviceCardActive: {
-    borderColor: '#111827',
+    backgroundColor: '#ffffff',
+    borderColor: '#ffffff',
   },
-  serviceEmoji: {
-    fontSize: 28,
+  serviceIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serviceIconWrapActive: {
+    backgroundColor: '#dcfce7',
   },
   serviceLabel: {
     marginTop: 12,
     fontSize: 16,
     fontWeight: '800',
+    color: '#ffffff',
+  },
+  serviceLabelActive: {
     color: '#111827',
   },
   serviceSubLabel: {
     marginTop: 4,
     fontSize: 12,
+    color: '#d1fae5',
+  },
+  serviceSubLabelActive: {
     color: '#6b7280',
   },
-  searchBox: {
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 18,
+  },
+  searchBoxHero: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  searchBoxPlain: {
     minHeight: 58,
     borderRadius: 18,
     backgroundColor: '#ffffff',
@@ -980,6 +1183,200 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#111827',
     paddingVertical: 14,
+  },
+  bookmarkButton: {
+    width: 58,
+    height: 58,
+    marginLeft: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(0,0,0,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shortcutRail: {
+    paddingTop: 14,
+    paddingBottom: 6,
+  },
+  shortcutItem: {
+    alignItems: 'center',
+    marginRight: 18,
+  },
+  shortcutIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  shortcutIconWrapActive: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  shortcutLabel: {
+    marginTop: 8,
+    color: '#d1fae5',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  shortcutLabelActive: {
+    color: '#ffffff',
+  },
+  shortcutUnderline: {
+    marginTop: 8,
+    width: 20,
+    height: 3,
+    borderRadius: 999,
+    backgroundColor: '#ffffff',
+  },
+  shortcutUnderlineSpacer: {
+    marginTop: 8,
+    width: 20,
+    height: 3,
+    opacity: 0,
+  },
+  celebrationWrap: {
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  celebrationEyebrow: {
+    color: '#d1fae5',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 1.6,
+  },
+  celebrationTitle: {
+    marginTop: 4,
+    color: '#f9a8d4',
+    fontSize: 34,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  festivalRail: {
+    paddingTop: 16,
+  },
+  festivalCard: {
+    width: 130,
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    marginRight: 12,
+    minHeight: 150,
+    justifyContent: 'space-between',
+  },
+  festivalTitle: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: '800',
+    lineHeight: 23,
+  },
+  festivalEmoji: {
+    fontSize: 38,
+    alignSelf: 'flex-end',
+  },
+  bodySurface: {
+    marginTop: -8,
+    backgroundColor: '#f7f8fa',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 8,
+  },
+  everydayBanner: {
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#eceef2',
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  everydayBadge: {
+    width: 58,
+    height: 58,
+    borderRadius: 18,
+    backgroundColor: '#4338ca',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  everydayPrice: {
+    color: '#fde047',
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  everydayTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#111827',
+  },
+  everydayText: {
+    marginTop: 4,
+    color: '#6b7280',
+    lineHeight: 19,
+  },
+  dealGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 14,
+  },
+  quickDealCard: {
+    width: '48.5%',
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#eceef2',
+    padding: 12,
+    marginBottom: 12,
+  },
+  quickDealSelect: {
+    alignSelf: 'flex-end',
+    minWidth: 74,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#93c5fd',
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickDealSelectText: {
+    color: '#2563eb',
+    fontWeight: '800',
+  },
+  quickDealImageMock: {
+    height: 90,
+    borderRadius: 18,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  quickDealEmoji: {
+    fontSize: 42,
+  },
+  quickDealTitle: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  quickDealSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  quickDealPrice: {
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#111827',
+  },
+  filterRail: {
+    paddingTop: 4,
+    paddingBottom: 2,
   },
   filterChip: {
     backgroundColor: '#ffffff',
@@ -1015,60 +1412,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: '#6b7280',
-  },
-  offerCard: {
-    width: 210,
-    backgroundColor: '#111827',
-    borderRadius: 24,
-    padding: 18,
-    marginRight: 12,
-  },
-  offerEyebrow: {
-    color: '#86efac',
-    fontWeight: '800',
-    fontSize: 12,
-    letterSpacing: 1,
-  },
-  offerTitle: {
-    marginTop: 12,
-    color: '#ffffff',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  offerSubtitle: {
-    marginTop: 8,
-    color: '#d1d5db',
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  bannerCard: {
-    marginTop: 18,
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#eceef2',
-    padding: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  bannerHeadline: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  bannerCopy: {
-    marginTop: 6,
-    color: '#6b7280',
-    lineHeight: 19,
-  },
-  bannerIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 16,
   },
   categoryGrid: {
     flexDirection: 'row',
@@ -1151,25 +1494,53 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     borderColor: '#eceef2',
-    padding: 16,
-    marginBottom: 12,
+    marginBottom: 14,
+    overflow: 'hidden',
   },
-  storeCardTop: {
+  storeHero: {
+    height: 132,
+    padding: 14,
+    justifyContent: 'space-between',
+  },
+  storeHeroBadgeRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  storeAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: '#111827',
+  storePromoBadge: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  storePromoBadgeText: {
+    color: '#111827',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  favoriteButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
   },
-  storeAvatarText: {
+  storeHeroCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    backgroundColor: 'rgba(17,24,39,0.88)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  storeHeroCircleText: {
     color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  storeContent: {
+    padding: 16,
   },
   storeTitleRow: {
     flexDirection: 'row',
@@ -1181,17 +1552,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#111827',
   },
-  favoriteButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12,
+  storeRating: {
+    color: '#111827',
+    fontSize: 15,
+    fontWeight: '800',
   },
   storeDescription: {
-    marginTop: 4,
+    marginTop: 6,
     fontSize: 13,
     lineHeight: 18,
     color: '#6b7280',
@@ -1215,7 +1582,7 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   storeCardBottom: {
-    marginTop: 8,
+    marginTop: 4,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -1257,35 +1624,6 @@ const styles = StyleSheet.create({
   panelSubText: {
     marginTop: 4,
     color: '#6b7280',
-  },
-  offerListCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#eceef2',
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  offerListBadge: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  offerListTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  offerListText: {
-    marginTop: 4,
-    color: '#6b7280',
-    lineHeight: 19,
   },
   noteCard: {
     backgroundColor: '#eef2ff',
