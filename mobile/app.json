@@ -2,9 +2,17 @@
   "expo": {
     "name": "Grab Basket",
     "slug": "grab-basket-mobile",
+    "scheme": "grabbasket",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "web": {
+      "bundler": "metro"
+    },
     "splash": {
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
