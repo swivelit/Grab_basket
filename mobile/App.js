@@ -16,10 +16,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from './src/config';
 
-const STORAGE_CART = '@grab_basket/cart_v5';
-const STORAGE_FAVORITES = '@grab_basket/favorites_v2';
-const STORAGE_RECENT_STORES = '@grab_basket/recent_stores_v3';
-const STORAGE_RECENT_SEARCHES = '@grab_basket/recent_searches_v2';
+const STORAGE_CART = '@grab_basket/cart_v6';
+const STORAGE_FAVORITES = '@grab_basket/favorites_v3';
+const STORAGE_RECENT_STORES = '@grab_basket/recent_stores_v4';
+const STORAGE_RECENT_SEARCHES = '@grab_basket/recent_searches_v3';
+const STORAGE_ORDER_HISTORY = '@grab_basket/order_history_v1';
 
 const FREE_DELIVERY_THRESHOLD = 199;
 const PLATFORM_FEE = 6;
@@ -41,6 +42,13 @@ const COLORS = {
   yellowSoft: '#fff3c4',
   blueSoft: '#dbeafe',
   purpleSoft: '#ede9fe',
+  purple900: '#4c1d95',
+  purple800: '#5b21b6',
+  purple700: '#6d28d9',
+  purple100: '#f3e8ff',
+  dark900: '#020617',
+  dark800: '#111827',
+  dark700: '#1f2937',
 };
 
 const TOP_SERVICES = [
@@ -78,27 +86,143 @@ const CATEGORY_GRID = [
   { key: 'home', emoji: '🧼', title: 'Home Care' },
 ];
 
+const FOOD_PROMO_TILES = [
+  {
+    key: 'food-deal',
+    title: 'Binge worthy deals',
+    subtitle: 'Up to 60% off & more',
+    emoji: '🍕',
+    tone: '#fde68a',
+  },
+  {
+    key: 'eatright',
+    title: 'EatRight',
+    subtitle: 'Win up to ₹300 free cash',
+    emoji: '🥗',
+    tone: '#fbcfe8',
+  },
+  {
+    key: 'awards',
+    title: 'Restaurant awards',
+    subtitle: 'Vote, share and win',
+    emoji: '🏆',
+    tone: '#fef08a',
+  },
+];
+
+const FOOD_DISCOVERY = ['Restaurants near me', 'Pre-book offers', 'Late night', 'Cafe desserts'];
+
+const DINEOUT_PROMO_TILES = [
+  {
+    key: 'flat50',
+    title: 'Flat 50% off',
+    subtitle: 'On table bookings',
+    emoji: '🎉',
+    tone: '#fde68a',
+  },
+  {
+    key: 'girf',
+    title: 'GIRF Hall of Fame',
+    subtitle: 'Best dineout picks',
+    emoji: '🏆',
+    tone: '#ede9fe',
+  },
+  {
+    key: 'family',
+    title: 'Family-friendly spots',
+    subtitle: 'Comfortable and kid-friendly',
+    emoji: '🍽️',
+    tone: '#dcfce7',
+  },
+  {
+    key: 'cafes',
+    title: 'Cafes & quick bites',
+    subtitle: 'Coffee, snacks and desserts',
+    emoji: '☕',
+    tone: '#dbeafe',
+  },
+];
+
+const DINEOUT_DISCOVERY = [
+  'Restaurants near me',
+  'Pre-book offers',
+  'Quick bites',
+  'Premium dining',
+  'Rooftop',
+];
+
+const SCENE_FILTERS = ['All', 'Today', 'This Week', 'This Weekend', 'Next Weekend'];
+
+const SCENE_EVENTS = [
+  {
+    id: 'scene-1',
+    title: 'Rage Room at Break N Chill',
+    venue: 'Break N Chill · Chittethukara',
+    price: 299,
+    date: '20 MAR',
+    bucket: 'Today',
+    emoji: '💥',
+    tone: '#2b0b16',
+  },
+  {
+    id: 'scene-2',
+    title: 'Pottery Wheel Throwing Workshop',
+    venue: 'Soil to Soul Ceramics · Kadavanthra',
+    price: 1000,
+    date: '20 MAR',
+    bucket: 'This Week',
+    emoji: '🏺',
+    tone: '#3a2c25',
+  },
+  {
+    id: 'scene-3',
+    title: 'Kimchi Culture',
+    venue: 'Skei Presents · Kochi',
+    price: 699,
+    date: '22 MAR',
+    bucket: 'This Weekend',
+    emoji: '🎎',
+    tone: '#5f1015',
+  },
+  {
+    id: 'scene-4',
+    title: 'Stand-up Comedy Night',
+    venue: 'Laugh Club · Kakkanad',
+    price: 499,
+    date: '23 MAR',
+    bucket: 'This Weekend',
+    emoji: '🎤',
+    tone: '#1e293b',
+  },
+  {
+    id: 'scene-5',
+    title: 'Kids Creative Lab',
+    venue: 'Mini Makers · Panampilly',
+    price: 399,
+    date: '29 MAR',
+    bucket: 'Next Weekend',
+    emoji: '🎨',
+    tone: '#3b1f65',
+  },
+];
+
+const ACCOUNT_SHORTCUTS = [
+  { key: 'address', icon: 'location-outline', label: 'Saved\nAddress' },
+  { key: 'payment', icon: 'card-outline', label: 'Payment\nModes' },
+  { key: 'refunds', icon: 'reload-outline', label: 'My\nRefunds' },
+  { key: 'wallet', icon: 'wallet-outline', label: 'Swiggy\nMoney' },
+];
+
 const ACCOUNT_ROWS = [
-  {
-    icon: 'location-outline',
-    label: 'Saved addresses',
-    value: 'Wire this after auth. Guest mode can still browse and fill the cart.',
-  },
-  {
-    icon: 'card-outline',
-    label: 'Payments',
-    value: 'UPI, cards and wallet trust layer still need final checkout wiring.',
-  },
-  {
-    icon: 'ticket-outline',
-    label: 'Offers & coupons',
-    value: 'Coupons should move to a backend offers engine, not stay static.',
-  },
-  {
-    icon: 'chatbubble-ellipses-outline',
-    label: 'Help & support',
-    value: 'Order issue flows, refund reasons and chat still need implementation.',
-  },
+  { icon: 'ticket-outline', label: 'My Vouchers' },
+  { icon: 'receipt-outline', label: 'Account Statements' },
+  { icon: 'train-outline', label: 'Order Food on Train' },
+  { icon: 'briefcase-outline', label: 'Corporate Rewards' },
+  { icon: 'school-outline', label: 'Student Rewards' },
+  { icon: 'bookmark-outline', label: 'My Instamart Wishlist' },
+  { icon: 'heart-outline', label: 'Favourites' },
+  { icon: 'sparkles-outline', label: 'Partner Rewards' },
+  { icon: 'call-outline', label: 'Allow restaurants to contact you' },
 ];
 
 const STORE_TONES = ['#d9f99d', '#fde68a', '#bfdbfe', '#fbcfe8', '#c7d2fe', '#a7f3d0'];
@@ -109,6 +233,116 @@ const FALLBACK_HOME_DEALS = [
   { key: 'deal-3', name: 'Kissan Jam', price: 49, brand: 'Breakfast saver', emoji: '🍓' },
   { key: 'deal-4', name: 'Classic Chips', price: 20, brand: 'Impulse add-on', emoji: '🥔' },
 ];
+
+const MOCK_PAST_ORDERS = [
+  {
+    id: 'mock-food-1',
+    service: 'food',
+    vendorName: 'Bakeryt',
+    location: 'Manali Rd',
+    items: [{ name: 'Chocolate Truffle', qty: 1 }],
+    orderedAt: 'Feb 11, 5:18 PM',
+    total: 511,
+    status: 'Delivered',
+  },
+  {
+    id: 'mock-food-2',
+    service: 'food',
+    vendorName: 'Sweet Truth - Cake & Desserts',
+    location: 'Manali Rd',
+    items: [{ name: 'Red Velvet Jar', qty: 2 }],
+    orderedAt: 'Feb 09, 7:10 PM',
+    total: 298,
+    status: 'Delivered',
+  },
+  {
+    id: 'mock-insta-1',
+    service: 'instamart',
+    vendorName: 'Instamart Daily',
+    location: 'Great Orchard',
+    items: [{ name: 'Curd', qty: 1 }, { name: 'Cadbury Dairy Milk', qty: 1 }],
+    orderedAt: 'Mar 18, 2:40 PM',
+    total: 109,
+    status: 'Delivered',
+  },
+];
+
+const SERVICE_THEMES = {
+  instamart: {
+    hero: COLORS.green800,
+    heroAccent: COLORS.green700,
+    heroPill: 'rgba(255,255,255,0.16)',
+    headline: '23 mins',
+    headlineType: 'eta',
+    address: 'To Valliachans Place: 12b, Great Orchard...',
+    searchPlaceholder: 'Search for Sunscreen',
+    bodyDark: false,
+  },
+  food: {
+    hero: COLORS.purple700,
+    heroAccent: '#7c3aed',
+    heroPill: 'rgba(255,255,255,0.16)',
+    headline: 'Valliachans Place',
+    headlineType: 'title',
+    address: '12b, Great Orchard / Tower 1, Vidya Nagar',
+    searchPlaceholder: "Search for 'EatRight'",
+    bodyDark: false,
+  },
+  dineout: {
+    hero: COLORS.purple800,
+    heroAccent: COLORS.purple700,
+    heroPill: 'rgba(255,255,255,0.16)',
+    headline: 'Valliachans Place',
+    headlineType: 'title',
+    address: '12b, Great Orchard / Tower 1, Vidya Nagar',
+    searchPlaceholder: 'Search for cuisines',
+    bodyDark: false,
+  },
+  scenes: {
+    hero: COLORS.dark900,
+    heroAccent: COLORS.dark800,
+    heroPill: 'rgba(255,255,255,0.10)',
+    headline: '12b, Great Orchard',
+    headlineType: 'lightTitle',
+    address: 'Tower 1, Vidya Nagar',
+    searchPlaceholder: 'Search experiences',
+    bodyDark: true,
+  },
+};
+
+const EXPLORE_TILES = {
+  instamart: CATEGORY_GRID,
+  food: [
+    { key: 'south', emoji: '🍛', title: 'South Indian' },
+    { key: 'biryani', emoji: '🍗', title: 'Biryani' },
+    { key: 'cakes', emoji: '🎂', title: 'Cakes' },
+    { key: 'burgers', emoji: '🍔', title: 'Burgers' },
+    { key: 'healthy', emoji: '🥗', title: 'Healthy' },
+    { key: 'juice', emoji: '🧃', title: 'Juices' },
+    { key: 'late-night', emoji: '🌙', title: 'Late night' },
+    { key: 'breakfast', emoji: '🥞', title: 'Breakfast' },
+  ],
+  dineout: [
+    { key: 'family', emoji: '👨‍👩‍👧‍👦', title: 'Family dining' },
+    { key: 'rooftop', emoji: '🌃', title: 'Rooftop' },
+    { key: 'cafe', emoji: '☕', title: 'Cafe dates' },
+    { key: 'premium', emoji: '🥂', title: 'Premium dining' },
+    { key: 'brunch', emoji: '🍳', title: 'Sunday brunch' },
+    { key: 'buffet', emoji: '🍽️', title: 'Buffet' },
+    { key: 'cashback', emoji: '💸', title: 'Cashback' },
+    { key: 'newhot', emoji: '🔥', title: 'New & hot' },
+  ],
+  scenes: [
+    { key: 'today', emoji: '🌈', title: "Today's vibe" },
+    { key: 'weekend', emoji: '🎉', title: 'Weekend mood' },
+    { key: 'week', emoji: '🗓️', title: "This week's drops" },
+    { key: 'next', emoji: '✨', title: 'Next weekend tea' },
+    { key: 'music', emoji: '🎶', title: 'Music' },
+    { key: 'kids', emoji: '🧒', title: 'Kids' },
+    { key: 'workshop', emoji: '🛠️', title: 'Workshops' },
+    { key: 'comedy', emoji: '😂', title: 'Comedy' },
+  ],
+};
 
 function money(value) {
   return `₹${Number(value || 0).toFixed(0)}`;
@@ -149,7 +383,6 @@ function estimateEta(vendor) {
     if (vendor.distance_km <= 5) return '20-30 mins';
     return '30-45 mins';
   }
-
   return '23 mins';
 }
 
@@ -178,6 +411,12 @@ function getStoreStatusLabel(vendor) {
   if (eta === '15-20 mins') return 'FAST';
   if (getDeliveryFeeAmount(vendor) === 0) return 'FREE';
   return vendor?.open_now ? 'OPEN' : 'STORE';
+}
+
+function getStoreOfferLabel(vendor) {
+  const offers = ['40% OFF', '60% OFF', 'ITEMS AT ₹79', 'FLAT 25% OFF'];
+  const seed = Number(vendor?.id || 0) || String(vendor?.name || '').length || 0;
+  return offers[seed % offers.length];
 }
 
 function buildVendorQuery(search, filter) {
@@ -243,6 +482,19 @@ function getOfferLabel(product) {
   return 'Popular';
 }
 
+function formatOrderTime(date = new Date()) {
+  try {
+    return date.toLocaleString('en-IN', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  } catch {
+    return 'Just now';
+  }
+}
+
 async function apiRequest(path) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
@@ -276,6 +528,8 @@ export default function App() {
   const [activeShortcut, setActiveShortcut] = useState('all');
   const [homeSearch, setHomeSearch] = useState('');
   const [storeFilter, setStoreFilter] = useState('All');
+  const [sceneFilter, setSceneFilter] = useState('All');
+  const [pastOrderFilter, setPastOrderFilter] = useState('All');
 
   const [vendors, setVendors] = useState([]);
   const [vendorsLoading, setVendorsLoading] = useState(true);
@@ -293,7 +547,10 @@ export default function App() {
   const [favorites, setFavorites] = useState({});
   const [recentStoreIds, setRecentStoreIds] = useState([]);
   const [recentSearches, setRecentSearches] = useState([]);
+  const [orderHistory, setOrderHistory] = useState([]);
   const [showCart, setShowCart] = useState(false);
+
+  const theme = SERVICE_THEMES[activeService];
 
   useEffect(() => {
     let mounted = true;
@@ -305,6 +562,7 @@ export default function App() {
           STORAGE_FAVORITES,
           STORAGE_RECENT_STORES,
           STORAGE_RECENT_SEARCHES,
+          STORAGE_ORDER_HISTORY,
         ]);
 
         if (!mounted) return;
@@ -313,11 +571,13 @@ export default function App() {
         const savedFavorites = stored[1]?.[1];
         const savedRecentStores = stored[2]?.[1];
         const savedRecentSearches = stored[3]?.[1];
+        const savedOrders = stored[4]?.[1];
 
         if (savedCart) setCart(JSON.parse(savedCart));
         if (savedFavorites) setFavorites(JSON.parse(savedFavorites));
         if (savedRecentStores) setRecentStoreIds(JSON.parse(savedRecentStores));
         if (savedRecentSearches) setRecentSearches(JSON.parse(savedRecentSearches));
+        if (savedOrders) setOrderHistory(JSON.parse(savedOrders));
       } catch {
         // Ignore guest-mode boot persistence issues.
       }
@@ -343,6 +603,10 @@ export default function App() {
   useEffect(() => {
     AsyncStorage.setItem(STORAGE_RECENT_SEARCHES, JSON.stringify(recentSearches)).catch(() => {});
   }, [recentSearches]);
+
+  useEffect(() => {
+    AsyncStorage.setItem(STORAGE_ORDER_HISTORY, JSON.stringify(orderHistory)).catch(() => {});
+  }, [orderHistory]);
 
   const rememberSearch = useCallback((term) => {
     const value = String(term || '').trim();
@@ -405,8 +669,8 @@ export default function App() {
       );
 
       const curated = groups
-        .flatMap(({ vendor, products }) =>
-          products
+        .flatMap(({ vendor, products: vendorProducts }) =>
+          vendorProducts
             .filter((item) => item.is_available !== false)
             .map((item) => ({
               ...item,
@@ -493,9 +757,10 @@ export default function App() {
   const featuredVendors = useMemo(() => shortcutFilteredVendors.slice(0, 6), [shortcutFilteredVendors]);
 
   const recentVendors = useMemo(
-    () => recentStoreIds
-      .map((id) => vendors.find((vendor) => vendor.id === id))
-      .filter(Boolean),
+    () =>
+      recentStoreIds
+        .map((id) => vendors.find((vendor) => vendor.id === id))
+        .filter(Boolean),
     [recentStoreIds, vendors]
   );
 
@@ -523,6 +788,17 @@ export default function App() {
 
   const bestSellerProducts = useMemo(() => products.slice(0, 6), [products]);
 
+  const sceneEvents = useMemo(() => {
+    if (sceneFilter === 'All') return SCENE_EVENTS;
+    return SCENE_EVENTS.filter((event) => event.bucket === sceneFilter);
+  }, [sceneFilter]);
+
+  const pastOrders = useMemo(() => {
+    const items = orderHistory.length > 0 ? orderHistory : MOCK_PAST_ORDERS;
+    if (pastOrderFilter === 'All') return items;
+    return items.filter((item) => item.service === pastOrderFilter.toLowerCase());
+  }, [orderHistory, pastOrderFilter]);
+
   const toggleFavorite = (vendorId) => {
     setFavorites((current) => ({
       ...current,
@@ -537,6 +813,7 @@ export default function App() {
   const applyHomeSearch = (term) => {
     setHomeSearch(term);
     rememberSearch(term);
+    setActiveTab('home');
   };
 
   const replaceCartWith = (product) => {
@@ -617,318 +894,484 @@ export default function App() {
     await loadProducts(vendor, '');
   };
 
-  const previewCheckout = () => {
+  const placeDemoOrder = () => {
     if (cartItems.length === 0) {
       Alert.alert('Cart is empty', 'Add some products first.');
       return;
     }
 
+    const service = activeService === 'instamart' ? 'instamart' : 'food';
+
+    const order = {
+      id: `local-${Date.now()}`,
+      service,
+      vendorId: cartVendor?.id || null,
+      vendorName: cartVendor?.name || 'Your store',
+      location: cartVendor?.address || 'Saved address',
+      items: cartItems.map((item) => ({ name: item.name, qty: item.qty })),
+      orderedAt: formatOrderTime(new Date()),
+      total: cartTotal,
+      status: 'Delivered',
+    };
+
+    setOrderHistory((current) => [order, ...current].slice(0, 12));
+    clearCart();
+    setShowCart(false);
+    setActiveTab('reorder');
+
     Alert.alert(
-      'Checkout flow pending',
-      'Guest browsing is ready. To reach Swiggy-level checkout, wire addresses, offers, payments, order placement and order tracking next.'
+      'Demo order placed',
+      'Saved locally so your Reorder and Account screens now feel much closer to a real Swiggy flow.'
     );
   };
 
-  const renderHome = () => (
-    <View style={styles.screen}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.homeScrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => loadVendors({ pullToRefresh: true })}
-            tintColor="#ffffff"
-          />
-        }>
-        <View style={styles.heroShell}>
-          <View style={styles.heroTopRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.heroEta}>23 mins</Text>
-              <TouchableOpacity activeOpacity={0.88} style={styles.addressRow}>
-                <Text style={styles.addressText} numberOfLines={1}>
-                  To Valliachans Place: 12b, Great Orchard...
-                </Text>
-                <Ionicons name="chevron-down" size={16} color="#d1fae5" />
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity style={styles.profileButton} activeOpacity={0.9}>
-              <Ionicons name="person-outline" size={22} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.serviceRail}>
-            {TOP_SERVICES.map((item) => {
-              const active = activeService === item.key;
-              return (
-                <TouchableOpacity
-                  key={item.key}
-                  activeOpacity={0.9}
-                  style={[styles.serviceCard, active && styles.serviceCardActive]}
-                  onPress={() => setActiveService(item.key)}>
-                  <View style={[styles.serviceIconWrap, active && styles.serviceIconWrapActive]}>
-                    <Ionicons name={item.icon} size={22} color={active ? COLORS.green900 : '#ffffff'} />
-                  </View>
-                  <Text style={[styles.serviceLabel, active && styles.serviceLabelActive]}>{item.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          <View style={styles.heroSearchRow}>
-            <View style={styles.searchBoxHero}>
-              <Ionicons name="search-outline" size={20} color={COLORS.muted} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search for Sunscreen"
-                placeholderTextColor={COLORS.subtle}
-                value={homeSearch}
-                onChangeText={setHomeSearch}
-                onSubmitEditing={() => rememberSearch(homeSearch)}
-              />
-              <Ionicons name="receipt-outline" size={20} color={COLORS.muted} />
-            </View>
-            <TouchableOpacity style={styles.bookmarkButton} activeOpacity={0.9}>
-              <Ionicons name="bookmark-outline" size={22} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.shortcutRail}>
-            {HOME_SHORTCUTS.map((item) => {
-              const active = activeShortcut === item.key;
-              return (
-                <TouchableOpacity
-                  key={item.key}
-                  style={styles.shortcutItem}
-                  activeOpacity={0.92}
-                  onPress={() => setActiveShortcut(item.key)}>
-                  <View style={[styles.shortcutIconWrap, active && styles.shortcutIconWrapActive]}>
-                    <Ionicons name={item.icon} size={16} color={active ? '#ffffff' : '#d1fae5'} />
-                  </View>
-                  <Text style={[styles.shortcutLabel, active && styles.shortcutLabelActive]}>{item.label}</Text>
-                  <View style={[styles.shortcutUnderline, !active && styles.shortcutUnderlineHidden]} />
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          <View style={styles.celebrationWrap}>
-            <Text style={styles.celebrationEyebrow}>SEASON OF</Text>
-            <Text style={styles.celebrationTitle}>CELEBRATION</Text>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.festivalRail}>
-            {FESTIVAL_TILES.map((item) => (
-              <View key={item.key} style={styles.festivalCard}>
-                <Text style={styles.festivalTitle}>{item.title}</Text>
-                <Text style={styles.festivalEmoji}>{item.emoji}</Text>
-              </View>
-            ))}
-          </ScrollView>
+  const renderInstamartBody = () => (
+    <View style={styles.bodySurface}>
+      <View style={styles.everydayBanner}>
+        <View style={styles.everydayBadge}>
+          <Text style={styles.everydayPrice}>₹9</Text>
         </View>
-
-        <View style={styles.bodySurface}>
-          <View style={styles.everydayBanner}>
-            <View style={styles.everydayBadge}>
-              <Text style={styles.everydayPrice}>₹9</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.everydayTitle}>everyday</Text>
-              <Text style={styles.everydayText}>Shop for ₹199 to get one item at ₹9</Text>
-            </View>
-          </View>
-
-          {activeService !== 'instamart' ? (
-            <View style={styles.noteCardSuccess}>
-              <Text style={styles.noteTitleDark}>Instamart is production-ready first</Text>
-              <Text style={styles.noteTextDark}>
-                The top rail now matches the screenshot, but Food, Dineout and Scenes should stay disabled or route to their own stacks until those experiences are built.
-              </Text>
-            </View>
-          ) : null}
-
-          <SectionHeader
-            title="Under ₹99"
-            subtitle="Closer to the screenshot. Still replace emoji placeholders with CDN images and real offer metadata next."
-          />
-
-          {homeDealsLoading ? <LoadingBlock label="Loading quick picks..." /> : null}
-
-          <View style={styles.quickGrid}>
-            {(homeDeals.length > 0 ? homeDeals : FALLBACK_HOME_DEALS).map((item) => (
-              <QuickDealCard
-                key={item.key || item.id}
-                item={item}
-                qty={item.id ? cart.items[item.id]?.qty || 0 : 0}
-                onAdd={item.id ? () => addToCart(item) : undefined}
-                onRemove={item.id ? () => updateQty(item, -1) : undefined}
-              />
-            ))}
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.suggestionRail}>
-            {suggestionPool.map((item) => (
-              <TouchableOpacity key={item} style={styles.suggestionChip} onPress={() => applyHomeSearch(item)}>
-                <Ionicons name="search-outline" size={14} color={COLORS.green800} />
-                <Text style={styles.suggestionChipText}>{item}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterRail}>
-            {STORE_FILTERS.map((item) => (
-              <TouchableOpacity
-                key={item}
-                style={[styles.filterChip, storeFilter === item && styles.filterChipActive]}
-                onPress={() => setStoreFilter(item)}>
-                <Text style={[styles.filterChipText, storeFilter === item && styles.filterChipTextActive]}>
-                  {item}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <SectionHeader
-            title="Popular categories"
-            subtitle="Merchandising should be image-led and CMS-ranked. This gets the structure right for now."
-          />
-
-          <View style={styles.categoryGrid}>
-            {CATEGORY_GRID.map((item) => (
-              <View key={item.key} style={styles.categoryTile}>
-                <Text style={styles.categoryEmoji}>{item.emoji}</Text>
-                <Text style={styles.categoryTitle}>{item.title}</Text>
-              </View>
-            ))}
-          </View>
-
-          {recentVendors.length > 0 ? (
-            <>
-              <SectionHeader
-                title="Recently opened"
-                subtitle="This is a good guest-mode retention block and worth keeping."
-              />
-              {recentVendors.slice(0, 2).map((vendor, index) => (
-                <StoreCard
-                  key={`recent-${vendor.id}`}
-                  vendor={vendor}
-                  favorite={!!favorites[vendor.id]}
-                  onOpen={() => openVendor(vendor)}
-                  onToggleFavorite={() => toggleFavorite(vendor.id)}
-                  tone={getStoreTone(index + 1)}
-                />
-              ))}
-            </>
-          ) : null}
-
-          <SectionHeader
-            title="Featured stores"
-            subtitle={`${featuredVendors.length} stores shown · still powered by your existing /vendors endpoint.`}
-          />
-
-          {vendorsLoading ? (
-            <LoadingBlock label="Loading stores..." />
-          ) : featuredVendors.length === 0 ? (
-            <EmptyState
-              title="No stores found"
-              text="Seed vendors and products in the backend and this feed will become much stronger."
-            />
-          ) : (
-            featuredVendors.map((vendor, index) => (
-              <StoreCard
-                key={vendor.id}
-                vendor={vendor}
-                favorite={!!favorites[vendor.id]}
-                onOpen={() => openVendor(vendor)}
-                onToggleFavorite={() => toggleFavorite(vendor.id)}
-                tone={getStoreTone(index + 3)}
-              />
-            ))
-          )}
-
-          {favoriteVendors.length > 0 ? (
-            <>
-              <SectionHeader
-                title="Saved stores"
-                subtitle="Good pattern. In production, pin these higher with real personalization."
-              />
-              {favoriteVendors.slice(0, 2).map((vendor, index) => (
-                <StoreCard
-                  key={`favorite-${vendor.id}`}
-                  vendor={vendor}
-                  favorite={!!favorites[vendor.id]}
-                  onOpen={() => openVendor(vendor)}
-                  onToggleFavorite={() => toggleFavorite(vendor.id)}
-                  tone={getStoreTone(index + 5)}
-                />
-              ))}
-            </>
-          ) : null}
-
-          <View style={styles.noteCard}>
-            <Text style={styles.noteTitle}>What still blocks Swiggy-level quality</Text>
-            <Text style={styles.noteText}>
-              Real store images, true ratings, dynamic promotions, address-aware ETA, search suggestions API, list virtualization, skeleton loaders and polished checkout trust layers are still missing.
-            </Text>
-          </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.everydayTitle}>everyday</Text>
+          <Text style={styles.everydayText}>Shop for ₹199 to get one item at ₹9</Text>
         </View>
-      </ScrollView>
-    </View>
-  );
+      </View>
 
-  const renderCategories = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
-      <SectionHeader
-        title="Categories"
-        subtitle="This should become a visual aisle directory with CMS ranking, campaign slots and deep links."
-      />
+      <SectionHeader title="Under ₹99" subtitle="Fast add-ons and daily essentials." />
+      {homeDealsLoading ? <LoadingBlock label="Loading quick picks..." /> : null}
 
-      <View style={styles.categoryGridLarge}>
-        {CATEGORY_GRID.map((item, index) => (
-          <TouchableOpacity key={item.key} activeOpacity={0.92} style={[styles.categoryLargeTile, { backgroundColor: getStoreTone(index) }]}>
-            <Text style={styles.categoryLargeEmoji}>{item.emoji}</Text>
-            <Text style={styles.categoryLargeTitle}>{item.title}</Text>
-            <Text style={styles.categoryLargeHint}>Tap to browse</Text>
-          </TouchableOpacity>
+      <View style={styles.quickGrid}>
+        {(homeDeals.length > 0 ? homeDeals : FALLBACK_HOME_DEALS).map((item) => (
+          <QuickDealCard
+            key={item.key || item.id}
+            item={item}
+            qty={item.id ? cart.items[item.id]?.qty || 0 : 0}
+            onAdd={item.id ? () => addToCart(item) : undefined}
+            onRemove={item.id ? () => updateQty(item, -1) : undefined}
+          />
         ))}
       </View>
 
-      <View style={styles.noteCard}>
-        <Text style={styles.noteTitle}>Next upgrade for this tab</Text>
-        <Text style={styles.noteText}>
-          Add category landing pages, facet filters, brand rails and inventory-aware ranking so users can drill down without bouncing back to search.
-        </Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionRail}>
+        {suggestionPool.map((item) => (
+          <TouchableOpacity key={item} style={styles.suggestionChip} onPress={() => applyHomeSearch(item)}>
+            <Ionicons name="search-outline" size={14} color={COLORS.green800} />
+            <Text style={styles.suggestionChipText}>{item}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRail}>
+        {STORE_FILTERS.map((item) => (
+          <TouchableOpacity
+            key={item}
+            style={[styles.filterChip, storeFilter === item && styles.filterChipActive]}
+            onPress={() => setStoreFilter(item)}>
+            <Text style={[styles.filterChipText, storeFilter === item && styles.filterChipTextActive]}>
+              {item}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <SectionHeader title="Popular categories" subtitle="Daily-use aisles that feel familiar and easy to scan." />
+
+      <View style={styles.categoryGrid}>
+        {CATEGORY_GRID.map((item) => (
+          <View key={item.key} style={styles.categoryTile}>
+            <Text style={styles.categoryEmoji}>{item.emoji}</Text>
+            <Text style={styles.categoryTitle}>{item.title}</Text>
+          </View>
+        ))}
       </View>
-    </ScrollView>
+
+      {recentVendors.length > 0 ? (
+        <>
+          <SectionHeader title="Recently opened" subtitle="Bring users back to the stores they already trust." />
+          {recentVendors.slice(0, 2).map((vendor, index) => (
+            <StoreCard
+              key={`recent-${vendor.id}`}
+              vendor={vendor}
+              favorite={!!favorites[vendor.id]}
+              onOpen={() => openVendor(vendor)}
+              onToggleFavorite={() => toggleFavorite(vendor.id)}
+              tone={getStoreTone(index + 1)}
+            />
+          ))}
+        </>
+      ) : null}
+
+      <SectionHeader title="Featured stores" subtitle={`${featuredVendors.length} stores shown.`} />
+
+      {vendorsLoading ? (
+        <LoadingBlock label="Loading stores..." />
+      ) : featuredVendors.length === 0 ? (
+        <EmptyState title="No stores found" text="Seed vendors and products in the backend and this feed will fill out." />
+      ) : (
+        featuredVendors.map((vendor, index) => (
+          <StoreCard
+            key={vendor.id}
+            vendor={vendor}
+            favorite={!!favorites[vendor.id]}
+            onOpen={() => openVendor(vendor)}
+            onToggleFavorite={() => toggleFavorite(vendor.id)}
+            tone={getStoreTone(index + 3)}
+          />
+        ))
+      )}
+
+      {favoriteVendors.length > 0 ? (
+        <>
+          <SectionHeader title="Saved stores" subtitle="Useful even before authentication is added back." />
+          {favoriteVendors.slice(0, 2).map((vendor, index) => (
+            <StoreCard
+              key={`favorite-${vendor.id}`}
+              vendor={vendor}
+              favorite={!!favorites[vendor.id]}
+              onOpen={() => openVendor(vendor)}
+              onToggleFavorite={() => toggleFavorite(vendor.id)}
+              tone={getStoreTone(index + 5)}
+            />
+          ))}
+        </>
+      ) : null}
+    </View>
   );
+
+  const renderFoodBody = () => (
+    <View style={styles.bodySurface}>
+      <View style={[styles.foodHeroBanner, { backgroundColor: theme.hero }]}>
+        <Text style={styles.foodHeroEyebrow}>CRAVE</Text>
+        <Text style={styles.foodHeroTitle}>Up to 60% off & more</Text>
+        <Text style={styles.foodHeroText}>Sharper merchandising, stronger visual hierarchy, more like the reference.</Text>
+      </View>
+
+      <View style={styles.tileGrid}>
+        {FOOD_PROMO_TILES.map((item) => (
+          <FeatureTile key={item.key} item={item} />
+        ))}
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRail}>
+        {FOOD_DISCOVERY.map((item) => (
+          <TouchableOpacity key={item} style={styles.filterChip} onPress={() => applyHomeSearch(item)}>
+            <Text style={styles.filterChipText}>{item}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <SectionHeader title="Top rated near you" subtitle="Store cards now feel closer to Swiggy's food discovery blocks." />
+
+      {vendorsLoading ? (
+        <LoadingBlock label="Loading restaurants..." />
+      ) : featuredVendors.length === 0 ? (
+        <EmptyState title="No restaurants yet" text="Add more food vendors on the backend to make this feed feel full." />
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.miniRail}>
+          {featuredVendors.map((vendor, index) => (
+            <MiniStoreCard
+              key={`food-${vendor.id}`}
+              vendor={vendor}
+              tone={getStoreTone(index)}
+              favorite={!!favorites[vendor.id]}
+              onOpen={() => openVendor(vendor)}
+              onToggleFavorite={() => toggleFavorite(vendor.id)}
+            />
+          ))}
+        </ScrollView>
+      )}
+
+      <SectionHeader title="Crave under ₹99" subtitle="Great for quick wins and high-conversion add-to-cart behavior." />
+
+      <View style={styles.quickGrid}>
+        {(homeDeals.length > 0 ? homeDeals : FALLBACK_HOME_DEALS).map((item) => (
+          <QuickDealCard
+            key={`food-${item.key || item.id}`}
+            item={item}
+            qty={item.id ? cart.items[item.id]?.qty || 0 : 0}
+            onAdd={item.id ? () => addToCart(item) : undefined}
+            onRemove={item.id ? () => updateQty(item, -1) : undefined}
+          />
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderDineoutBody = () => (
+    <View style={styles.bodySurface}>
+      <View style={styles.dineoutBanner}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.dineoutBannerTitle}>Flat 25% OFF</Text>
+          <Text style={styles.dineoutBannerText}>+10% cashback with dineout style campaigns</Text>
+        </View>
+        <Text style={styles.dineoutBannerEmoji}>🥂</Text>
+      </View>
+
+      <SectionHeader title="In the spotlight" subtitle="Curated booking hooks and campaign-led discovery." />
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.miniRail}>
+        {DINEOUT_PROMO_TILES.map((item) => (
+          <FeatureTile key={item.key} item={item} compact />
+        ))}
+      </ScrollView>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRail}>
+        {DINEOUT_DISCOVERY.map((item) => (
+          <TouchableOpacity key={item} style={styles.filterChip} onPress={() => applyHomeSearch(item)}>
+            <Text style={styles.filterChipText}>{item}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <SectionHeader title="Popular picks" subtitle="You can later swap these with real dineout inventory and booking slots." />
+
+      {vendorsLoading ? (
+        <LoadingBlock label="Loading popular picks..." />
+      ) : featuredVendors.length === 0 ? (
+        <EmptyState title="No dineout picks yet" text="Use the same vendor base now, then split food vs dineout inventory later." />
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.miniRail}>
+          {featuredVendors.map((vendor, index) => (
+            <MiniStoreCard
+              key={`dineout-${vendor.id}`}
+              vendor={vendor}
+              tone={getStoreTone(index + 2)}
+              favorite={!!favorites[vendor.id]}
+              onOpen={() => openVendor(vendor)}
+              onToggleFavorite={() => toggleFavorite(vendor.id)}
+              dineout
+            />
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  );
+
+  const renderScenesBody = () => (
+    <View style={styles.bodySurfaceDark}>
+      <SectionHeader
+        title="When is the plan?"
+        subtitle="The structure now matches the reference better: themed buckets, featured cards and event blocks."
+        light
+      />
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.miniRail}>
+        {['Today’s vibe', 'Weekend mood', 'This week’s drops', 'Next weekend tea'].map((item, index) => (
+          <View key={item} style={[styles.bucketPill, { backgroundColor: ['#7e1e6f', '#164e63', '#5b3f93', '#6b4a1f'][index] }]}>
+            <Text style={styles.bucketPillText}>{item}</Text>
+          </View>
+        ))}
+      </ScrollView>
+
+      <SectionHeader title="All scenes" subtitle={`${sceneEvents.length} events`} light />
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRail}>
+        {SCENE_FILTERS.map((item) => (
+          <TouchableOpacity
+            key={item}
+            style={[styles.darkFilterChip, sceneFilter === item && styles.darkFilterChipActive]}
+            onPress={() => setSceneFilter(item)}>
+            <Text style={[styles.darkFilterChipText, sceneFilter === item && styles.darkFilterChipTextActive]}>
+              {item}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <View style={styles.sceneGrid}>
+        {sceneEvents.map((item) => (
+          <SceneEventCard key={item.id} item={item} />
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderHome = () => {
+    const isEta = theme.headlineType === 'eta';
+
+    return (
+      <View style={styles.screen}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.homeScrollContent,
+            activeService === 'scenes' && { backgroundColor: COLORS.dark900 },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => loadVendors({ pullToRefresh: true })}
+              tintColor={theme.bodyDark ? '#ffffff' : '#ffffff'}
+            />
+          }>
+          <View style={[styles.heroShell, { backgroundColor: theme.hero }]}>
+            <View style={styles.heroTopRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={isEta ? styles.heroEta : theme.bodyDark ? styles.heroTitleLight : styles.heroTitle}>
+                  {theme.headline}
+                </Text>
+                <TouchableOpacity activeOpacity={0.88} style={styles.addressRow}>
+                  <Text style={styles.addressText} numberOfLines={1}>
+                    {theme.address}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color="#d1fae5" />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={[styles.profileButton, { backgroundColor: theme.heroPill }]} activeOpacity={0.9}>
+                <Ionicons name="person-outline" size={22} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.serviceRail}>
+              {TOP_SERVICES.map((item) => {
+                const active = activeService === item.key;
+                return (
+                  <TouchableOpacity
+                    key={item.key}
+                    activeOpacity={0.9}
+                    style={[
+                      styles.serviceCard,
+                      active && { backgroundColor: theme.heroAccent, borderColor: 'rgba(255,255,255,0.24)' },
+                    ]}
+                    onPress={() => {
+                      setActiveService(item.key);
+                      setActiveTab('home');
+                    }}>
+                    <View style={[styles.serviceIconWrap, active && styles.serviceIconWrapActive]}>
+                      <Ionicons name={item.icon} size={22} color={active ? theme.hero : '#ffffff'} />
+                    </View>
+                    <Text style={[styles.serviceLabel, active && styles.serviceLabelActive]}>{item.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.heroSearchRow}>
+              <View style={styles.searchBoxHero}>
+                <Ionicons name="search-outline" size={20} color={COLORS.muted} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder={theme.searchPlaceholder}
+                  placeholderTextColor={COLORS.subtle}
+                  value={homeSearch}
+                  onChangeText={setHomeSearch}
+                  onSubmitEditing={() => rememberSearch(homeSearch)}
+                />
+                <Ionicons name={activeService === 'food' ? 'mic-outline' : 'receipt-outline'} size={20} color={COLORS.muted} />
+              </View>
+              <TouchableOpacity style={[styles.bookmarkButton, { backgroundColor: theme.heroPill }]} activeOpacity={0.9}>
+                <Ionicons name="bookmark-outline" size={22} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+
+            {activeService === 'instamart' ? (
+              <>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shortcutRail}>
+                  {HOME_SHORTCUTS.map((item) => {
+                    const active = activeShortcut === item.key;
+                    return (
+                      <TouchableOpacity
+                        key={item.key}
+                        style={styles.shortcutItem}
+                        activeOpacity={0.92}
+                        onPress={() => setActiveShortcut(item.key)}>
+                        <View style={[styles.shortcutIconWrap, active && styles.shortcutIconWrapActive]}>
+                          <Ionicons name={item.icon} size={16} color={active ? '#ffffff' : '#d1fae5'} />
+                        </View>
+                        <Text style={[styles.shortcutLabel, active && styles.shortcutLabelActive]}>{item.label}</Text>
+                        <View style={[styles.shortcutUnderline, !active && styles.shortcutUnderlineHidden]} />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                <View style={styles.celebrationWrap}>
+                  <Text style={styles.celebrationEyebrow}>SEASON OF</Text>
+                  <Text style={styles.celebrationTitle}>CELEBRATION</Text>
+                </View>
+
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.festivalRail}>
+                  {FESTIVAL_TILES.map((item) => (
+                    <View key={item.key} style={styles.festivalCard}>
+                      <Text style={styles.festivalTitle}>{item.title}</Text>
+                      <Text style={styles.festivalEmoji}>{item.emoji}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </>
+            ) : null}
+          </View>
+
+          {activeService === 'instamart' && renderInstamartBody()}
+          {activeService === 'food' && renderFoodBody()}
+          {activeService === 'dineout' && renderDineoutBody()}
+          {activeService === 'scenes' && renderScenesBody()}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const renderExplore = () => {
+    const tiles = EXPLORE_TILES[activeService] || CATEGORY_GRID;
+    const title =
+      activeService === 'instamart'
+        ? 'Categories'
+        : activeService === 'dineout'
+          ? 'My corner'
+          : activeService === 'scenes'
+            ? 'Buckets'
+            : 'Explore';
+
+    return (
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.pageContent,
+          activeService === 'scenes' && { backgroundColor: COLORS.dark900 },
+        ]}>
+        <SectionHeader
+          title={title}
+          subtitle={
+            activeService === 'instamart'
+              ? 'Fast aisles, clear hierarchy, and easier browsing.'
+              : activeService === 'food'
+                ? 'Cuisine-led discovery that feels closer to food delivery patterns.'
+                : activeService === 'dineout'
+                  ? 'Mood-led dineout discovery for bookings and offers.'
+                  : 'Experience buckets and time-based discovery.'
+          }
+          light={activeService === 'scenes'}
+        />
+
+        <View style={styles.categoryGridLarge}>
+          {tiles.map((item, index) => (
+            <TouchableOpacity
+              key={item.key}
+              activeOpacity={0.92}
+              style={[
+                styles.categoryLargeTile,
+                { backgroundColor: activeService === 'scenes' ? COLORS.dark700 : getStoreTone(index) },
+              ]}>
+              <Text style={styles.categoryLargeEmoji}>{item.emoji}</Text>
+              <Text style={[styles.categoryLargeTitle, activeService === 'scenes' && styles.categoryLargeTitleLight]}>
+                {item.title}
+              </Text>
+              <Text style={[styles.categoryLargeHint, activeService === 'scenes' && styles.categoryLargeHintLight]}>
+                Tap to browse
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+    );
+  };
 
   const renderReorder = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
-      <SectionHeader
-        title="Reorder"
-        subtitle="Strong repeat intent matters. Even before sign-in, you can make this useful from local history."
-      />
+      <SectionHeader title="Reorder" subtitle="Local order history makes this useful even before auth is wired." />
 
       {cartCount === 0 ? (
-        <EmptyState
-          title="No active basket yet"
-          text="Open a store and add products. This screen can later connect to /orders/me when auth is added back."
-        />
+        <EmptyState title="No active basket yet" text="Open a store and add products. Demo orders placed from cart will show up here." />
       ) : (
         <View style={styles.panelCard}>
           <Text style={styles.panelTitle}>Current basket snapshot</Text>
@@ -938,6 +1381,27 @@ export default function App() {
             <Text style={styles.primaryButtonText}>Open cart</Text>
           </TouchableOpacity>
         </View>
+      )}
+
+      <View style={styles.segmentWrap}>
+        {['All', 'Food', 'Instamart'].map((item) => (
+          <TouchableOpacity
+            key={item}
+            style={[styles.segmentButton, pastOrderFilter === item && styles.segmentButtonActive]}
+            onPress={() => setPastOrderFilter(item)}>
+            <Text style={[styles.segmentButtonText, pastOrderFilter === item && styles.segmentButtonTextActive]}>
+              {item}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {pastOrders.length === 0 ? (
+        <EmptyState title="No past orders yet" text="Place one demo order from cart and this section will become much stronger." />
+      ) : (
+        pastOrders.map((order) => (
+          <PastOrderCard key={order.id} order={order} />
+        ))
       )}
 
       {recentVendors.length > 0 ? (
@@ -959,72 +1423,66 @@ export default function App() {
           ))}
         </View>
       ) : null}
-
-      {recentSearches.length > 0 ? (
-        <View style={styles.panelCard}>
-          <Text style={styles.panelTitle}>Recent searches</Text>
-          <View style={styles.chipWrap}>
-            {recentSearches.map((item) => (
-              <TouchableOpacity
-                key={item}
-                style={styles.minorChip}
-                onPress={() => {
-                  setActiveTab('home');
-                  applyHomeSearch(item);
-                }}>
-                <Ionicons name="search-outline" size={14} color={COLORS.green800} />
-                <Text style={styles.minorChipText}>{item}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      ) : null}
-
-      <View style={styles.noteCard}>
-        <Text style={styles.noteTitle}>What still blocks a true reorder experience</Text>
-        <Text style={styles.noteText}>
-          Order history, repeat recommendations, out-of-stock replacement logic, scheduled delivery, invoices and payment retry states still need to be built.
-        </Text>
-      </View>
     </ScrollView>
   );
 
   const renderAccount = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
-      <SectionHeader
-        title="Account"
-        subtitle="You asked to skip sign-in, so this tab stays useful in guest mode instead of blocking the user."
-      />
-
-      <View style={styles.accountHero}>
-        <View style={styles.accountAvatar}>
-          <Text style={styles.accountAvatarText}>{initials('Grab Basket')}</Text>
+      <View style={styles.accountHeaderCard}>
+        <View>
+          <Text style={styles.accountName}>Guest</Text>
+          <Text style={styles.accountPhone}>+91 - 0000000000</Text>
+          <Text style={styles.accountEmail}>guest@grabbasket.app</Text>
         </View>
-        <Text style={styles.accountHeroTitle}>Guest mode active</Text>
-        <Text style={styles.accountHeroText}>
-          Users can browse stores, search products, save favorites and build a basket without authentication.
-        </Text>
+        <TouchableOpacity style={styles.helpButton}>
+          <Text style={styles.helpButtonText}>Help</Text>
+        </TouchableOpacity>
       </View>
 
-      {ACCOUNT_ROWS.map((row) => (
-        <View key={row.label} style={styles.accountRow}>
-          <View style={styles.accountRowIcon}>
-            <Ionicons name={row.icon} size={18} color={COLORS.text} />
+      <View style={styles.oneCard}>
+        <View>
+          <View style={styles.oneBadge}>
+            <Text style={styles.oneBadgeText}>ACTIVE</Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.accountRowLabel}>{row.label}</Text>
-            <Text style={styles.accountRowValue}>{row.value}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={COLORS.subtle} />
+          <Text style={styles.oneTitle}>₹35 saved in 36 days</Text>
+          <Text style={styles.oneSubText}>Explore all membership benefits</Text>
         </View>
+        <Ionicons name="chevron-down" size={20} color={COLORS.subtle} />
+      </View>
+
+      <View style={styles.accountQuickGrid}>
+        {ACCOUNT_SHORTCUTS.map((item) => (
+          <View key={item.key} style={styles.accountQuickCard}>
+            <Ionicons name={item.icon} size={20} color={COLORS.text} />
+            <Text style={styles.accountQuickText}>{item.label}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.accountListCard}>
+        {ACCOUNT_ROWS.map((item, index) => (
+          <AccountListRow key={item.label} item={item} first={index === 0} />
+        ))}
+      </View>
+
+      <SectionHeader title="Past orders" subtitle="Closer to the account screenshot, but still guest-mode friendly." />
+
+      <View style={styles.segmentWrap}>
+        {['All', 'Food', 'Instamart'].map((item) => (
+          <TouchableOpacity
+            key={item}
+            style={[styles.segmentButton, pastOrderFilter === item && styles.segmentButtonActive]}
+            onPress={() => setPastOrderFilter(item)}>
+            <Text style={[styles.segmentButtonText, pastOrderFilter === item && styles.segmentButtonTextActive]}>
+              {item}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {pastOrders.slice(0, 3).map((order) => (
+        <PastOrderCard key={`account-${order.id}`} order={order} compact />
       ))}
-
-      <View style={styles.noteCard}>
-        <Text style={styles.noteTitle}>Biggest remaining gap vs Swiggy</Text>
-        <Text style={styles.noteText}>
-          Real order tracking, support escalation, cancellation rules, invoices, refunds, search relevance, promotions and checkout certainty still need product-grade implementation.
-        </Text>
-      </View>
     </ScrollView>
   );
 
@@ -1066,9 +1524,7 @@ export default function App() {
             <MetaBadge text={selectedVendor?.open_now ? 'Open now' : 'Store'} />
             <MetaBadge text={`ETA ${estimateEta(selectedVendor)}`} />
             <MetaBadge text={getDeliveryFeeLabel(selectedVendor)} />
-            {selectedVendor?.distance_km != null ? (
-              <MetaBadge text={`${selectedVendor.distance_km.toFixed(1)} km`} />
-            ) : null}
+            {selectedVendor?.distance_km != null ? <MetaBadge text={`${selectedVendor.distance_km.toFixed(1)} km`} /> : null}
           </View>
         </View>
 
@@ -1099,10 +1555,7 @@ export default function App() {
 
         {!productsLoading && bestSellerProducts.length > 0 ? (
           <>
-            <SectionHeader
-              title="Bestsellers"
-              subtitle="Important high-conversion block for the store page."
-            />
+            <SectionHeader title="Bestsellers" subtitle="High-conversion block that Swiggy-style stores need." />
             {bestSellerProducts.map((product) => (
               <ProductCard
                 key={`best-${product.id}`}
@@ -1118,10 +1571,7 @@ export default function App() {
 
         <SectionHeader title="All items" subtitle="Fetched from /vendors/{id}/products." />
         {!productsLoading && products.length === 0 ? (
-          <EmptyState
-            title="No products yet"
-            text="Add products from the seller side and this page will start looking complete."
-          />
+          <EmptyState title="No products yet" text="Add products from the seller side and this page will start looking complete." />
         ) : (
           products.map((product) => (
             <ProductCard
@@ -1191,15 +1641,8 @@ export default function App() {
               <SummaryRow label="Total" value={money(cartTotal)} strong />
             </View>
 
-            <View style={styles.noteCard}>
-              <Text style={styles.noteTitle}>Guest flow only</Text>
-              <Text style={styles.noteText}>
-                As requested, sign-in is skipped. This cart feels complete enough for a prototype, but addresses, offers, payments and order placement still need to be added.
-              </Text>
-            </View>
-
-            <TouchableOpacity style={styles.primaryButton} onPress={previewCheckout}>
-              <Text style={styles.primaryButtonText}>Proceed to checkout</Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={placeDemoOrder}>
+              <Text style={styles.primaryButtonText}>Place demo order</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.secondaryButton} onPress={clearCart}>
               <Text style={styles.secondaryButtonText}>Clear cart</Text>
@@ -1215,8 +1658,8 @@ export default function App() {
     if (showCart) return renderCart();
 
     switch (activeTab) {
-      case 'categories':
-        return renderCategories();
+      case 'explore':
+        return renderExplore();
       case 'reorder':
         return renderReorder();
       case 'account':
@@ -1235,11 +1678,20 @@ export default function App() {
         ? `Add ${money(freeDeliveryRemaining)} more for FREE DELIVERY`
         : 'FREE DELIVERY unlocked';
 
+  const exploreLabel =
+    activeService === 'instamart'
+      ? 'Categories'
+      : activeService === 'dineout'
+        ? 'My corner'
+        : activeService === 'scenes'
+          ? 'Buckets'
+          : 'Explore';
+
   return (
-    <SafeAreaView style={[styles.safeArea, isHomeRoot && styles.safeAreaHome]}>
+    <SafeAreaView style={[styles.safeArea, isHomeRoot && { backgroundColor: theme.hero }]}>
       <StatusBar
         barStyle={isHomeRoot ? 'light-content' : 'dark-content'}
-        backgroundColor={isHomeRoot ? COLORS.green800 : COLORS.bg}
+        backgroundColor={isHomeRoot ? theme.hero : COLORS.bg}
       />
       {renderContent()}
 
@@ -1256,24 +1708,26 @@ export default function App() {
                   <Ionicons name="arrow-forward" size={20} color="#ffffff" />
                 </TouchableOpacity>
               ) : null}
-              <View style={styles.deliveryStrip}>
-                <Text style={styles.deliveryStripText}>{deliveryStripText}</Text>
-              </View>
+              {activeService === 'instamart' ? (
+                <View style={styles.deliveryStrip}>
+                  <Text style={styles.deliveryStripText}>{deliveryStripText}</Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
           <View style={styles.bottomTabBar}>
             <BottomTab
-              icon="bag-handle-outline"
-              label="Instamart"
+              icon="home-outline"
+              label="Home"
               active={activeTab === 'home'}
               onPress={() => setActiveTab('home')}
             />
             <BottomTab
               icon="grid-outline"
-              label="Categories"
-              active={activeTab === 'categories'}
-              onPress={() => setActiveTab('categories')}
+              label={exploreLabel}
+              active={activeTab === 'explore'}
+              onPress={() => setActiveTab('explore')}
             />
             <BottomTab
               icon="reload-outline"
@@ -1294,11 +1748,11 @@ export default function App() {
   );
 }
 
-function SectionHeader({ title, subtitle }) {
+function SectionHeader({ title, subtitle, light = false }) {
   return (
     <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
+      <Text style={[styles.sectionTitle, light && styles.sectionTitleLight]}>{title}</Text>
+      {subtitle ? <Text style={[styles.sectionSubtitle, light && styles.sectionSubtitleLight]}>{subtitle}</Text> : null}
     </View>
   );
 }
@@ -1372,6 +1826,108 @@ function QuickDealCard({ item, qty = 0, onAdd, onRemove }) {
         <Text style={styles.quickDealPrice}>{money(item.price)}</Text>
         <Text style={styles.quickDealMeta}>{item.vendorDistance != null ? `${item.vendorDistance.toFixed(1)} km` : 'Fast'}</Text>
       </View>
+    </View>
+  );
+}
+
+function FeatureTile({ item, compact = false }) {
+  return (
+    <View style={[styles.featureTile, compact && styles.featureTileCompact, { backgroundColor: item.tone }]}>
+      <Text style={styles.featureTileEmoji}>{item.emoji}</Text>
+      <Text style={styles.featureTileTitle}>{item.title}</Text>
+      <Text style={styles.featureTileSubtitle}>{item.subtitle}</Text>
+    </View>
+  );
+}
+
+function MiniStoreCard({ vendor, onOpen, onToggleFavorite, favorite, tone, dineout = false }) {
+  return (
+    <TouchableOpacity activeOpacity={0.94} style={styles.miniStoreCard} onPress={onOpen}>
+      <View style={[styles.miniStoreHero, { backgroundColor: tone }]}>
+        <View style={styles.miniStoreTopRow}>
+          <View style={styles.miniOfferBadge}>
+            <Text style={styles.miniOfferBadgeText}>{dineout ? 'UP TO 25% OFF' : getStoreOfferLabel(vendor)}</Text>
+          </View>
+          <TouchableOpacity onPress={onToggleFavorite} style={styles.favoriteButtonMini}>
+            <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={16} color={COLORS.text} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.miniAvatar}>
+          <Text style={styles.miniAvatarText}>{initials(vendor.name)}</Text>
+        </View>
+      </View>
+      <View style={styles.miniStoreContent}>
+        <Text style={styles.miniStoreName} numberOfLines={1}>{vendor.name}</Text>
+        <Text style={styles.miniStoreMeta} numberOfLines={1}>
+          {dineout ? `${getVendorRating(vendor)} ★ · Booking friendly` : `${estimateEta(vendor)} · ${getDeliveryFeeLabel(vendor)}`}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function SceneEventCard({ item }) {
+  return (
+    <View style={[styles.sceneCard, { backgroundColor: item.tone }]}>
+      <View style={styles.sceneCardTop}>
+        <View style={styles.sceneDateBadge}>
+          <Text style={styles.sceneDateText}>{item.date}</Text>
+        </View>
+        <Text style={styles.sceneEmoji}>{item.emoji}</Text>
+      </View>
+      <View style={styles.scenePricePill}>
+        <Text style={styles.scenePricePillText}>Starts at {money(item.price)}</Text>
+      </View>
+      <Text style={styles.sceneTitle}>{item.title}</Text>
+      <Text style={styles.sceneVenue}>{item.venue}</Text>
+      <Text style={styles.sceneBucket}>{item.bucket}</Text>
+    </View>
+  );
+}
+
+function PastOrderCard({ order, compact = false }) {
+  const firstItem = order.items?.[0];
+  const itemLine = firstItem
+    ? `${firstItem.qty || 1} x ${firstItem.name}${order.items.length > 1 ? ` +${order.items.length - 1} more` : ''}`
+    : 'Order';
+
+  return (
+    <View style={[styles.pastOrderCard, compact && styles.pastOrderCardCompact]}>
+      <View style={styles.pastOrderHeader}>
+        <View style={styles.pastOrderThumb}>
+          <Text style={styles.pastOrderThumbText}>{initials(order.vendorName)}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={styles.pastOrderTitleRow}>
+            <Text style={styles.pastOrderTitle} numberOfLines={1}>{order.vendorName}</Text>
+            <Text style={styles.pastOrderStatus}>{order.status}</Text>
+          </View>
+          <Text style={styles.pastOrderLocation} numberOfLines={1}>{order.location}</Text>
+        </View>
+      </View>
+
+      <Text style={styles.pastOrderItemLine}>{itemLine}</Text>
+      <Text style={styles.pastOrderMeta}>
+        Ordered: {order.orderedAt} · Bill Total: {money(order.total)}
+      </Text>
+
+      {!compact ? (
+        <TouchableOpacity style={styles.reorderButton}>
+          <Text style={styles.reorderButtonText}>REORDER</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
+function AccountListRow({ item, first }) {
+  return (
+    <View style={[styles.accountListRow, !first && styles.accountListRowBorder]}>
+      <View style={styles.accountListIcon}>
+        <Ionicons name={item.icon} size={18} color={COLORS.text} />
+      </View>
+      <Text style={styles.accountListLabel}>{item.label}</Text>
+      <Ionicons name="chevron-forward" size={18} color={COLORS.subtle} />
     </View>
   );
 }
@@ -1493,9 +2049,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bg,
   },
-  safeAreaHome: {
-    backgroundColor: COLORS.green800,
-  },
   screen: {
     flex: 1,
     backgroundColor: COLORS.bg,
@@ -1514,7 +2067,6 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   heroShell: {
-    backgroundColor: COLORS.green800,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     paddingHorizontal: 16,
@@ -1533,6 +2085,18 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     lineHeight: 44,
   },
+  heroTitle: {
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '900',
+    lineHeight: 34,
+  },
+  heroTitleLight: {
+    color: '#ffffff',
+    fontSize: 26,
+    fontWeight: '900',
+    lineHeight: 32,
+  },
   addressRow: {
     marginTop: 6,
     flexDirection: 'row',
@@ -1549,7 +2113,6 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -1569,10 +2132,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.10)',
-  },
-  serviceCardActive: {
-    backgroundColor: COLORS.green700,
-    borderColor: 'rgba(255,255,255,0.22)',
   },
   serviceIconWrap: {
     width: 42,
@@ -1616,7 +2175,6 @@ const styles = StyleSheet.create({
   bookmarkButton: {
     width: 56,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.10)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -1704,6 +2262,12 @@ const styles = StyleSheet.create({
   bodySurface: {
     padding: 16,
     gap: 18,
+    backgroundColor: COLORS.bg,
+  },
+  bodySurfaceDark: {
+    padding: 16,
+    gap: 18,
+    backgroundColor: COLORS.dark900,
   },
   everydayBanner: {
     flexDirection: 'row',
@@ -1743,6 +2307,50 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 20,
   },
+  foodHeroBanner: {
+    borderRadius: 28,
+    padding: 22,
+  },
+  foodHeroEyebrow: {
+    color: '#fef3c7',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  foodHeroTitle: {
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '900',
+    marginTop: 8,
+  },
+  foodHeroText: {
+    color: 'rgba(255,255,255,0.88)',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  dineoutBanner: {
+    backgroundColor: '#166534',
+    borderRadius: 24,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dineoutBannerTitle: {
+    color: '#ffffff',
+    fontSize: 26,
+    fontWeight: '900',
+  },
+  dineoutBannerText: {
+    color: 'rgba(255,255,255,0.88)',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 6,
+  },
+  dineoutBannerEmoji: {
+    fontSize: 46,
+    marginLeft: 12,
+  },
   sectionHeader: {
     gap: 6,
   },
@@ -1751,10 +2359,46 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '900',
   },
+  sectionTitleLight: {
+    color: '#ffffff',
+  },
   sectionSubtitle: {
     color: COLORS.muted,
     fontSize: 14,
     lineHeight: 20,
+  },
+  sectionSubtitleLight: {
+    color: 'rgba(255,255,255,0.72)',
+  },
+  tileGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  featureTile: {
+    width: '48%',
+    minHeight: 126,
+    borderRadius: 22,
+    padding: 16,
+    justifyContent: 'space-between',
+  },
+  featureTileCompact: {
+    width: 188,
+  },
+  featureTileEmoji: {
+    fontSize: 28,
+  },
+  featureTileTitle: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  featureTileSubtitle: {
+    color: COLORS.text,
+    opacity: 0.7,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 6,
   },
   quickGrid: {
     flexDirection: 'row',
@@ -1874,6 +2518,25 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     color: COLORS.green900,
   },
+  darkFilterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: COLORS.dark700,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  darkFilterChipActive: {
+    backgroundColor: '#ffffff',
+  },
+  darkFilterChipText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  darkFilterChipTextActive: {
+    color: COLORS.dark900,
+  },
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1919,11 +2582,156 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
   },
+  categoryLargeTitleLight: {
+    color: '#ffffff',
+  },
   categoryLargeHint: {
     color: COLORS.text,
     opacity: 0.7,
     fontSize: 13,
     fontWeight: '700',
+  },
+  categoryLargeHintLight: {
+    color: 'rgba(255,255,255,0.7)',
+  },
+  miniRail: {
+    gap: 12,
+  },
+  miniStoreCard: {
+    width: 170,
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  miniStoreHero: {
+    padding: 12,
+  },
+  miniStoreTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  miniOfferBadge: {
+    backgroundColor: 'rgba(255,255,255,0.76)',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  miniOfferBadgeText: {
+    color: COLORS.text,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  favoriteButtonMini: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.76)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniAvatar: {
+    width: 62,
+    height: 62,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 18,
+  },
+  miniAvatarText: {
+    color: COLORS.text,
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  miniStoreContent: {
+    padding: 12,
+  },
+  miniStoreName: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  miniStoreMeta: {
+    color: COLORS.muted,
+    fontSize: 12,
+    marginTop: 6,
+    lineHeight: 17,
+  },
+  bucketPill: {
+    minWidth: 128,
+    height: 92,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  bucketPillText: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  sceneGrid: {
+    gap: 12,
+  },
+  sceneCard: {
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  sceneCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sceneDateBadge: {
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  sceneDateText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  sceneEmoji: {
+    fontSize: 28,
+  },
+  scenePricePill: {
+    marginTop: 14,
+    alignSelf: 'flex-start',
+    backgroundColor: '#ec4899',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  scenePricePillText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  sceneTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 14,
+  },
+  sceneVenue: {
+    color: 'rgba(255,255,255,0.74)',
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 6,
+  },
+  sceneBucket: {
+    color: '#fbcfe8',
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 12,
   },
   storeCard: {
     backgroundColor: '#ffffff',
@@ -2055,41 +2863,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
   },
-  noteCard: {
-    backgroundColor: '#111827',
-    borderRadius: 24,
-    padding: 18,
-  },
-  noteCardSuccess: {
-    backgroundColor: '#ecfdf5',
-    borderRadius: 22,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-  },
-  noteTitle: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  noteText: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 8,
-  },
-  noteTitleDark: {
-    color: COLORS.green900,
-    fontSize: 17,
-    fontWeight: '900',
-  },
-  noteTextDark: {
-    color: COLORS.green900,
-    opacity: 0.85,
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 6,
-  },
   loadingWrap: {
     paddingVertical: 24,
     alignItems: 'center',
@@ -2172,84 +2945,223 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 3,
   },
-  chipWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  minorChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: COLORS.green050,
-  },
-  minorChipText: {
-    color: COLORS.green900,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  accountHero: {
-    backgroundColor: COLORS.green800,
+  accountHeaderCard: {
+    backgroundColor: '#d9465f',
     borderRadius: 28,
     padding: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  accountAvatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+  accountName: {
+    color: '#ffffff',
+    fontSize: 32,
+    fontWeight: '900',
+  },
+  accountPhone: {
+    color: 'rgba(255,255,255,0.92)',
+    fontSize: 18,
+    marginTop: 10,
+  },
+  accountEmail: {
+    color: 'rgba(255,255,255,0.92)',
+    fontSize: 16,
+    marginTop: 4,
+  },
+  helpButton: {
     backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  accountAvatarText: {
+  helpButtonText: {
     color: '#ffffff',
-    fontSize: 20,
-    fontWeight: '900',
+    fontWeight: '800',
+    fontSize: 14,
   },
-  accountHeroTitle: {
-    color: '#ffffff',
-    fontSize: 26,
-    fontWeight: '900',
-    marginTop: 16,
-  },
-  accountHeroText: {
-    color: 'rgba(255,255,255,0.88)',
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 8,
-  },
-  accountRow: {
+  oneCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 22,
-    padding: 16,
+    borderRadius: 24,
+    padding: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  oneBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    marginBottom: 10,
+  },
+  oneBadgeText: {
+    color: '#166534',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  oneTitle: {
+    color: COLORS.text,
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  oneSubText: {
+    color: COLORS.muted,
+    fontSize: 14,
+    marginTop: 4,
+  },
+  accountQuickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
-  accountRowIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  accountQuickCard: {
+    width: '22%',
+    minHeight: 102,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 10,
+    paddingVertical: 14,
+    justifyContent: 'space-between',
+  },
+  accountQuickText: {
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
+    marginTop: 10,
+  },
+  accountListCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+  accountListRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 12,
+  },
+  accountListRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: '#eef0f3',
+  },
+  accountListIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#f3f4f6',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  accountRowLabel: {
+  accountListLabel: {
+    flex: 1,
     color: COLORS.text,
     fontSize: 15,
+    fontWeight: '700',
+  },
+  segmentWrap: {
+    backgroundColor: '#eef0f3',
+    borderRadius: 18,
+    padding: 4,
+    flexDirection: 'row',
+  },
+  segmentButton: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentButtonActive: {
+    backgroundColor: '#111827',
+  },
+  segmentButtonText: {
+    color: COLORS.muted,
+    fontSize: 14,
     fontWeight: '800',
   },
-  accountRowValue: {
+  segmentButtonTextActive: {
+    color: '#ffffff',
+  },
+  pastOrderCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  pastOrderCardCompact: {
+    paddingBottom: 14,
+  },
+  pastOrderHeader: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  pastOrderThumb: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: COLORS.yellowSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pastOrderThumbText: {
+    color: COLORS.text,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  pastOrderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pastOrderTitle: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  pastOrderStatus: {
+    color: '#16a34a',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  pastOrderLocation: {
     color: COLORS.muted,
     fontSize: 13,
-    lineHeight: 18,
     marginTop: 4,
+  },
+  pastOrderItemLine: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 14,
+  },
+  pastOrderMeta: {
+    color: COLORS.muted,
+    fontSize: 13,
+    marginTop: 8,
+  },
+  reorderButton: {
+    marginTop: 16,
+    backgroundColor: '#fde7df',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  reorderButtonText: {
+    color: '#ea580c',
+    fontSize: 14,
+    fontWeight: '900',
   },
   innerHeader: {
     flexDirection: 'row',
