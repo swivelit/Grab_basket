@@ -4,15 +4,12 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Platform,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -23,16 +20,16 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import * as TrackingTransparency from 'expo-tracking-transparency';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import { API_BASE_URL, ADS_CONFIG, META_CONFIG } from './src/config';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { API_BASE_URL } from './src/config';
 
-const STORAGE_CART = '@grab_basket/cart_v7';
-const STORAGE_FAVORITES = '@grab_basket/favorites_v4';
-const STORAGE_RECENT_STORES = '@grab_basket/recent_stores_v5';
-const STORAGE_RECENT_SEARCHES = '@grab_basket/recent_searches_v4';
-const STORAGE_ORDER_HISTORY = '@grab_basket/order_history_v2';
+const STORAGE_CART = '@grab_basket/cart_v8';
+const STORAGE_FAVORITES = '@grab_basket/favorites_v5';
+const STORAGE_RECENT_STORES = '@grab_basket/recent_stores_v6';
+const STORAGE_RECENT_SEARCHES = '@grab_basket/recent_searches_v5';
+const STORAGE_ORDER_HISTORY = '@grab_basket/order_history_v3';
 
 const FREE_DELIVERY_THRESHOLD = 199;
 const PLATFORM_FEE = 6;
@@ -40,45 +37,86 @@ const PLATFORM_FEE = 6;
 const COLORS = {
   bg: '#f5f6f8',
   card: '#ffffff',
-  text: '#101828',
-  muted: '#667085',
-  subtle: '#98a2b3',
-  border: '#eaecf0',
-  green900: '#065f46',
-  green800: '#0b7a5a',
-  green700: '#12906d',
-  green100: '#d1fae5',
-  yellow100: '#fff3c4',
-  pink100: '#ffd7ec',
-  blue100: '#dbeafe',
-  purple100: '#ede9fe',
-  orange100: '#ffedd5',
-  dark950: '#020617',
-  dark900: '#09111f',
-  dark800: '#111827',
-  dark700: '#1f2937',
+  text: '#111827',
+  muted: '#6b7280',
+  subtle: '#9ca3af',
+  border: '#e5e7eb',
+  green: '#0f9d58',
+  greenDark: '#07693b',
+  purple: '#6d28d9',
+  purpleDark: '#4f1bb0',
+  purpleSoft: '#8b5cf6',
+  purpleText: '#efe9ff',
+  blueDark: '#082a73',
+  blue: '#0b3d91',
+  blueSoft: '#163d9c',
+  yellow: '#ffcd00',
+  yellowSoft: '#ffd84d',
+  orange: '#ff7a00',
+  deepGreen: '#0f4d32',
+  deepNavy: '#081a4b',
+  black: '#0f172a',
 };
 
 const TOP_SERVICES = [
-  { key: 'food', icon: 'restaurant-outline', label: 'Food' },
-  { key: 'instamart', icon: 'bag-handle-outline', label: 'Instamart' },
-  { key: 'dineout', icon: 'wine-outline', label: 'Dineout' },
-  { key: 'events', icon: 'sparkles-outline', label: 'Events' },
+  { key: 'food', label: 'Food', icon: 'fast-food-outline', emoji: '🍔' },
+  { key: 'warehouse', label: 'Warehouse', icon: 'basket-outline', emoji: '🛒', badge: '5 mins' },
+  { key: 'eatout', label: 'Eatout', icon: 'restaurant-outline', emoji: '🍽️' },
+  { key: 'scenes', label: 'Scenes', icon: 'sparkles-outline', emoji: '🪩' },
 ];
 
-const HOME_SHORTCUTS = [
-  { key: 'all', label: 'All', icon: 'apps-outline' },
+const FOOD_HIGHLIGHTS = [
+  { key: 'binge', title: 'Binge worthy deals', badge: 'Up to 60% OFF & more', emoji: '🎉' },
+  { key: 'eatright', title: 'EatRight', badge: 'Win up to ₹300 free cash', emoji: '🥗' },
+  { key: 'awards', title: 'Restaurant awards', badge: 'Best rated around you', emoji: '🏅' },
+];
+
+const WAREHOUSE_FILTERS = [
+  { key: 'all', label: 'All', icon: 'grid-outline' },
   { key: 'fresh', label: 'Fresh', icon: 'leaf-outline' },
-  { key: 'maxx', label: 'Max Saver', icon: 'pricetags-outline' },
-  { key: 'late', label: 'Late night', icon: 'moon-outline' },
-  { key: 'quick', label: 'Quick bites', icon: 'flash-outline' },
+  { key: 'maxxsaver', label: 'Maxxsaver', icon: 'pricetags-outline' },
+  { key: 'festival', label: 'Festival', icon: 'moon-outline' },
+  { key: 'ready', label: 'Quick picks', icon: 'flash-outline' },
 ];
 
-const STORE_FILTERS = ['All', 'Open now', 'Closest', 'A-Z'];
-const EVENT_FILTERS = ['All', 'Today', 'This Week', 'This Weekend', 'Next Weekend'];
-const PAST_ORDER_FILTERS = ['All', 'Food', 'Instamart'];
+const WAREHOUSE_BANNERS = [
+  { key: 'iftar', title: 'Iftar snacks & drinks', emoji: '🥤' },
+  { key: 'biryani', title: 'Biryani & feasting corner', emoji: '🍛' },
+  { key: 'dates', title: 'Dates, dry fruits & desserts', emoji: '🌰' },
+  { key: 'gifts', title: 'Gift-ready packs', emoji: '🎁' },
+];
 
-const CATEGORY_GRID = [
+const EATOUT_HIGHLIGHTS = [
+  { key: 'big', title: 'Flat 50% OFF', subtitle: 'Selected restaurants near you', emoji: '🧡' },
+  { key: 'hall', title: 'GIRF Hall of Fame', subtitle: 'Top discount champions', emoji: '🏆' },
+  { key: 'family', title: 'Family-friendly spots', subtitle: 'Comfort dining picks', emoji: '🍽️' },
+  { key: 'cafe', title: 'Cafes & quick bites', subtitle: 'Low-commitment plans', emoji: '☕' },
+  { key: 'freebie', title: 'Exciting freebies', subtitle: 'Desserts and add-ons', emoji: '🍰' },
+];
+
+const SCENE_CATEGORIES = [
+  { key: 'music', title: 'Music', emoji: '🎶' },
+  { key: 'comedy', title: 'Comedy', emoji: '😂' },
+  { key: 'kids', title: 'Kids', emoji: '🧒' },
+  { key: 'gaming', title: 'Gaming', emoji: '🎮' },
+  { key: 'wellness', title: 'Wellness', emoji: '🧘' },
+  { key: 'art', title: 'Art', emoji: '🎨' },
+  { key: 'food', title: 'Food pop-ups', emoji: '🍜' },
+  { key: 'workshop', title: 'Workshops', emoji: '🛠️' },
+];
+
+const FOOD_CATEGORIES = [
+  { key: 'south', emoji: '🍛', title: 'South Indian' },
+  { key: 'biryani', emoji: '🍗', title: 'Biryani' },
+  { key: 'cakes', emoji: '🎂', title: 'Cakes' },
+  { key: 'burgers', emoji: '🍔', title: 'Burgers' },
+  { key: 'healthy', emoji: '🥗', title: 'Healthy' },
+  { key: 'juice', emoji: '🧃', title: 'Juices' },
+  { key: 'late-night', emoji: '🌙', title: 'Late night' },
+  { key: 'breakfast', emoji: '🥞', title: 'Breakfast' },
+];
+
+const WAREHOUSE_CATEGORIES = [
   { key: 'veg', emoji: '🥬', title: 'Vegetables' },
   { key: 'fruit', emoji: '🍎', title: 'Fruits' },
   { key: 'dairy', emoji: '🥛', title: 'Dairy' },
@@ -86,133 +124,64 @@ const CATEGORY_GRID = [
   { key: 'snacks', emoji: '🍫', title: 'Snacks' },
   { key: 'drinks', emoji: '🥤', title: 'Drinks' },
   { key: 'beauty', emoji: '🧴', title: 'Beauty' },
-  { key: 'home', emoji: '🧼', title: 'Home Care' },
+  { key: 'home', emoji: '🧼', title: 'Home care' },
 ];
 
-const FOOD_PROMOS = [
-  { key: 'food-1', title: 'Up to 60% off', subtitle: 'Restaurants near you', emoji: '🍕', tone: COLORS.yellow100 },
-  { key: 'food-2', title: 'Late night cravings', subtitle: 'Open now', emoji: '🌙', tone: COLORS.pink100 },
-  { key: 'food-3', title: 'Dessert drop', subtitle: 'Sweet ends to the day', emoji: '🍰', tone: COLORS.purple100 },
+const EATOUT_CATEGORIES = [
+  { key: 'family', emoji: '👨‍👩‍👧‍👦', title: 'Family dining' },
+  { key: 'rooftop', emoji: '🌃', title: 'Rooftop' },
+  { key: 'cafe', emoji: '☕', title: 'Cafe dates' },
+  { key: 'premium', emoji: '🥂', title: 'Premium dining' },
+  { key: 'brunch', emoji: '🍳', title: 'Sunday brunch' },
+  { key: 'buffet', emoji: '🍽️', title: 'Buffet' },
+  { key: 'cashback', emoji: '💸', title: 'Cashback' },
+  { key: 'newhot', emoji: '🔥', title: 'New & hot' },
 ];
 
-const DINEOUT_PROMOS = [
-  { key: 'dine-1', title: 'Flat 50% off', subtitle: 'On selected table bookings', emoji: '🎉', tone: COLORS.yellow100 },
-  { key: 'dine-2', title: 'Date night picks', subtitle: 'Mood-first curation', emoji: '🥂', tone: COLORS.purple100 },
-  { key: 'dine-3', title: 'Family tables', subtitle: 'Kid-friendly comfort', emoji: '🍽️', tone: COLORS.green100 },
-];
-
-const EVENT_CATEGORIES = [
-  { key: 'music', emoji: '🎶', title: 'Music' },
-  { key: 'workshop', emoji: '🛠️', title: 'Workshops' },
-  { key: 'comedy', emoji: '😂', title: 'Comedy' },
-  { key: 'kids', emoji: '🧒', title: 'Kids' },
-  { key: 'wellness', emoji: '🧘', title: 'Wellness' },
-  { key: 'gaming', emoji: '🎮', title: 'Gaming' },
-  { key: 'art', emoji: '🎨', title: 'Art' },
-  { key: 'foodie', emoji: '🍜', title: 'Foodie' },
-];
-
-const EVENT_HERO_BANNERS = [
+const SCENE_EVENTS = [
   {
-    key: 'crazy-deal',
-    eyebrow: 'LIMITED TIME OFFER',
-    title: 'CRAZZY DEAL',
-    subtitle: 'Up to 20% off on select events!',
-  },
-  {
-    key: 'weekender',
-    eyebrow: 'WEEKEND DROP',
-    title: 'PLAN SOMETHING FUN',
-    subtitle: 'Fresh local picks for your group.',
-  },
-];
-
-const EVENT_DATA = [
-  {
-    id: 'event-1',
+    id: 'scene-1',
     title: 'Rage Room at Break N Chill',
-    venue: 'Break N Chill · Chittethukara',
+    venue: 'Chittethukara · 20 MAR',
     price: 299,
-    date: '20 MAR',
-    bucket: 'Today',
-    category: 'gaming',
-    accent: '#2a0b10',
     badge: 'Stress buster',
+    accent: '#2a0b10',
     emoji: '💥',
   },
   {
-    id: 'event-2',
+    id: 'scene-2',
     title: 'Pottery Wheel Throwing Workshop',
-    venue: 'Soil to Soul Ceramics · Kadavanthra',
+    venue: 'Kadavanthra · 22 MAR',
     price: 1000,
-    date: '20 MAR',
-    bucket: 'This Week',
-    category: 'workshop',
-    accent: '#4b3328',
     badge: 'Hands-on',
+    accent: '#4b3328',
     emoji: '🏺',
   },
   {
-    id: 'event-3',
-    title: 'Kimchi Culture Pop-up',
-    venue: 'Skei Presents · Kochi',
-    price: 699,
-    date: '22 MAR',
-    bucket: 'This Weekend',
-    category: 'foodie',
-    accent: '#5a1017',
-    badge: 'Limited seats',
-    emoji: '🍜',
-  },
-  {
-    id: 'event-4',
+    id: 'scene-3',
     title: 'Stand-up Comedy Night',
-    venue: 'Laugh Club · Kakkanad',
+    venue: 'Kakkanad · 23 MAR',
     price: 499,
-    date: '23 MAR',
-    bucket: 'This Weekend',
-    category: 'comedy',
-    accent: '#14213d',
     badge: 'Top rated',
+    accent: '#14213d',
     emoji: '🎤',
   },
   {
-    id: 'event-5',
+    id: 'scene-4',
     title: 'Kids Creative Lab',
-    venue: 'Mini Makers · Panampilly',
+    venue: 'Panampilly · 29 MAR',
     price: 399,
-    date: '29 MAR',
-    bucket: 'Next Weekend',
-    category: 'kids',
-    accent: '#3c1d64',
     badge: 'Family pick',
+    accent: '#3c1d64',
     emoji: '🎨',
   },
 ];
 
-const ACCOUNT_SHORTCUTS = [
-  { key: 'address', icon: 'location-outline', label: 'Saved Address' },
-  { key: 'payment', icon: 'card-outline', label: 'Payment Modes' },
-  { key: 'refunds', icon: 'reload-outline', label: 'Refunds' },
-  { key: 'wallet', icon: 'wallet-outline', label: 'Wallet' },
-];
-
-const ACCOUNT_ROWS = [
-  { icon: 'ticket-outline', label: 'My Vouchers' },
-  { icon: 'receipt-outline', label: 'Statements' },
-  { icon: 'bookmark-outline', label: 'Wishlists' },
-  { icon: 'heart-outline', label: 'Favourites' },
-  { icon: 'help-circle-outline', label: 'Support' },
-  { icon: 'shield-checkmark-outline', label: 'Privacy & consent' },
-];
-
-const STORE_TONES = ['#d1fae5', '#fef3c7', '#dbeafe', '#fce7f3', '#ede9fe', '#dcfce7'];
-
 const FALLBACK_HOME_DEALS = [
-  { key: 'deal-1', name: 'Amul Curd', price: 35, brand: 'Daily essential', emoji: '🥛' },
-  { key: 'deal-2', name: 'Cadbury Dairy Milk', price: 20, brand: 'Quick sweet bite', emoji: '🍫' },
-  { key: 'deal-3', name: 'Kissan Jam', price: 49, brand: 'Breakfast saver', emoji: '🍓' },
-  { key: 'deal-4', name: 'Classic Chips', price: 20, brand: 'Impulse add-on', emoji: '🥔' },
+  { key: 'deal-1', id: 'deal-1', vendor_id: 'fallback', name: 'Amul Curd', price: 35, brand: 'Daily essential', emoji: '🥛' },
+  { key: 'deal-2', id: 'deal-2', vendor_id: 'fallback', name: 'Cadbury Dairy Milk', price: 20, brand: 'Quick sweet bite', emoji: '🍫' },
+  { key: 'deal-3', id: 'deal-3', vendor_id: 'fallback', name: 'Kissan Jam', price: 49, brand: 'Breakfast saver', emoji: '🍓' },
+  { key: 'deal-4', id: 'deal-4', vendor_id: 'fallback', name: 'Classic Chips', price: 20, brand: 'Impulse add-on', emoji: '🥔' },
 ];
 
 const MOCK_PAST_ORDERS = [
@@ -237,9 +206,9 @@ const MOCK_PAST_ORDERS = [
     status: 'Delivered',
   },
   {
-    id: 'mock-insta-1',
-    service: 'instamart',
-    vendorName: 'Instamart Daily',
+    id: 'mock-warehouse-1',
+    service: 'warehouse',
+    vendorName: 'Warehouse Daily',
     location: 'Great Orchard',
     items: [{ name: 'Curd', qty: 1 }, { name: 'Cadbury Dairy Milk', qty: 1 }],
     orderedAt: 'Mar 18, 2:40 PM',
@@ -248,42 +217,49 @@ const MOCK_PAST_ORDERS = [
   },
 ];
 
+const PAST_ORDER_FILTERS = ['All', 'Food', 'Warehouse'];
+
 const SERVICE_THEMES = {
-  instamart: {
-    hero: COLORS.green800,
-    heroAccent: COLORS.green700,
-    heroPill: 'rgba(255,255,255,0.14)',
-    headline: '23 mins',
-    address: '12b, Great Orchard / Tower 1, Vidya Nagar',
-    searchPlaceholder: 'Search for milk, chips, fruits...',
-    bodyDark: false,
-  },
   food: {
-    hero: '#6d28d9',
-    heroAccent: '#7c3aed',
-    heroPill: 'rgba(255,255,255,0.14)',
+    hero: COLORS.purple,
+    heroAccent: COLORS.purpleSoft,
     headline: 'Valliachans Place',
     address: '12b, Great Orchard / Tower 1, Vidya Nagar',
-    searchPlaceholder: 'Search for biryani, pizza, desserts...',
-    bodyDark: false,
+    searchPlaceholder: "Search for 'EatRight'",
+    searchAction: 'VEG',
+    searchActionIcon: 'leaf-outline',
+    locationHint: 'Delivering to',
   },
-  dineout: {
-    hero: '#5b21b6',
-    heroAccent: '#6d28d9',
-    heroPill: 'rgba(255,255,255,0.14)',
+  warehouse: {
+    hero: COLORS.blueDark,
+    heroAccent: COLORS.blue,
+    headline: '5 mins',
+    address: 'To Valliachans Place: 12b, Great Orchard / Tower 1',
+    searchPlaceholder: 'Search for Dryfruits',
+    searchAction: '',
+    searchActionIcon: 'bookmark-outline',
+    locationHint: '',
+  },
+  eatout: {
+    hero: COLORS.purpleDark,
+    heroAccent: COLORS.purpleSoft,
     headline: 'Valliachans Place',
     address: '12b, Great Orchard / Tower 1, Vidya Nagar',
-    searchPlaceholder: 'Search for cuisines, cafes, offers...',
-    bodyDark: false,
+    searchPlaceholder: 'Search for cuisines',
+    searchAction: '',
+    searchActionIcon: 'search-outline',
+    locationHint: '',
+    topStrip: 'Earn flat 10% Dinecash on every bill payment',
   },
-  events: {
-    hero: COLORS.dark950,
-    heroAccent: COLORS.dark700,
-    heroPill: 'rgba(255,255,255,0.10)',
-    headline: '12b, Great Orchard',
-    address: 'Tower 1, Vidya Nagar',
-    searchPlaceholder: 'Search events, workshops, comedy...',
-    bodyDark: true,
+  scenes: {
+    hero: '#1d1144',
+    heroAccent: '#3b2a77',
+    headline: 'Tonight in Kochi',
+    address: 'Music, comedy, workshops and more',
+    searchPlaceholder: 'Search for events or experiences',
+    searchAction: '',
+    searchActionIcon: 'sparkles-outline',
+    locationHint: '',
   },
 };
 
@@ -292,7 +268,7 @@ function money(value) {
 }
 
 function initials(name = '') {
-  return name
+  return String(name || '')
     .split(' ')
     .filter(Boolean)
     .map((part) => part[0])
@@ -320,17 +296,30 @@ function dedupeStrings(values = []) {
   return output;
 }
 
-function getStoreTone(seed = 0) {
-  return STORE_TONES[seed % STORE_TONES.length];
+function mapLegacyService(value) {
+  const service = normalizeText(value);
+  if (service === 'instamart') return 'warehouse';
+  if (service === 'dineout') return 'eatout';
+  if (service === 'events') return 'scenes';
+  return service || 'food';
 }
 
-function estimateEta(vendor) {
+function serviceLabel(value) {
+  const service = mapLegacyService(value);
+  if (service === 'warehouse') return 'Warehouse';
+  if (service === 'eatout') return 'Eatout';
+  if (service === 'scenes') return 'Scenes';
+  return 'Food';
+}
+
+function estimateEta(vendor, service = 'food') {
+  if (service === 'eatout') return 'Table in 10-15 mins';
   if (vendor?.distance_km != null) {
     if (vendor.distance_km <= 2) return '15-20 mins';
     if (vendor.distance_km <= 5) return '20-30 mins';
     return '30-45 mins';
   }
-  return '23 mins';
+  return service === 'warehouse' ? '5-15 mins' : '23 mins';
 }
 
 function getDeliveryFeeAmount(vendor) {
@@ -339,7 +328,8 @@ function getDeliveryFeeAmount(vendor) {
   return 29;
 }
 
-function getDeliveryFeeLabel(vendor) {
+function getDeliveryFeeLabel(vendor, service = 'food') {
+  if (service === 'eatout') return 'Extra bank offers';
   const amount = getDeliveryFeeAmount(vendor);
   return amount === 0 ? 'Free delivery' : `${money(amount)} delivery`;
 }
@@ -349,8 +339,11 @@ function getVendorRating(vendor) {
   return (4.1 + (seed % 8) * 0.1).toFixed(1);
 }
 
-function getStoreOfferLabel(vendor) {
-  const offers = ['40% OFF', '60% OFF', 'ITEMS AT ₹79', 'FLAT 25% OFF'];
+function getStoreOfferLabel(vendor, service = 'food') {
+  const warehouseOffers = ['₹9 deal', '40% OFF', 'Daily price drop', 'Best brands'];
+  const foodOffers = ['40% OFF', '60% OFF', 'Items at ₹79', 'Flat 25% OFF'];
+  const eatoutOffers = ['Flat 50% OFF', 'Free dessert', 'Bank cashback', 'Extra 15% OFF'];
+  const offers = service === 'warehouse' ? warehouseOffers : service === 'eatout' ? eatoutOffers : foodOffers;
   const seed = Number(vendor?.id || 0) || String(vendor?.name || '').length || 0;
   return offers[seed % offers.length];
 }
@@ -367,6 +360,7 @@ function pickEmoji(name = '') {
   if (/(rice|dal|flour|atta)/.test(value)) return '🍚';
   if (/(beauty|cream|soap|shampoo|sunscreen)/.test(value)) return '🧴';
   if (/(pizza|burger|biryani|sandwich|meal)/.test(value)) return '🍔';
+  if (/(coffee|tea)/.test(value)) return '☕';
   return '🛒';
 }
 
@@ -393,9 +387,9 @@ function formatOrderTime(date = new Date()) {
 function createKeywordMap(vendors = []) {
   return {
     fresh: vendors.filter((vendor) => /(fruit|vegetable|fresh|dairy|farm|grocery|greens)/i.test(`${vendor.name} ${vendor.description}`)),
-    maxx: vendors.filter((vendor) => /(save|mart|basket|daily|essentials|value)/i.test(`${vendor.name} ${vendor.description}`)),
-    late: vendors.filter((vendor) => /(open|quick|snack|dessert|night)/i.test(`${vendor.name} ${vendor.description}`)),
-    quick: vendors.filter((vendor) => /(ready|instant|coffee|tea|bakery|juice)/i.test(`${vendor.name} ${vendor.description}`)),
+    maxxsaver: vendors.filter((vendor) => /(save|mart|basket|daily|essentials|value)/i.test(`${vendor.name} ${vendor.description}`)),
+    festival: vendors.filter((vendor) => /(dates|dry|dessert|sweet|gift|biryani|festival)/i.test(`${vendor.name} ${vendor.description}`)),
+    ready: vendors.filter((vendor) => /(ready|instant|coffee|tea|bakery|juice)/i.test(`${vendor.name} ${vendor.description}`)),
   };
 }
 
@@ -409,55 +403,17 @@ function buildVendorQuery(search, filter) {
 
 function sortVendors(list, filter) {
   const cloned = [...list];
-  switch (filter) {
-    case 'Closest':
-      return cloned.sort((a, b) => (a.distance_km ?? Number.MAX_SAFE_INTEGER) - (b.distance_km ?? Number.MAX_SAFE_INTEGER));
-    case 'A-Z':
-      return cloned.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-    default:
-      return cloned;
+  if (filter === 'Closest') {
+    return cloned.sort((a, b) => (a.distance_km ?? Number.MAX_SAFE_INTEGER) - (b.distance_km ?? Number.MAX_SAFE_INTEGER));
   }
+  if (filter === 'A-Z') {
+    return cloned.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  }
+  return cloned;
 }
 
 function findVendorById(list, id) {
   return list.find((item) => String(item.id) === String(id)) || null;
-}
-
-function getMetaSdk() {
-  try {
-    return require('react-native-fbsdk-next');
-  } catch {
-    return null;
-  }
-}
-
-async function initializeMetaSdk() {
-  const sdk = getMetaSdk();
-  if (!sdk?.Settings) return false;
-
-  try {
-    sdk.Settings.initializeSDK?.();
-    sdk.Settings.setAutoLogAppEventsEnabled?.(true);
-    sdk.Settings.setAdvertiserIDCollectionEnabled?.(true);
-
-    if (Platform.OS === 'ios') {
-      const permission = await TrackingTransparency.requestTrackingPermissionsAsync();
-      sdk.Settings.setAdvertiserTrackingEnabled?.(permission.status === 'granted');
-    }
-
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function logMetaEvent(name, params = {}) {
-  const sdk = getMetaSdk();
-  try {
-    sdk?.AppEventsLogger?.logEvent?.(name, undefined, params);
-  } catch {
-    // no-op in Expo Go or before native build is ready
-  }
 }
 
 async function apiRequest(path) {
@@ -494,11 +450,10 @@ export function useGrabBasket() {
 }
 
 export function GrabBasketProvider({ children }) {
-  const [activeService, setActiveService] = useState('instamart');
+  const [activeService, setActiveService] = useState('food');
   const [activeShortcut, setActiveShortcut] = useState('all');
   const [homeSearch, setHomeSearch] = useState('');
   const [storeFilter, setStoreFilter] = useState('All');
-  const [eventFilter, setEventFilter] = useState('All');
   const [pastOrderFilter, setPastOrderFilter] = useState('All');
 
   const [vendors, setVendors] = useState([]);
@@ -512,9 +467,8 @@ export function GrabBasketProvider({ children }) {
   const [recentStoreIds, setRecentStoreIds] = useState([]);
   const [recentSearches, setRecentSearches] = useState([]);
   const [orderHistory, setOrderHistory] = useState([]);
-  const [metaReady, setMetaReady] = useState(false);
 
-  const theme = SERVICE_THEMES[activeService];
+  const theme = SERVICE_THEMES[activeService] || SERVICE_THEMES.food;
 
   useEffect(() => {
     let mounted = true;
@@ -541,7 +495,13 @@ export function GrabBasketProvider({ children }) {
         if (savedFavorites) setFavorites(JSON.parse(savedFavorites));
         if (savedRecentStores) setRecentStoreIds(JSON.parse(savedRecentStores));
         if (savedRecentSearches) setRecentSearches(JSON.parse(savedRecentSearches));
-        if (savedOrders) setOrderHistory(JSON.parse(savedOrders));
+        if (savedOrders) {
+          const parsed = JSON.parse(savedOrders).map((item) => ({
+            ...item,
+            service: mapLegacyService(item.service),
+          }));
+          setOrderHistory(parsed);
+        }
       } catch {
         // ignore bad local state
       }
@@ -571,14 +531,6 @@ export function GrabBasketProvider({ children }) {
   useEffect(() => {
     AsyncStorage.setItem(STORAGE_ORDER_HISTORY, JSON.stringify(orderHistory)).catch(() => {});
   }, [orderHistory]);
-
-  useEffect(() => {
-    initializeMetaSdk().then((ready) => setMetaReady(ready));
-  }, []);
-
-  useEffect(() => {
-    logMetaEvent('grabbasket_service_view', { service: activeService });
-  }, [activeService]);
 
   const rememberSearch = useCallback((term) => {
     const value = String(term || '').trim();
@@ -692,7 +644,6 @@ export function GrabBasketProvider({ children }) {
 
   const featuredVendors = useMemo(() => shortcutFilteredVendors.slice(0, 6), [shortcutFilteredVendors]);
   const recentVendors = useMemo(() => recentStoreIds.map((id) => findVendorById(vendors, id)).filter(Boolean), [recentStoreIds, vendors]);
-  const favoriteVendors = useMemo(() => vendors.filter((vendor) => favorites[vendor.id]), [vendors, favorites]);
 
   const suggestionPool = useMemo(
     () =>
@@ -700,23 +651,17 @@ export function GrabBasketProvider({ children }) {
         ...recentSearches,
         ...(homeDeals.length > 0 ? homeDeals : FALLBACK_HOME_DEALS).map((item) => item.name),
         ...vendors.map((item) => item.name),
-        ...CATEGORY_GRID.map((item) => item.title),
-        ...EVENT_CATEGORIES.map((item) => item.title),
-      ]).slice(0, 10),
+        ...FOOD_CATEGORIES.map((item) => item.title),
+        ...WAREHOUSE_CATEGORIES.map((item) => item.title),
+        ...EATOUT_CATEGORIES.map((item) => item.title),
+      ]).slice(0, 12),
     [recentSearches, homeDeals, vendors]
   );
-
-  const filteredEvents = useMemo(() => {
-    const byTime = eventFilter === 'All' ? EVENT_DATA : EVENT_DATA.filter((event) => event.bucket === eventFilter);
-    const term = normalizeText(homeSearch);
-    if (!term || activeService !== 'events') return byTime;
-    return byTime.filter((event) => normalizeText(`${event.title} ${event.venue} ${event.category}`).includes(term));
-  }, [eventFilter, homeSearch, activeService]);
 
   const pastOrders = useMemo(() => {
     const items = orderHistory.length > 0 ? orderHistory : MOCK_PAST_ORDERS;
     if (pastOrderFilter === 'All') return items;
-    return items.filter((item) => item.service === pastOrderFilter.toLowerCase());
+    return items.filter((item) => mapLegacyService(item.service) === pastOrderFilter.toLowerCase());
   }, [orderHistory, pastOrderFilter]);
 
   const toggleFavorite = useCallback((vendorId) => {
@@ -762,12 +707,6 @@ export function GrabBasketProvider({ children }) {
           },
         };
       });
-
-      logMetaEvent('grabbasket_add_to_cart', {
-        product_name: product.name,
-        vendor_id: String(product.vendor_id || ''),
-        price: Number(product.price || 0),
-      });
     },
     [cart.vendorId, replaceCartWith]
   );
@@ -796,7 +735,7 @@ export function GrabBasketProvider({ children }) {
       return false;
     }
 
-    const service = activeService === 'instamart' ? 'instamart' : 'food';
+    const service = activeService === 'warehouse' ? 'warehouse' : activeService === 'eatout' ? 'eatout' : activeService === 'scenes' ? 'food' : 'food';
     const order = {
       id: `local-${Date.now()}`,
       service,
@@ -806,20 +745,19 @@ export function GrabBasketProvider({ children }) {
       items: cartItems.map((item) => ({ name: item.name, qty: item.qty })),
       orderedAt: formatOrderTime(new Date()),
       total: cartTotal,
-      status: 'Delivered',
+      status: service === 'eatout' ? 'Booked' : 'Delivered',
     };
 
     setOrderHistory((current) => [order, ...current].slice(0, 12));
     clearCart();
-    logMetaEvent('grabbasket_order_placed', {
-      service,
-      item_count: cartItems.length,
-      total_value: cartTotal,
-    });
-
-    Alert.alert('Demo order placed', 'Saved locally so Reorder and Account now feel much closer to a real app.');
+    Alert.alert(
+      service === 'eatout' ? 'Demo reservation saved' : 'Demo order placed',
+      service === 'eatout'
+        ? 'Saved locally so the Eatout flow feels closer to a booking app.'
+        : 'Saved locally so Reorder now feels much closer to a real app.'
+    );
     return true;
-  }, [cartItems, activeService, cartVendor, cartTotal, clearCart]);
+  }, [activeService, cartItems, cartVendor, cartTotal, clearCart]);
 
   const value = {
     activeService,
@@ -830,8 +768,6 @@ export function GrabBasketProvider({ children }) {
     setHomeSearch,
     storeFilter,
     setStoreFilter,
-    eventFilter,
-    setEventFilter,
     pastOrderFilter,
     setPastOrderFilter,
     vendors,
@@ -858,11 +794,8 @@ export function GrabBasketProvider({ children }) {
     theme,
     featuredVendors,
     recentVendors,
-    favoriteVendors,
     suggestionPool,
-    filteredEvents,
     pastOrders,
-    metaReady,
     toggleFavorite,
     rememberStore,
     rememberSearch,
@@ -888,7 +821,7 @@ function useOpenVendor() {
   );
 }
 
-function SectionHeader({ title, subtitle, light = false, actionLabel, onPressAction }) {
+function SectionHeader({ title, subtitle, actionLabel, onPressAction, light = false }) {
   return (
     <View style={styles.sectionHeader}>
       <View style={{ flex: 1 }}>
@@ -907,7 +840,7 @@ function SectionHeader({ title, subtitle, light = false, actionLabel, onPressAct
 function LoadingBlock({ label, light = false }) {
   return (
     <View style={styles.loadingWrap}>
-      <ActivityIndicator size="large" color={light ? '#ffffff' : COLORS.green800} />
+      <ActivityIndicator size="large" color={light ? '#ffffff' : COLORS.green} />
       <Text style={[styles.loadingText, light && { color: '#ffffff' }]}>{label}</Text>
     </View>
   );
@@ -916,16 +849,16 @@ function LoadingBlock({ label, light = false }) {
 function EmptyState({ title, text, light = false }) {
   return (
     <View style={[styles.emptyCard, light && styles.emptyCardDark]}>
-      <Text style={[styles.emptyTitle, light && styles.sectionTitleLight]}>{title}</Text>
-      <Text style={[styles.emptyText, light && styles.sectionSubtitleLight]}>{text}</Text>
+      <Text style={[styles.emptyTitle, light && styles.emptyTitleDark]}>{title}</Text>
+      <Text style={[styles.emptyText, light && styles.emptyTextDark]}>{text}</Text>
     </View>
   );
 }
 
-function MetaBadge({ text, dark = false }) {
+function MetaPill({ text, dark = false, accent = false }) {
   return (
-    <View style={[styles.badge, dark && styles.badgeDark]}>
-      <Text style={[styles.badgeText, dark && styles.badgeTextDark]}>{text}</Text>
+    <View style={[styles.metaPill, dark && styles.metaPillDark, accent && styles.metaPillAccent]}>
+      <Text style={[styles.metaPillText, dark && styles.metaPillTextDark, accent && styles.metaPillTextAccent]}>{text}</Text>
     </View>
   );
 }
@@ -944,176 +877,40 @@ function QtyStepper({ qty, onAdd, onRemove }) {
   );
 }
 
-function QuickDealCard({ item, qty = 0, onAdd, onRemove }) {
+function ServicePill({ item, active, onPress }) {
   return (
-    <View style={styles.dealCard}>
-      <Text style={styles.smallPill}>{getOfferLabel(item)}</Text>
-      <Text style={styles.dealEmoji}>{item.emoji || pickEmoji(item.name)}</Text>
-      <Text style={styles.dealTitle} numberOfLines={1}>{item.name}</Text>
-      <Text style={styles.dealMeta} numberOfLines={1}>{item.vendorName || item.brand}</Text>
-      <View style={styles.dealBottom}>
-        <Text style={styles.priceText}>{money(item.price)}</Text>
-        {qty > 0 && onAdd && onRemove ? (
-          <QtyStepper qty={qty} onAdd={onAdd} onRemove={onRemove} />
-        ) : (
-          <TouchableOpacity style={styles.addTinyButton} onPress={onAdd}>
-            <Text style={styles.addTinyButtonText}>{onAdd ? 'ADD' : 'VIEW'}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
-}
-
-function PromoTile({ item }) {
-  return (
-    <View style={[styles.promoTile, { backgroundColor: item.tone }]}>
-      <Text style={styles.promoEmoji}>{item.emoji}</Text>
-      <Text style={styles.promoTitle}>{item.title}</Text>
-      <Text style={styles.promoSubtitle}>{item.subtitle}</Text>
-    </View>
-  );
-}
-
-function StoreCard({ vendor, favorite, onOpen, onToggleFavorite, dark = false }) {
-  return (
-    <TouchableOpacity activeOpacity={0.95} style={[styles.storeCard, dark && styles.storeCardDark]} onPress={onOpen}>
-      <View style={[styles.storeAvatar, { backgroundColor: getStoreTone(Number(vendor?.id || 0)) }]}>
-        <Text style={styles.storeAvatarText}>{initials(vendor.name)}</Text>
-      </View>
-
-      <View style={styles.storeContent}>
-        <View style={styles.storeTitleRow}>
-          <Text style={[styles.storeName, dark && styles.storeNameDark]} numberOfLines={1}>{vendor.name}</Text>
-          <TouchableOpacity onPress={onToggleFavorite}>
-            <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={18} color={dark ? '#ffffff' : COLORS.text} />
-          </TouchableOpacity>
-        </View>
-
-        <Text style={[styles.storeDescription, dark && styles.storeDescriptionDark]} numberOfLines={2}>
-          {vendor.description || vendor.address || 'Daily essentials and groceries'}
-        </Text>
-
-        <View style={styles.badgeRow}>
-          <MetaBadge text={estimateEta(vendor)} dark={dark} />
-          <MetaBadge text={getDeliveryFeeLabel(vendor)} dark={dark} />
-          <MetaBadge text={`${getVendorRating(vendor)} ★`} dark={dark} />
-        </View>
+    <TouchableOpacity
+      activeOpacity={0.92}
+      style={[styles.servicePill, active && styles.servicePillActive]}
+      onPress={onPress}>
+      <Text style={styles.serviceEmoji}>{item.emoji}</Text>
+      <View>
+        {item.badge && active ? <Text style={styles.serviceBadge}>{item.badge}</Text> : null}
+        <Text style={styles.servicePillText}>{item.label}</Text>
       </View>
     </TouchableOpacity>
   );
 }
 
-function ProductCard({ product, qty, onAdd, onRemove }) {
+function HeroSearchBar({ placeholder, value, onChangeText, onSubmit, actionLabel, actionIcon }) {
   return (
-    <View style={styles.productCard}>
-      <View style={styles.productLeft}>
-        <Text style={styles.smallPill}>{getOfferLabel(product)}</Text>
-        <Text style={styles.productTitle}>{product.name}</Text>
-        <Text style={styles.productDesc}>{product.description || 'Store product'}</Text>
-        <Text style={styles.priceText}>{money(product.price)}</Text>
+    <View style={styles.heroSearchWrap}>
+      <View style={styles.heroSearch}>
+        <Ionicons name="search-outline" size={22} color={COLORS.muted} />
+        <TextInput
+          style={styles.heroSearchInput}
+          placeholder={placeholder}
+          placeholderTextColor={COLORS.subtle}
+          value={value}
+          onChangeText={onChangeText}
+          onSubmitEditing={onSubmit}
+        />
+        <Ionicons name={actionLabel ? 'mic-outline' : actionIcon || 'search-outline'} size={20} color={COLORS.muted} />
       </View>
-
-      <View style={styles.productRight}>
-        <View style={styles.productEmojiWrap}>
-          <Text style={styles.productEmoji}>{pickEmoji(product.name)}</Text>
-        </View>
-        {qty > 0 ? (
-          <QtyStepper qty={qty} onAdd={onAdd} onRemove={onRemove} />
-        ) : (
-          <TouchableOpacity style={styles.addButton} onPress={onAdd}>
-            <Text style={styles.addButtonText}>ADD</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
-}
-
-function PastOrderCard({ order, compact = false }) {
-  const firstItem = order.items?.[0];
-  const itemLine = firstItem
-    ? `${firstItem.qty || 1} x ${firstItem.name}${order.items.length > 1 ? ` +${order.items.length - 1} more` : ''}`
-    : 'Order';
-
-  return (
-    <View style={[styles.orderCard, compact && { marginBottom: 12 }]}>
-      <View style={styles.orderTop}>
-        <View style={styles.orderThumb}>
-          <Text style={styles.orderThumbText}>{initials(order.vendorName)}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.orderTitle}>{order.vendorName}</Text>
-          <Text style={styles.orderMeta}>{order.location}</Text>
-        </View>
-        <Text style={styles.orderStatus}>{order.status}</Text>
-      </View>
-
-      <Text style={styles.orderLine}>{itemLine}</Text>
-      <Text style={styles.orderMeta}>Ordered: {order.orderedAt} · Bill Total: {money(order.total)}</Text>
-    </View>
-  );
-}
-
-function AdEngineSlot({ slot, dark = false }) {
-  const { metaReady } = useGrabBasket();
-  const onceRef = useRef(false);
-
-  useEffect(() => {
-    if (onceRef.current) return;
-    onceRef.current = true;
-    logMetaEvent('grabbasket_ad_slot_visible', { slot });
-  }, [slot]);
-
-  const placementId = ADS_CONFIG.placements[slot];
-  const headline = placementId ? 'Meta placement ready' : 'Sponsored';
-  const subtitle = placementId
-    ? `Slot ${slot} is wired. Replace this fallback card with your native Audience Network renderer after you add the placement.`
-    : `Slot ${slot} is live in the UI. Add a Meta Audience Network placement ID to turn this into a monetized surface.`;
-
-  return (
-    <View style={[styles.adCard, dark && styles.adCardDark]}>
-      <View style={styles.adHeaderRow}>
-        <View>
-          <Text style={[styles.adEyebrow, dark && styles.adEyebrowDark]}>{headline}</Text>
-          <Text style={[styles.adTitle, dark && styles.adTitleDark]}>Ad engine slot · {slot}</Text>
-        </View>
-        <MetaBadge text={metaReady ? 'SDK ready' : 'SDK pending'} dark={dark} />
-      </View>
-      <Text style={[styles.adCopy, dark && styles.adCopyDark]}>{subtitle}</Text>
-      <View style={styles.adFooterRow}>
-        <Text style={[styles.adFootnote, dark && styles.adFootnoteDark]}>{META_CONFIG.adAccountId ? `Ad account: ${META_CONFIG.adAccountId}` : 'Add a Meta ad account in env'}</Text>
-        <TouchableOpacity onPress={() => logMetaEvent('grabbasket_ad_slot_tap', { slot })}>
-          <Text style={[styles.adAction, dark && styles.adActionDark]}>Learn more</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
-function EventPosterCard({ item }) {
-  return (
-    <View style={[styles.eventPosterCard, { backgroundColor: item.accent }]}>
-      <View style={styles.eventPosterArtwork}>
-        <Text style={styles.eventPosterEmoji}>{item.emoji}</Text>
-        <View style={styles.eventPosterBadgeWrap}>
-          <Text style={styles.eventPosterBadge}>{item.badge}</Text>
-        </View>
-      </View>
-
-      <View style={styles.eventPosterFooter}>
-        <Text style={styles.eventPosterPrice}>Starts at {money(item.price)}</Text>
-        <View style={styles.eventPosterMetaRow}>
-          <View style={styles.eventDateBox}>
-            <Text style={styles.eventDateText}>{item.date.split(' ')[0]}</Text>
-            <Text style={styles.eventDateMonth}>{item.date.split(' ')[1]}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.eventPosterTitle} numberOfLines={2}>{item.title}</Text>
-            <Text style={styles.eventPosterVenue} numberOfLines={2}>{item.venue}</Text>
-          </View>
-        </View>
-      </View>
+      <TouchableOpacity activeOpacity={0.92} style={styles.heroActionChip}>
+        {actionLabel ? <Text style={styles.heroActionChipText}>{actionLabel}</Text> : <Ionicons name={actionIcon || 'bookmark-outline'} size={20} color="#ffffff" />}
+        {actionLabel ? <Ionicons name={actionIcon || 'leaf-outline'} size={18} color="#ffffff" /> : null}
+      </TouchableOpacity>
     </View>
   );
 }
@@ -1127,225 +924,357 @@ function HomeHeroSection() {
     homeSearch,
     setHomeSearch,
     rememberSearch,
-    suggestionPool,
     theme,
   } = useGrabBasket();
 
-  const dark = activeService === 'events';
-  const headlineStyle = activeService === 'instamart' ? styles.heroEta : [styles.heroTitle, dark && styles.heroTitleDark];
+  const isWarehouse = activeService === 'warehouse';
+  const isEatout = activeService === 'eatout';
+  const isScenes = activeService === 'scenes';
 
   return (
-    <View style={[styles.hero, { backgroundColor: theme.hero }]}>
-      <View style={styles.heroTop}>
+    <View style={[styles.heroShell, { backgroundColor: theme.hero }]}>
+      {theme.topStrip ? (
+        <View style={styles.topStrip}>
+          <Ionicons name="cash-outline" size={18} color="#d1fae5" />
+          <Text style={styles.topStripText}>{theme.topStrip}</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.heroHeaderRow}>
         <View style={{ flex: 1 }}>
-          <Text style={headlineStyle}>{theme.headline}</Text>
-          <TouchableOpacity style={styles.addressRow} activeOpacity={0.9}>
-            <Text style={[styles.addressText, dark && styles.addressTextDark]} numberOfLines={1}>{theme.address}</Text>
-            <Ionicons name="chevron-down" size={16} color={dark ? '#ffffff' : '#d1fae5'} />
+          <Text style={styles.heroTitle}>{theme.headline}</Text>
+          {theme.locationHint ? <Text style={styles.heroTinyLabel}>{theme.locationHint}</Text> : null}
+          <TouchableOpacity activeOpacity={0.9} style={styles.heroAddressRow}>
+            <Text style={styles.heroAddress} numberOfLines={1}>{theme.address}</Text>
+            <Ionicons name="chevron-down" size={16} color="#ffffff" />
           </TouchableOpacity>
         </View>
-
-        <View style={[styles.profileCircle, { backgroundColor: theme.heroPill }]}>
-          <Ionicons name="person-outline" size={20} color="#ffffff" />
-        </View>
+        <TouchableOpacity activeOpacity={0.92} style={styles.profileCircle}>
+          <Ionicons name="person-outline" size={22} color="#ffffff" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.serviceRow}>
-        {TOP_SERVICES.map((item) => {
-          const active = activeService === item.key;
-          return (
-            <TouchableOpacity
-              key={item.key}
-              style={[styles.servicePill, active && { backgroundColor: theme.heroAccent, borderColor: 'rgba(255,255,255,0.28)' }]}
-              onPress={() => setActiveService(item.key)}>
-              <Ionicons name={item.icon} size={18} color="#ffffff" />
-              <Text style={styles.servicePillText}>{item.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      <View style={styles.heroSearch}>
-        <Ionicons name="search-outline" size={18} color={COLORS.muted} />
-        <TextInput
-          style={styles.heroSearchInput}
-          placeholder={theme.searchPlaceholder}
-          placeholderTextColor={COLORS.subtle}
-          value={homeSearch}
-          onChangeText={setHomeSearch}
-          onSubmitEditing={() => rememberSearch(homeSearch)}
-        />
-        <Ionicons name={activeService === 'food' ? 'mic-outline' : 'receipt-outline'} size={18} color={COLORS.muted} />
-      </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionRow}>
-        {suggestionPool.slice(0, 8).map((item) => (
-          <TouchableOpacity key={item} style={[styles.suggestionChip, dark && styles.suggestionChipDark]} onPress={() => { setHomeSearch(item); rememberSearch(item); }}>
-            <Text style={[styles.suggestionChipText, dark && styles.suggestionChipTextDark]}>{item}</Text>
-          </TouchableOpacity>
+        {TOP_SERVICES.map((item) => (
+          <ServicePill
+            key={item.key}
+            item={item}
+            active={activeService === item.key}
+            onPress={() => setActiveService(item.key)}
+          />
         ))}
       </ScrollView>
 
-      {activeService === 'instamart' ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shortcutRow}>
-          {HOME_SHORTCUTS.map((item) => {
+      <HeroSearchBar
+        placeholder={theme.searchPlaceholder}
+        value={homeSearch}
+        onChangeText={setHomeSearch}
+        onSubmit={() => rememberSearch(homeSearch)}
+        actionLabel={theme.searchAction}
+        actionIcon={theme.searchActionIcon}
+      />
+
+      {isWarehouse ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.inlineFilterRow}>
+          {WAREHOUSE_FILTERS.map((item) => {
             const active = activeShortcut === item.key;
             return (
-              <TouchableOpacity key={item.key} style={[styles.shortcutChip, active && styles.shortcutChipActive]} onPress={() => setActiveShortcut(item.key)}>
-                <Ionicons name={item.icon} size={14} color={active ? '#ffffff' : '#d1fae5'} />
-                <Text style={[styles.shortcutChipText, active && styles.shortcutChipTextActive]}>{item.label}</Text>
+              <TouchableOpacity
+                key={item.key}
+                activeOpacity={0.92}
+                style={[styles.inlineFilterChip, active && styles.inlineFilterChipActive]}
+                onPress={() => setActiveShortcut(item.key)}>
+                <Ionicons name={item.icon} size={16} color={active ? COLORS.blueDark : '#ffffff'} />
+                <Text style={[styles.inlineFilterText, active && styles.inlineFilterTextActive]}>{item.label}</Text>
               </TouchableOpacity>
             );
           })}
         </ScrollView>
       ) : null}
+
+      {isScenes ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sceneChipRow}>
+          {SCENE_CATEGORIES.slice(0, 6).map((item) => (
+            <View key={item.key} style={styles.sceneChip}>
+              <Text style={styles.sceneChipEmoji}>{item.emoji}</Text>
+              <Text style={styles.sceneChipText}>{item.title}</Text>
+            </View>
+          ))}
+        </ScrollView>
+      ) : null}
+
+      {isEatout ? <View style={styles.eatoutGlow} /> : null}
     </View>
   );
 }
 
-function VendorRail({ dark = false }) {
+function RestaurantSnapshotCard({ vendor, service = 'food', favorite, onOpen, onToggleFavorite }) {
+  return (
+    <TouchableOpacity activeOpacity={0.95} style={styles.snapshotCard} onPress={onOpen}>
+      <View style={[styles.snapshotImage, { backgroundColor: service === 'eatout' ? '#5c3a17' : '#2b0f34' }]}>
+        <View style={styles.snapshotBadgeWrap}>
+          <Text style={styles.snapshotOffer}>{getStoreOfferLabel(vendor, service)}</Text>
+        </View>
+        <TouchableOpacity activeOpacity={0.92} style={styles.snapshotHeart} onPress={onToggleFavorite}>
+          <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={16} color="#ffffff" />
+        </TouchableOpacity>
+        <Text style={styles.snapshotAvatar}>{initials(vendor.name)}</Text>
+      </View>
+      <Text style={styles.snapshotTitle} numberOfLines={1}>{vendor.name}</Text>
+      <Text style={styles.snapshotMeta} numberOfLines={1}>{estimateEta(vendor, service)} • {getVendorRating(vendor)} ★</Text>
+    </TouchableOpacity>
+  );
+}
+
+function VendorListCard({ vendor, service = 'food', favorite, onOpen, onToggleFavorite }) {
+  return (
+    <TouchableOpacity activeOpacity={0.95} style={styles.vendorCard} onPress={onOpen}>
+      <View style={[styles.vendorThumb, { backgroundColor: service === 'warehouse' ? '#dbeafe' : service === 'eatout' ? '#fef3c7' : '#ede9fe' }]}>
+        <Text style={styles.vendorThumbText}>{initials(vendor.name)}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <View style={styles.vendorTopRow}>
+          <Text style={styles.vendorName} numberOfLines={1}>{vendor.name}</Text>
+          <TouchableOpacity activeOpacity={0.9} onPress={onToggleFavorite}>
+            <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={18} color={favorite ? '#ef4444' : COLORS.text} />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.vendorDesc} numberOfLines={2}>{vendor.description || vendor.address || 'Curated local merchant'}</Text>
+        <View style={styles.vendorMetaRow}>
+          <MetaPill text={getStoreOfferLabel(vendor, service)} accent />
+          <MetaPill text={estimateEta(vendor, service)} />
+          <MetaPill text={getDeliveryFeeLabel(vendor, service)} />
+          <MetaPill text={`${getVendorRating(vendor)} ★`} />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function VendorRail({ service = 'food' }) {
   const { featuredVendors, favorites, toggleFavorite, vendorsLoading } = useGrabBasket();
   const openVendor = useOpenVendor();
 
-  if (vendorsLoading) return <LoadingBlock label="Loading stores..." light={dark} />;
-  if (featuredVendors.length === 0) return <EmptyState title="No stores yet" text="Your vendor feed is empty right now." light={dark} />;
+  if (vendorsLoading) return <LoadingBlock label="Loading stores..." />;
+  if (featuredVendors.length === 0) return <EmptyState title="No stores yet" text="Your vendor feed is empty right now." />;
 
   return featuredVendors.map((vendor) => (
-    <StoreCard
+    <VendorListCard
       key={vendor.id}
       vendor={vendor}
+      service={service}
       favorite={Boolean(favorites[vendor.id])}
       onOpen={() => openVendor(vendor)}
       onToggleFavorite={() => toggleFavorite(vendor.id)}
-      dark={dark}
     />
   ));
 }
 
-function InstamartServiceSection() {
+function FoodServiceSection() {
+  const { featuredVendors, favorites, toggleFavorite } = useGrabBasket();
+  const openVendor = useOpenVendor();
+
+  return (
+    <View style={styles.pageSection}>
+      <View style={styles.foodHeroBanner}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.foodHeroBannerTitle}>CRAVE</Text>
+          <Text style={styles.foodHeroBannerSub}>UP TO 60% OFF & MORE</Text>
+        </View>
+        <TouchableOpacity activeOpacity={0.92} style={styles.foodHeroBannerButton}>
+          <Text style={styles.foodHeroBannerButtonText}>ORDER NOW</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.highlightRow}>
+        {FOOD_HIGHLIGHTS.map((item) => (
+          <View key={item.key} style={styles.highlightCard}>
+            <Text style={styles.highlightEmoji}>{item.emoji}</Text>
+            <Text style={styles.highlightTitle}>{item.title}</Text>
+            <Text style={styles.highlightBadge}>{item.badge}</Text>
+          </View>
+        ))}
+      </View>
+
+      <SectionHeader title="Top rated near you" subtitle="Closer to the Swiggy discovery rhythm with visual first restaurant cards." />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
+        {featuredVendors.map((vendor) => (
+          <RestaurantSnapshotCard
+            key={vendor.id}
+            vendor={vendor}
+            service="food"
+            favorite={Boolean(favorites[vendor.id])}
+            onOpen={() => openVendor(vendor)}
+            onToggleFavorite={() => toggleFavorite(vendor.id)}
+          />
+        ))}
+      </ScrollView>
+
+      <SectionHeader title="Restaurants to order from" subtitle="Backend vendors still power the list, but the layout now feels much closer to a production food feed." />
+      <VendorRail service="food" />
+    </View>
+  );
+}
+
+function WarehouseDealCard({ item, qty = 0, onAdd, onRemove }) {
+  return (
+    <View style={styles.warehouseDealCard}>
+      <Text style={styles.warehouseDealBadge}>₹9 everyday</Text>
+      <View style={styles.warehouseDealIconWrap}>
+        <Text style={styles.warehouseDealIcon}>{item.emoji || pickEmoji(item.name)}</Text>
+      </View>
+      <Text style={styles.warehouseDealTitle} numberOfLines={1}>{item.name}</Text>
+      <Text style={styles.warehouseDealMeta} numberOfLines={1}>{item.vendorName || item.brand}</Text>
+      <View style={styles.warehouseDealFooter}>
+        <Text style={styles.warehouseDealPrice}>{money(item.price)}</Text>
+        {qty > 0 ? (
+          <QtyStepper qty={qty} onAdd={onAdd} onRemove={onRemove} />
+        ) : (
+          <TouchableOpacity activeOpacity={0.92} style={styles.selectButton} onPress={onAdd}>
+            <Text style={styles.selectButtonText}>Select</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function WarehouseServiceSection() {
   const { homeDeals, homeDealsLoading, cart, addToCart, updateQty } = useGrabBasket();
   const deals = homeDeals.length > 0 ? homeDeals : FALLBACK_HOME_DEALS;
 
   return (
     <View style={styles.pageSection}>
-      <SectionHeader title="Grab in minutes" subtitle="Fast-pick cards, small decision load, and grocery-first ordering." />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-        {(homeDealsLoading ? FALLBACK_HOME_DEALS : deals).map((item) => (
-          <QuickDealCard
-            key={item.key || item.id}
-            item={item}
-            qty={cart.items[item.id]?.qty || 0}
-            onAdd={() => addToCart(item)}
-            onRemove={() => updateQty(item, -1)}
+      <View style={styles.warehouseBanner}>
+        <Text style={styles.warehouseBannerTitle}>Ramzan Mubarak</Text>
+        <Text style={styles.warehouseBannerSub}>Festival-led merchandising, curated clusters and a faster quick-commerce feel.</Text>
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
+        {WAREHOUSE_BANNERS.map((item) => (
+          <View key={item.key} style={styles.warehouseMiniBanner}>
+            <Text style={styles.warehouseMiniBannerEmoji}>{item.emoji}</Text>
+            <Text style={styles.warehouseMiniBannerTitle}>{item.title}</Text>
+          </View>
+        ))}
+      </ScrollView>
+
+      <View style={styles.infoStripCard}>
+        <Text style={styles.infoStripText}>Explore 28 varieties of dates sourced from 12 countries.</Text>
+        <Ionicons name="chevron-forward" size={18} color="#ffffff" />
+      </View>
+
+      <View style={styles.warehouseDealsPanel}>
+        <View style={styles.warehouseDealsHeader}>
+          <Text style={styles.warehouseDealsTitle}>₹9 everyday</Text>
+          <Text style={styles.warehouseDealsSub}>Shop smart and unlock impulse-friendly add-ons.</Text>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
+          {(homeDealsLoading ? FALLBACK_HOME_DEALS : deals).map((item) => (
+            <WarehouseDealCard
+              key={item.key || item.id}
+              item={item}
+              qty={cart.items[item.id]?.qty || 0}
+              onAdd={() => addToCart(item)}
+              onRemove={() => updateQty(item, -1)}
+            />
+          ))}
+        </ScrollView>
+      </View>
+
+      <SectionHeader title="Stores near you" subtitle="Warehouse now reads like quick-commerce instead of a generic product list." />
+      <VendorRail service="warehouse" />
+    </View>
+  );
+}
+
+function EatoutServiceSection() {
+  const { featuredVendors, favorites, toggleFavorite } = useGrabBasket();
+  const openVendor = useOpenVendor();
+
+  return (
+    <View style={styles.pageSection}>
+      <View style={styles.eatoutHeroCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.eatoutHeroTitle}>PARTY{`\n`}FULL</Text>
+          <Text style={styles.eatoutHeroSub}>Discovery-first dining, sharper offer cards and clearer booking intent.</Text>
+        </View>
+        <View style={styles.eatoutHeroAvatarWrap}>
+          <Text style={styles.eatoutHeroAvatar}>😎</Text>
+        </View>
+      </View>
+
+      <View style={styles.eatoutOfferGrid}>
+        <View style={styles.eatoutBigOffer}>
+          <Text style={styles.eatoutBigOfferEmoji}>{EATOUT_HIGHLIGHTS[0].emoji}</Text>
+          <Text style={styles.eatoutBigOfferTitle}>{EATOUT_HIGHLIGHTS[0].title}</Text>
+          <Text style={styles.eatoutBigOfferSub}>{EATOUT_HIGHLIGHTS[0].subtitle}</Text>
+        </View>
+        <View style={styles.eatoutSmallOfferCol}>
+          {EATOUT_HIGHLIGHTS.slice(1).map((item) => (
+            <View key={item.key} style={styles.eatoutSmallOffer}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.eatoutSmallOfferTitle}>{item.title}</Text>
+                <Text style={styles.eatoutSmallOfferSub}>{item.subtitle}</Text>
+              </View>
+              <Text style={styles.eatoutSmallOfferEmoji}>{item.emoji}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.cashbackStrip}>
+        <Text style={styles.cashbackStripText}>Get FLAT ₹75 cashback with Mobikwik Wallet</Text>
+      </View>
+
+      <SectionHeader title="Book a table" subtitle="Offer-led place cards now feel closer to an actual dineout marketplace." />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
+        {featuredVendors.map((vendor) => (
+          <RestaurantSnapshotCard
+            key={vendor.id}
+            vendor={vendor}
+            service="eatout"
+            favorite={Boolean(favorites[vendor.id])}
+            onOpen={() => openVendor(vendor)}
+            onToggleFavorite={() => toggleFavorite(vendor.id)}
           />
         ))}
       </ScrollView>
 
-      <AdEngineSlot slot="home_inline" />
-      <SectionHeader title="Stores near you" subtitle="The feed is still API-driven, but the layout is much closer to a shipping app." />
-      <VendorRail />
+      <SectionHeader title="Popular places" subtitle="Until a dedicated bookings API lands, the shared vendor feed is styled to feel like Eatout." />
+      <VendorRail service="eatout" />
     </View>
   );
 }
 
-function FoodServiceSection() {
+function ScenesServiceSection() {
   return (
-    <View style={styles.pageSection}>
-      <SectionHeader title="Food discovery" subtitle="Promo-led restaurant browsing and clearer hierarchy." />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-        {FOOD_PROMOS.map((item) => <PromoTile key={item.key} item={item} />)}
-      </ScrollView>
-
-      <AdEngineSlot slot="food_inline" />
-      <SectionHeader title="Restaurants near you" subtitle="Real vendors from your backend continue to power the list." />
-      <VendorRail />
-    </View>
-  );
-}
-
-function DineoutServiceSection() {
-  return (
-    <View style={styles.pageSection}>
-      <SectionHeader title="Dineout picks" subtitle="Booking-first mood discovery, offers and premium tables." />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-        {DINEOUT_PROMOS.map((item) => <PromoTile key={item.key} item={item} />)}
-      </ScrollView>
-
-      <AdEngineSlot slot="dineout_inline" />
-      <SectionHeader title="Popular places" subtitle="Reusing the store feed until you wire a dedicated dineout API." />
-      <VendorRail />
-    </View>
-  );
-}
-
-function EventsServiceSection() {
-  const { filteredEvents, eventFilter, setEventFilter } = useGrabBasket();
-
-  return (
-    <View style={styles.eventsSectionWrap}>
-      <View style={styles.eventsHeroBanner}>
-        <Text style={styles.eventsHeroGlow}>✦</Text>
-        <Text style={styles.eventsHeroTitle}>{EVENT_HERO_BANNERS[0].title}</Text>
-        <Text style={styles.eventsHeroSub}>{EVENT_HERO_BANNERS[0].subtitle}</Text>
-        <Text style={styles.eventsHeroEyebrow}>{EVENT_HERO_BANNERS[0].eyebrow}</Text>
+    <View style={[styles.pageSection, { backgroundColor: '#150c33' }]}>
+      <View style={styles.sceneHeroCard}>
+        <Text style={styles.sceneHeroEyebrow}>Weekend drop</Text>
+        <Text style={styles.sceneHeroTitle}>PLAN SOMETHING FUN</Text>
+        <Text style={styles.sceneHeroSub}>Scenes is your placeholder for events, workshops and local moments.</Text>
       </View>
 
-      <AdEngineSlot slot="events_top" dark />
-
-      <SectionHeader
-        title="Featured this week"
-        subtitle="Horizontal discovery matches the reference direction much more closely now."
-        light
-        actionLabel="View all"
-      />
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-        {filteredEvents.slice(0, 5).map((item) => (
-          <View key={item.id} style={styles.eventPosterWrap}>
-            <EventPosterCard item={item} />
+      <SectionHeader title="Featured this week" subtitle="Keep this lighter until you wire real scenes data." light />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
+        {SCENE_EVENTS.map((item) => (
+          <View key={item.id} style={[styles.sceneEventCard, { backgroundColor: item.accent }]}>
+            <Text style={styles.sceneEventEmoji}>{item.emoji}</Text>
+            <MetaPill text={item.badge} dark />
+            <Text style={styles.sceneEventPrice}>Starts at {money(item.price)}</Text>
+            <Text style={styles.sceneEventTitle}>{item.title}</Text>
+            <Text style={styles.sceneEventVenue}>{item.venue}</Text>
           </View>
         ))}
       </ScrollView>
 
-      <Text style={styles.eventsQuestion}>WHEN IS THE PLAN?</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-        {EVENT_FILTERS.map((item) => (
-          <TouchableOpacity key={item} style={[styles.filterChipDark, eventFilter === item && styles.filterChipDarkActive]} onPress={() => setEventFilter(item)}>
-            <Text style={[styles.filterChipTextDark, eventFilter === item && styles.filterChipTextDarkActive]}>{item}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {filteredEvents.length === 0 ? (
-        <EmptyState title="No events" text="Try a different time bucket." light />
-      ) : (
-        filteredEvents.map((item) => (
-          <View key={`list-${item.id}`} style={styles.eventListCard}>
-            <View style={styles.eventListDateBox}>
-              <Text style={styles.eventListDateTop}>{item.date.split(' ')[0]}</Text>
-              <Text style={styles.eventListDateBottom}>{item.date.split(' ')[1]}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.eventListTitle}>{item.title}</Text>
-              <Text style={styles.eventListVenue}>{item.venue}</Text>
-              <View style={styles.badgeRow}>
-                <MetaBadge text={item.bucket} dark />
-                <MetaBadge text={item.badge} dark />
-              </View>
-            </View>
-            <Text style={styles.eventListPrice}>{money(item.price)}</Text>
-          </View>
-        ))
-      )}
-
-      <AdEngineSlot slot="events_mid" dark />
-
-      <SectionHeader title="Browse by vibe" subtitle="Bucket-led discovery below the fold." light />
+      <SectionHeader title="Browse by vibe" subtitle="A clean placeholder until scenes gets its own backend model." light />
       <View style={styles.categoryGrid}>
-        {EVENT_CATEGORIES.map((item) => (
-          <View key={item.key} style={styles.categoryTileDark}>
+        {SCENE_CATEGORIES.map((item) => (
+          <View key={item.key} style={styles.sceneCategoryTile}>
             <Text style={styles.categoryEmoji}>{item.emoji}</Text>
-            <Text style={styles.categoryTitleDark}>{item.title}</Text>
+            <Text style={styles.sceneCategoryText}>{item.title}</Text>
           </View>
         ))}
       </View>
@@ -1354,10 +1283,10 @@ function EventsServiceSection() {
 }
 
 export function HomeScreen() {
-  const { activeService, refreshing, loadVendors, theme, cartCount, cartTotal, cartSubtotal, freeDeliveryRemaining } = useGrabBasket();
+  const { activeService, refreshing, loadVendors, cartCount, cartTotal, cartSubtotal, freeDeliveryRemaining } = useGrabBasket();
   const router = useRouter();
   const tabBarHeight = useBottomTabBarHeight();
-  const isEvents = activeService === 'events';
+  const isScenes = activeService === 'scenes';
 
   const deliveryStripText =
     cartSubtotal <= 0
@@ -1367,32 +1296,32 @@ export function HomeScreen() {
         : 'FREE DELIVERY unlocked';
 
   return (
-    <SafeAreaView style={[styles.safeArea, isEvents && { backgroundColor: COLORS.dark950 }]}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.hero} />
-      <View style={styles.screen}>
+    <SafeAreaView style={[styles.safeArea, isScenes && { backgroundColor: '#150c33' }]}>
+      <StatusBar barStyle="light-content" backgroundColor={SERVICE_THEMES[activeService].hero} />
+      <View style={[styles.screen, isScenes && { backgroundColor: '#150c33' }]}>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarHeight + 120 }, isEvents && { backgroundColor: COLORS.dark950 }]}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadVendors({ pullToRefresh: true })} tintColor={isEvents ? '#ffffff' : COLORS.green800} />}>
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarHeight + 120 }, isScenes && { backgroundColor: '#150c33' }]}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadVendors({ pullToRefresh: true })} tintColor={isScenes ? '#ffffff' : COLORS.green} />}>
           <HomeHeroSection />
-          {activeService === 'instamart' && <InstamartServiceSection />}
           {activeService === 'food' && <FoodServiceSection />}
-          {activeService === 'dineout' && <DineoutServiceSection />}
-          {activeService === 'events' && <EventsServiceSection />}
+          {activeService === 'warehouse' && <WarehouseServiceSection />}
+          {activeService === 'eatout' && <EatoutServiceSection />}
+          {activeService === 'scenes' && <ScenesServiceSection />}
         </ScrollView>
 
         <View style={[styles.overlayArea, { bottom: tabBarHeight + 12 }]}>
           {cartCount > 0 ? (
-            <TouchableOpacity style={styles.floatingCartBar} onPress={() => router.push('/cart')}>
+            <TouchableOpacity activeOpacity={0.94} style={styles.floatingCartBar} onPress={() => router.push('/cart')}>
               <View>
-                <Text style={styles.floatingCartTitle}>View cart</Text>
+                <Text style={styles.floatingCartTitle}>{activeService === 'eatout' ? 'Continue booking' : 'View cart'}</Text>
                 <Text style={styles.floatingCartText}>{cartCount} items · {money(cartTotal)}</Text>
               </View>
               <Ionicons name="arrow-forward" size={20} color="#ffffff" />
             </TouchableOpacity>
           ) : null}
 
-          {activeService === 'instamart' ? (
+          {activeService === 'warehouse' ? (
             <View style={styles.deliveryStrip}>
               <Text style={styles.deliveryStripText}>{deliveryStripText}</Text>
             </View>
@@ -1405,58 +1334,83 @@ export function HomeScreen() {
 
 export function ExploreScreen() {
   const { activeService } = useGrabBasket();
-  const isEvents = activeService === 'events';
+  const isScenes = activeService === 'scenes';
 
-  const tiles = activeService === 'events'
-    ? EVENT_CATEGORIES
-    : activeService === 'instamart'
-      ? CATEGORY_GRID
+  const tiles =
+    activeService === 'warehouse'
+      ? WAREHOUSE_CATEGORIES
       : activeService === 'food'
-        ? [
-            { key: 'south', emoji: '🍛', title: 'South Indian' },
-            { key: 'biryani', emoji: '🍗', title: 'Biryani' },
-            { key: 'cakes', emoji: '🎂', title: 'Cakes' },
-            { key: 'burgers', emoji: '🍔', title: 'Burgers' },
-            { key: 'healthy', emoji: '🥗', title: 'Healthy' },
-            { key: 'juice', emoji: '🧃', title: 'Juices' },
-            { key: 'late-night', emoji: '🌙', title: 'Late night' },
-            { key: 'breakfast', emoji: '🥞', title: 'Breakfast' },
-          ]
-        : [
-            { key: 'family', emoji: '👨‍👩‍👧‍👦', title: 'Family dining' },
-            { key: 'rooftop', emoji: '🌃', title: 'Rooftop' },
-            { key: 'cafe', emoji: '☕', title: 'Cafe dates' },
-            { key: 'premium', emoji: '🥂', title: 'Premium dining' },
-            { key: 'brunch', emoji: '🍳', title: 'Sunday brunch' },
-            { key: 'buffet', emoji: '🍽️', title: 'Buffet' },
-            { key: 'cashback', emoji: '💸', title: 'Cashback' },
-            { key: 'newhot', emoji: '🔥', title: 'New & hot' },
-          ];
+        ? FOOD_CATEGORIES
+        : activeService === 'eatout'
+          ? EATOUT_CATEGORIES
+          : SCENE_CATEGORIES;
 
-  const title = activeService === 'instamart' ? 'Categories' : activeService === 'events' ? 'Event buckets' : 'Explore';
-  const subtitle = activeService === 'instamart'
-    ? 'Fast aisles and cleaner category discovery.'
-    : activeService === 'food'
-      ? 'Cuisine-led discovery tuned for delivery journeys.'
-      : activeService === 'dineout'
-        ? 'Mood-led dineout discovery for bookings and offers.'
-        : 'Buckets and vibes for event-led browsing.';
+  const title =
+    activeService === 'warehouse'
+      ? 'Warehouse categories'
+      : activeService === 'food'
+        ? 'Food discovery'
+        : activeService === 'eatout'
+          ? 'Eatout collections'
+          : 'Scenes';
+
+  const subtitle =
+    activeService === 'warehouse'
+      ? 'High-frequency aisles, clearer grouping and lower decision load.'
+      : activeService === 'food'
+        ? 'Cuisine-led discovery tuned for delivery journeys.'
+        : activeService === 'eatout'
+          ? 'Mood-led collections for bookings and bill offers.'
+          : 'Experiences, gigs and local plans.';
 
   return (
-    <SafeAreaView style={[styles.safeArea, isEvents && { backgroundColor: COLORS.dark950 }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.pageContent, isEvents && { backgroundColor: COLORS.dark950 }]}>
-        <SectionHeader title={title} subtitle={subtitle} light={isEvents} />
-        <AdEngineSlot slot="explore_inline" dark={isEvents} />
+    <SafeAreaView style={[styles.safeArea, isScenes && { backgroundColor: '#150c33' }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.pageContent, isScenes && { backgroundColor: '#150c33' }]}>
+        <SectionHeader title={title} subtitle={subtitle} light={isScenes} />
         <View style={styles.categoryGrid}>
           {tiles.map((item, index) => (
-            <View key={item.key} style={[styles.categoryTileLarge, isEvents ? styles.categoryTileDark : { backgroundColor: getStoreTone(index) }]}>
+            <View
+              key={item.key}
+              style={[
+                styles.categoryTile,
+                isScenes
+                  ? styles.sceneCategoryTile
+                  : { backgroundColor: index % 4 === 0 ? '#ede9fe' : index % 4 === 1 ? '#dbeafe' : index % 4 === 2 ? '#dcfce7' : '#fef3c7' },
+              ]}>
               <Text style={styles.categoryEmoji}>{item.emoji}</Text>
-              <Text style={[styles.categoryTitle, isEvents && { color: '#ffffff' }]}>{item.title}</Text>
+              <Text style={[styles.categoryTitle, isScenes && styles.sceneCategoryText]}>{item.title}</Text>
             </View>
           ))}
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function PastOrderCard({ order }) {
+  const firstItem = order.items?.[0];
+  const itemLine = firstItem
+    ? `${firstItem.qty || 1} x ${firstItem.name}${order.items.length > 1 ? ` +${order.items.length - 1} more` : ''}`
+    : 'Order';
+
+  return (
+    <View style={styles.orderCard}>
+      <View style={styles.orderTop}>
+        <View style={[styles.orderThumb, { backgroundColor: mapLegacyService(order.service) === 'warehouse' ? '#dbeafe' : '#ede9fe' }]}>
+          <Text style={styles.orderThumbText}>{initials(order.vendorName)}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.orderTitle}>{order.vendorName}</Text>
+          <Text style={styles.orderMeta}>{order.location}</Text>
+        </View>
+        <Text style={styles.orderStatus}>{order.status}</Text>
+      </View>
+      <Text style={styles.orderLine}>{itemLine}</Text>
+      <Text style={styles.orderMeta}>Ordered: {order.orderedAt} · Bill Total: {money(order.total)}</Text>
+      <View style={styles.orderLabelRow}>
+        <MetaPill text={serviceLabel(order.service)} accent />
+      </View>
+    </View>
   );
 }
 
@@ -1468,7 +1422,7 @@ export function ReorderScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
-        <SectionHeader title="Reorder" subtitle="Local history is enough to make this useful even before auth is enabled." />
+        <SectionHeader title="Reorder" subtitle="This now supports both food and warehouse history with cleaner service labels." />
 
         {cartCount === 0 ? (
           <EmptyState title="No active basket yet" text="Open a store and add products. Demo orders placed from cart will show up here." />
@@ -1477,23 +1431,29 @@ export function ReorderScreen() {
             <Text style={styles.panelTitle}>Current basket snapshot</Text>
             <Text style={styles.panelText}>{cartVendor?.name || 'Current store'}</Text>
             <Text style={styles.panelSubText}>{cartCount} items · {money(cartTotal)}</Text>
-            <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/cart')}>
+            <TouchableOpacity activeOpacity={0.92} style={styles.primaryButton} onPress={() => router.push('/cart')}>
               <Text style={styles.primaryButtonText}>Open cart</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        <AdEngineSlot slot="reorder_inline" />
-
         <View style={styles.segmentWrap}>
           {PAST_ORDER_FILTERS.map((item) => (
-            <TouchableOpacity key={item} style={[styles.segmentButton, pastOrderFilter === item && styles.segmentButtonActive]} onPress={() => setPastOrderFilter(item)}>
+            <TouchableOpacity
+              key={item}
+              activeOpacity={0.92}
+              style={[styles.segmentButton, pastOrderFilter === item && styles.segmentButtonActive]}
+              onPress={() => setPastOrderFilter(item)}>
               <Text style={[styles.segmentButtonText, pastOrderFilter === item && styles.segmentButtonTextActive]}>{item}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {pastOrders.length === 0 ? <EmptyState title="No past orders yet" text="Place one demo order from cart and this section gets stronger instantly." /> : pastOrders.map((order) => <PastOrderCard key={order.id} order={order} />)}
+        {pastOrders.length === 0 ? (
+          <EmptyState title="No past orders yet" text="Place one demo order from cart and this section gets stronger instantly." />
+        ) : (
+          pastOrders.map((order) => <PastOrderCard key={order.id} order={order} />)
+        )}
 
         {recentVendors.length > 0 ? (
           <View style={styles.panelCard}>
@@ -1517,82 +1477,24 @@ export function ReorderScreen() {
   );
 }
 
-export function AccountScreen() {
-  const { favoriteVendors, pastOrders } = useGrabBasket();
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
-        <View style={styles.accountHeaderCard}>
-          <View>
-            <Text style={styles.accountName}>Guest</Text>
-            <Text style={styles.accountSubText}>+91 · 0000000000</Text>
-            <Text style={styles.accountSubText}>guest@grabbasket.app</Text>
-          </View>
-          <TouchableOpacity style={styles.helpButton}>
-            <Text style={styles.helpButtonText}>Help</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.oneCard}>
-          <View>
-            <Text style={styles.smallPill}>ACTIVE</Text>
-            <Text style={styles.panelTitle}>₹35 saved in 36 days</Text>
-            <Text style={styles.panelSubText}>Replace this with real loyalty logic later.</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={COLORS.subtle} />
-        </View>
-
-        <AdEngineSlot slot="account_inline" />
-
-        <View style={styles.quickGrid}>
-          {ACCOUNT_SHORTCUTS.map((item) => (
-            <View key={item.key} style={styles.quickCard}>
-              <Ionicons name={item.icon} size={20} color={COLORS.text} />
-              <Text style={styles.quickCardText}>{item.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.panelCard}>
-          {ACCOUNT_ROWS.map((item) => (
-            <View key={item.label} style={styles.simpleListRow}>
-              <View style={styles.simpleListIcon}>
-                <Ionicons name={item.icon} size={18} color={COLORS.text} />
-              </View>
-              <Text style={styles.simpleListTitle}>{item.label}</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.subtle} />
-            </View>
-          ))}
-        </View>
-
-        {favoriteVendors.length > 0 ? (
-          <View style={styles.panelCard}>
-            <Text style={styles.panelTitle}>Favourite stores</Text>
-            {favoriteVendors.slice(0, 3).map((vendor) => (
-              <View key={vendor.id} style={styles.simpleListRow}>
-                <View style={styles.simpleListIcon}>
-                  <Text style={styles.simpleListIconText}>{initials(vendor.name)}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.simpleListTitle}>{vendor.name}</Text>
-                  <Text style={styles.simpleListMeta}>{estimateEta(vendor)} · {getStoreOfferLabel(vendor)}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        ) : null}
-
-        {pastOrders.slice(0, 3).map((order) => <PastOrderCard key={`account-${order.id}`} order={order} compact />)}
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
 export function VendorDetailsScreen() {
   const { vendorId } = useLocalSearchParams();
   const router = useRouter();
-  const { vendors, vendorsLoading, favorites, toggleFavorite, rememberStore, rememberSearch, cart, cartCount, cartTotal, loadProducts, addToCart, updateQty } = useGrabBasket();
+  const {
+    vendors,
+    vendorsLoading,
+    activeService,
+    favorites,
+    toggleFavorite,
+    rememberStore,
+    rememberSearch,
+    cart,
+    cartCount,
+    cartTotal,
+    loadProducts,
+    addToCart,
+    updateQty,
+  } = useGrabBasket();
 
   const vendor = useMemo(() => findVendorById(vendors, vendorId), [vendors, vendorId]);
   const [productSearch, setProductSearch] = useState('');
@@ -1623,7 +1525,7 @@ export function VendorDetailsScreen() {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.pageContent}>
           <EmptyState title="Store not found" text="This vendor is missing or not loaded yet." />
-          <TouchableOpacity style={styles.primaryButton} onPress={() => router.replace('/')}>
+          <TouchableOpacity activeOpacity={0.92} style={styles.primaryButton} onPress={() => router.replace('/')}>
             <Text style={styles.primaryButtonText}>Back to home</Text>
           </TouchableOpacity>
         </View>
@@ -1634,14 +1536,14 @@ export function VendorDetailsScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.innerHeader}>
-        <TouchableOpacity style={styles.iconButton} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
+        <TouchableOpacity activeOpacity={0.92} style={styles.iconButton} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
           <Ionicons name="arrow-back-outline" size={20} color={COLORS.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.innerHeaderTitle}>{vendor.name}</Text>
-          <Text style={styles.innerHeaderSubtitle}>{estimateEta(vendor)} · {vendor?.open_now ? 'Open now' : 'Store details'}</Text>
+          <Text style={styles.innerHeaderSubtitle}>{estimateEta(vendor, activeService)} · {vendor?.open_now ? 'Open now' : 'Store details'}</Text>
         </View>
-        <TouchableOpacity style={styles.iconButton} onPress={() => toggleFavorite(vendor.id)}>
+        <TouchableOpacity activeOpacity={0.92} style={styles.iconButton} onPress={() => toggleFavorite(vendor.id)}>
           <Ionicons name={favorites[vendor.id] ? 'heart' : 'heart-outline'} size={18} color={COLORS.text} />
         </TouchableOpacity>
       </View>
@@ -1649,26 +1551,26 @@ export function VendorDetailsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContentWithFloat}>
         <View style={styles.vendorHeroCard}>
           <View style={styles.vendorHeroTop}>
-            <View style={styles.vendorInitialBadge}><Text style={styles.vendorInitialBadgeText}>{initials(vendor.name)}</Text></View>
-            <MetaBadge text={`${getVendorRating(vendor)} ★`} />
+            <View style={[styles.vendorInitialBadge, { backgroundColor: activeService === 'warehouse' ? '#dbeafe' : activeService === 'eatout' ? '#fef3c7' : '#ede9fe' }]}>
+              <Text style={styles.vendorInitialBadgeText}>{initials(vendor.name)}</Text>
+            </View>
+            <MetaPill text={`${getVendorRating(vendor)} ★`} accent />
           </View>
           <Text style={styles.vendorHeroTitle}>{vendor.name}</Text>
-          <Text style={styles.vendorHeroText}>{vendor.description || vendor.address || 'Quick grocery and essentials store'}</Text>
-          <View style={styles.badgeRow}>
-            <MetaBadge text={vendor?.open_now ? 'Open now' : 'Store'} />
-            <MetaBadge text={`ETA ${estimateEta(vendor)}`} />
-            <MetaBadge text={getDeliveryFeeLabel(vendor)} />
-            {vendor?.distance_km != null ? <MetaBadge text={`${vendor.distance_km.toFixed(1)} km`} /> : null}
+          <Text style={styles.vendorHeroText}>{vendor.description || vendor.address || 'Curated local merchant'}</Text>
+          <View style={styles.vendorMetaRow}>
+            <MetaPill text={activeService === 'eatout' ? 'Reserve ready' : vendor?.open_now ? 'Open now' : 'Store'} />
+            <MetaPill text={`ETA ${estimateEta(vendor, activeService)}`} />
+            <MetaPill text={getDeliveryFeeLabel(vendor, activeService)} />
+            {vendor?.distance_km != null ? <MetaPill text={`${vendor.distance_km.toFixed(1)} km`} /> : null}
           </View>
         </View>
-
-        <AdEngineSlot slot="store_inline" />
 
         <View style={styles.searchBoxPlain}>
           <Ionicons name="search-outline" size={20} color={COLORS.muted} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search inside store"
+            placeholder={activeService === 'eatout' ? 'Search dishes or offers' : 'Search inside store'}
             placeholderTextColor={COLORS.subtle}
             value={productSearch}
             onChangeText={setProductSearch}
@@ -1681,15 +1583,34 @@ export function VendorDetailsScreen() {
           <EmptyState title="No products yet" text="Add products from the seller side and this page will start looking complete." />
         ) : (
           products.map((product) => (
-            <ProductCard key={product.id} product={product} qty={cart.items[product.id]?.qty || 0} onAdd={() => addToCart(product)} onRemove={() => updateQty(product, -1)} />
+            <View key={product.id} style={styles.productCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.productBadge}>{getOfferLabel(product)}</Text>
+                <Text style={styles.productTitle}>{product.name}</Text>
+                <Text style={styles.productDesc}>{product.description || 'Store product'}</Text>
+                <Text style={styles.productPrice}>{money(product.price)}</Text>
+              </View>
+              <View style={styles.productActionCol}>
+                <View style={styles.productIconWrap}>
+                  <Text style={styles.productIcon}>{pickEmoji(product.name)}</Text>
+                </View>
+                {cart.items[product.id]?.qty > 0 ? (
+                  <QtyStepper qty={cart.items[product.id]?.qty || 0} onAdd={() => addToCart(product)} onRemove={() => updateQty(product, -1)} />
+                ) : (
+                  <TouchableOpacity activeOpacity={0.92} style={styles.addButton} onPress={() => addToCart(product)}>
+                    <Text style={styles.addButtonText}>{activeService === 'eatout' ? 'BOOK' : 'ADD'}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
           ))
         )}
       </ScrollView>
 
       {cartCount > 0 && String(cart.vendorId) === String(vendor.id) ? (
-        <TouchableOpacity style={styles.floatingCartCta} onPress={() => router.push('/cart')}>
+        <TouchableOpacity activeOpacity={0.94} style={styles.floatingCartCta} onPress={() => router.push('/cart')}>
           <View>
-            <Text style={styles.floatingCartTitle}>View cart</Text>
+            <Text style={styles.floatingCartTitle}>{activeService === 'eatout' ? 'Continue booking' : 'View cart'}</Text>
             <Text style={styles.floatingCartText}>{cartCount} items · {money(cartTotal)}</Text>
           </View>
           <Ionicons name="arrow-forward" size={20} color="#ffffff" />
@@ -1701,16 +1622,30 @@ export function VendorDetailsScreen() {
 
 export function CartScreen() {
   const router = useRouter();
-  const { cartItems, cartVendor, cartSubtotal, deliveryFeeAmount, platformFeeAmount, cartTotal, freeDeliveryRemaining, freeDeliveryProgress, addToCart, updateQty, clearCart, placeDemoOrder } = useGrabBasket();
+  const {
+    activeService,
+    cartItems,
+    cartVendor,
+    cartSubtotal,
+    deliveryFeeAmount,
+    platformFeeAmount,
+    cartTotal,
+    freeDeliveryRemaining,
+    freeDeliveryProgress,
+    addToCart,
+    updateQty,
+    clearCart,
+    placeDemoOrder,
+  } = useGrabBasket();
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.innerHeader}>
-        <TouchableOpacity style={styles.iconButton} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
+        <TouchableOpacity activeOpacity={0.92} style={styles.iconButton} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
           <Ionicons name="arrow-back-outline" size={20} color={COLORS.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.innerHeaderTitle}>Cart</Text>
+          <Text style={styles.innerHeaderTitle}>{activeService === 'eatout' ? 'Booking' : 'Cart'}</Text>
           <Text style={styles.innerHeaderSubtitle}>{cartVendor?.name || 'Your basket'}</Text>
         </View>
       </View>
@@ -1720,21 +1655,21 @@ export function CartScreen() {
           <EmptyState title="Your cart is empty" text="Add products from a single store and they will appear here." />
         ) : (
           <>
-            <View style={styles.panelCard}>
-              <Text style={styles.panelTitle}>Free delivery progress</Text>
-              <Text style={styles.panelSubText}>
-                {cartSubtotal <= 0
-                  ? `Add items worth ${money(FREE_DELIVERY_THRESHOLD)} to unlock free delivery.`
-                  : freeDeliveryRemaining > 0
-                    ? `Add ${money(freeDeliveryRemaining)} more to unlock free delivery.`
-                    : 'Free delivery unlocked for this basket.'}
-              </Text>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: freeDeliveryProgress === 0 ? '0%' : `${Math.max(8, freeDeliveryProgress * 100)}%` }]} />
+            {activeService !== 'eatout' ? (
+              <View style={styles.panelCard}>
+                <Text style={styles.panelTitle}>Free delivery progress</Text>
+                <Text style={styles.panelSubText}>
+                  {cartSubtotal <= 0
+                    ? `Add items worth ${money(FREE_DELIVERY_THRESHOLD)} to unlock free delivery.`
+                    : freeDeliveryRemaining > 0
+                      ? `Add ${money(freeDeliveryRemaining)} more to unlock free delivery.`
+                      : 'Free delivery unlocked for this basket.'}
+                </Text>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: freeDeliveryProgress === 0 ? '0%' : `${Math.max(8, freeDeliveryProgress * 100)}%` }]} />
+                </View>
               </View>
-            </View>
-
-            <AdEngineSlot slot="cart_inline" />
+            ) : null}
 
             <View style={styles.panelCard}>
               {cartItems.map((item) => (
@@ -1749,18 +1684,26 @@ export function CartScreen() {
             </View>
 
             <View style={styles.panelCard}>
-              <Text style={styles.panelTitle}>Bill details</Text>
+              <Text style={styles.panelTitle}>{activeService === 'eatout' ? 'Booking details' : 'Bill details'}</Text>
               <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Subtotal</Text><Text style={styles.summaryValue}>{money(cartSubtotal)}</Text></View>
-              <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Delivery fee</Text><Text style={styles.summaryValue}>{deliveryFeeAmount === 0 ? 'FREE' : money(deliveryFeeAmount)}</Text></View>
-              <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Platform fee</Text><Text style={styles.summaryValue}>{money(platformFeeAmount)}</Text></View>
+              {activeService !== 'eatout' ? <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Delivery fee</Text><Text style={styles.summaryValue}>{deliveryFeeAmount === 0 ? 'FREE' : money(deliveryFeeAmount)}</Text></View> : null}
+              <View style={styles.summaryRow}><Text style={styles.summaryLabel}>{activeService === 'eatout' ? 'Platform fee' : 'Platform fee'}</Text><Text style={styles.summaryValue}>{money(platformFeeAmount)}</Text></View>
               <View style={styles.summaryDivider} />
               <View style={styles.summaryRow}><Text style={styles.summaryLabelStrong}>Total</Text><Text style={styles.summaryValueStrong}>{money(cartTotal)}</Text></View>
             </View>
 
-            <TouchableOpacity style={styles.primaryButton} onPress={() => { const ok = placeDemoOrder(); if (ok) router.replace('/reorder'); }}>
-              <Text style={styles.primaryButtonText}>Place demo order</Text>
+            <TouchableOpacity
+              activeOpacity={0.92}
+              style={styles.primaryButton}
+              onPress={() => {
+                const ok = placeDemoOrder();
+                if (ok) router.replace('/reorder');
+              }}>
+              <Text style={styles.primaryButtonText}>{activeService === 'eatout' ? 'Confirm demo booking' : 'Place demo order'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={clearCart}><Text style={styles.secondaryButtonText}>Clear cart</Text></TouchableOpacity>
+            <TouchableOpacity activeOpacity={0.92} style={styles.secondaryButton} onPress={clearCart}>
+              <Text style={styles.secondaryButtonText}>Clear cart</Text>
+            </TouchableOpacity>
           </>
         )}
       </ScrollView>
@@ -1779,189 +1722,534 @@ const styles = StyleSheet.create({
   pageSection: { padding: 16, gap: 16 },
   pageContent: { padding: 16, paddingBottom: 120, gap: 16 },
   pageContentWithFloat: { padding: 16, paddingBottom: 120, gap: 16 },
-  hero: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
-  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  heroEta: { color: '#ffffff', fontSize: 28, fontWeight: '900' },
-  heroTitle: { color: '#ffffff', fontSize: 24, fontWeight: '900' },
-  heroTitleDark: { color: '#ffffff' },
-  addressRow: { marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  addressText: { color: '#d1fae5', fontSize: 14, fontWeight: '600', flex: 1 },
-  addressTextDark: { color: 'rgba(255,255,255,0.82)' },
-  profileCircle: { height: 42, width: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  serviceRow: { paddingTop: 18, paddingBottom: 10, gap: 12 },
-  servicePill: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.05)' },
-  servicePillText: { color: '#ffffff', fontSize: 16, fontWeight: '800' },
-  heroSearch: { height: 52, borderRadius: 26, backgroundColor: '#ffffff', paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  heroSearchInput: { flex: 1, color: COLORS.text, fontSize: 15, fontWeight: '600' },
-  suggestionRow: { paddingTop: 12, gap: 8 },
-  suggestionChip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.12)' },
-  suggestionChipDark: { backgroundColor: 'rgba(255,255,255,0.08)' },
-  suggestionChipText: { color: '#d1fae5', fontSize: 12, fontWeight: '700' },
-  suggestionChipTextDark: { color: 'rgba(255,255,255,0.85)' },
-  shortcutRow: { paddingTop: 14, gap: 8 },
-  shortcutChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.08)' },
-  shortcutChipActive: { backgroundColor: 'rgba(255,255,255,0.22)' },
-  shortcutChipText: { color: '#d1fae5', fontSize: 12, fontWeight: '800' },
-  shortcutChipTextActive: { color: '#ffffff' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+
+  heroShell: {
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 18,
+  },
+  topStrip: {
+    marginBottom: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(16, 185, 129, 0.22)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  topStripText: { color: '#ecfdf5', fontSize: 13, fontWeight: '800', flex: 1 },
+  heroHeaderRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  heroTitle: { color: '#ffffff', fontSize: 28, fontWeight: '900' },
+  heroTinyLabel: { color: 'rgba(255,255,255,0.74)', fontSize: 12, fontWeight: '700', marginTop: 2 },
+  heroAddressRow: { marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  heroAddress: { color: '#ffffff', fontSize: 14, fontWeight: '600', flex: 1 },
+  profileCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serviceRow: { gap: 12, paddingTop: 18, paddingBottom: 14 },
+  servicePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    minWidth: 104,
+  },
+  servicePillActive: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderColor: 'rgba(255,255,255,0.34)',
+  },
+  serviceEmoji: { fontSize: 24 },
+  serviceBadge: { color: '#bfdbfe', fontSize: 11, fontWeight: '900' },
+  servicePillText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
+  heroSearchWrap: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  heroSearch: {
+    flex: 1,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  heroSearchInput: { flex: 1, fontSize: 17, color: COLORS.text, fontWeight: '600' },
+  heroActionChip: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.20)',
+  },
+  heroActionChipText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
+  inlineFilterRow: { gap: 10, paddingTop: 14 },
+  inlineFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.20)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  inlineFilterChipActive: { backgroundColor: '#ffffff' },
+  inlineFilterText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },
+  inlineFilterTextActive: { color: COLORS.blueDark },
+  sceneChipRow: { gap: 10, paddingTop: 14 },
+  sceneChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sceneChipEmoji: { fontSize: 16 },
+  sceneChipText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },
+  eatoutGlow: {
+    marginTop: 12,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+
+  sectionHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   sectionTitle: { color: COLORS.text, fontSize: 22, fontWeight: '900' },
   sectionTitleLight: { color: '#ffffff' },
-  sectionSubtitle: { color: COLORS.muted, marginTop: 4, fontSize: 13, lineHeight: 18 },
-  sectionSubtitleLight: { color: 'rgba(255,255,255,0.74)' },
-  sectionAction: { color: COLORS.green800, fontSize: 13, fontWeight: '900' },
-  sectionActionLight: { color: '#ffffff' },
-  horizontalList: { gap: 12 },
-  loadingWrap: { paddingVertical: 40, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  loadingText: { color: COLORS.muted, fontWeight: '700' },
-  emptyCard: { borderRadius: 20, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, padding: 18 },
-  emptyCardDark: { backgroundColor: COLORS.dark800, borderColor: 'rgba(255,255,255,0.08)' },
+  sectionSubtitle: { color: COLORS.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  sectionSubtitleLight: { color: 'rgba(255,255,255,0.72)' },
+  sectionAction: { color: COLORS.green, fontSize: 13, fontWeight: '900', marginTop: 6 },
+  sectionActionLight: { color: '#c4b5fd' },
+  loadingWrap: { paddingVertical: 32, alignItems: 'center', gap: 10 },
+  loadingText: { color: COLORS.muted, fontSize: 14, fontWeight: '700' },
+  emptyCard: {
+    borderRadius: 22,
+    padding: 18,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 8,
+  },
+  emptyCardDark: { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.08)' },
   emptyTitle: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
-  emptyText: { color: COLORS.muted, fontSize: 14, lineHeight: 20, marginTop: 6 },
-  badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: COLORS.bg },
-  badgeDark: { backgroundColor: 'rgba(255,255,255,0.08)' },
-  badgeText: { color: COLORS.text, fontSize: 12, fontWeight: '800' },
-  badgeTextDark: { color: '#ffffff' },
-  qtyStepper: { minWidth: 96, height: 36, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#ffffff', paddingHorizontal: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  qtyButton: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bg },
-  qtyText: { color: COLORS.text, fontSize: 14, fontWeight: '900' },
-  dealCard: { width: 164, borderRadius: 22, padding: 16, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
-  smallPill: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, overflow: 'hidden', backgroundColor: COLORS.green100, color: COLORS.green900, fontSize: 11, fontWeight: '900' },
-  dealEmoji: { fontSize: 34, marginTop: 18 },
-  dealTitle: { color: COLORS.text, fontSize: 16, fontWeight: '900', marginTop: 14 },
-  dealMeta: { color: COLORS.muted, fontSize: 13, marginTop: 6 },
-  dealBottom: { marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  priceText: { color: COLORS.text, fontSize: 15, fontWeight: '900' },
-  addTinyButton: { minWidth: 58, height: 34, borderRadius: 17, backgroundColor: COLORS.green800, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
-  addTinyButtonText: { color: '#ffffff', fontWeight: '900', fontSize: 12 },
-  promoTile: { width: 220, borderRadius: 22, padding: 18 },
-  promoEmoji: { fontSize: 30 },
-  promoTitle: { color: COLORS.text, fontSize: 18, fontWeight: '900', marginTop: 14 },
-  promoSubtitle: { color: COLORS.muted, fontSize: 13, lineHeight: 18, marginTop: 6 },
-  storeCard: { flexDirection: 'row', gap: 14, padding: 16, borderRadius: 20, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
-  storeCardDark: { backgroundColor: COLORS.dark800, borderColor: 'rgba(255,255,255,0.08)' },
-  storeAvatar: { width: 60, height: 60, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  storeAvatarText: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
-  storeContent: { flex: 1 },
-  storeTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
-  storeName: { flex: 1, color: COLORS.text, fontSize: 17, fontWeight: '900' },
-  storeNameDark: { color: '#ffffff' },
-  storeDescription: { color: COLORS.muted, fontSize: 13, lineHeight: 18, marginTop: 6 },
-  storeDescriptionDark: { color: 'rgba(255,255,255,0.72)' },
-  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  productCard: { flexDirection: 'row', padding: 16, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, gap: 12 },
-  productLeft: { flex: 1 },
-  productTitle: { color: COLORS.text, fontSize: 16, fontWeight: '900', marginTop: 12 },
-  productDesc: { color: COLORS.muted, fontSize: 13, lineHeight: 18, marginTop: 6 },
-  productRight: { alignItems: 'flex-end', justifyContent: 'space-between' },
-  productEmojiWrap: { width: 86, height: 86, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bg },
-  productEmoji: { fontSize: 36 },
-  addButton: { minWidth: 90, height: 38, borderRadius: 19, backgroundColor: COLORS.green800, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
-  addButtonText: { color: '#ffffff', fontWeight: '900', fontSize: 13 },
-  adCard: { borderRadius: 22, padding: 16, backgroundColor: COLORS.orange100, borderWidth: 1, borderColor: '#fed7aa', gap: 10 },
-  adCardDark: { backgroundColor: COLORS.dark800, borderColor: 'rgba(255,255,255,0.08)' },
-  adHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  adEyebrow: { color: '#9a3412', fontSize: 11, fontWeight: '900' },
-  adEyebrowDark: { color: '#fdba74' },
-  adTitle: { color: COLORS.text, fontSize: 17, fontWeight: '900', marginTop: 4 },
-  adTitleDark: { color: '#ffffff' },
-  adCopy: { color: COLORS.muted, fontSize: 13, lineHeight: 18 },
-  adCopyDark: { color: 'rgba(255,255,255,0.72)' },
-  adFooterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  adFootnote: { color: '#c2410c', fontSize: 11, fontWeight: '800', flex: 1 },
-  adFootnoteDark: { color: '#fdba74' },
-  adAction: { color: COLORS.green900, fontSize: 13, fontWeight: '900' },
-  adActionDark: { color: '#ffffff' },
-  eventsSectionWrap: { padding: 16, gap: 16, backgroundColor: COLORS.dark950 },
-  eventsHeroBanner: { minHeight: 150, borderRadius: 24, padding: 18, backgroundColor: '#14071a', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden', justifyContent: 'flex-end' },
-  eventsHeroGlow: { position: 'absolute', top: 12, left: 18, color: '#f472b6', fontSize: 54, fontWeight: '900' },
-  eventsHeroTitle: { color: '#fb7185', fontSize: 34, fontWeight: '900', letterSpacing: 1 },
-  eventsHeroSub: { color: '#ffffff', fontSize: 22, fontWeight: '900', marginTop: 4 },
-  eventsHeroEyebrow: { alignSelf: 'flex-start', marginTop: 12, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)', color: '#fbcfe8', fontSize: 11, fontWeight: '900' },
-  eventPosterWrap: { width: 240 },
-  eventPosterCard: { borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  eventPosterArtwork: { height: 188, padding: 16, justifyContent: 'space-between' },
-  eventPosterEmoji: { fontSize: 64, textAlign: 'right' },
-  eventPosterBadgeWrap: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  eventPosterBadge: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
-  eventPosterFooter: { backgroundColor: '#0f172a', padding: 14 },
-  eventPosterPrice: { color: '#f472b6', fontSize: 16, fontWeight: '900' },
-  eventPosterMetaRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  eventDateBox: { width: 50, height: 58, borderRadius: 14, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
-  eventDateText: { color: '#ffffff', fontSize: 20, fontWeight: '900' },
-  eventDateMonth: { color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: '800' },
-  eventPosterTitle: { color: '#ffffff', fontSize: 17, fontWeight: '900' },
-  eventPosterVenue: { color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 18, marginTop: 4 },
-  eventsQuestion: { color: '#ffffff', fontSize: 26, fontWeight: '900', letterSpacing: 1.2, marginTop: 8 },
-  filterRow: { gap: 10 },
-  filterChipDark: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999, backgroundColor: COLORS.dark800, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  filterChipDarkActive: { backgroundColor: '#ffffff' },
-  filterChipTextDark: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
-  filterChipTextDarkActive: { color: COLORS.dark950 },
-  eventListCard: { flexDirection: 'row', gap: 14, alignItems: 'flex-start', padding: 16, borderRadius: 20, backgroundColor: COLORS.dark800, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  eventListDateBox: { width: 58, height: 66, borderRadius: 16, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
-  eventListDateTop: { color: '#ffffff', fontSize: 22, fontWeight: '900' },
-  eventListDateBottom: { color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: '900' },
-  eventListTitle: { color: '#ffffff', fontSize: 17, fontWeight: '900' },
-  eventListVenue: { color: 'rgba(255,255,255,0.72)', fontSize: 13, lineHeight: 18, marginTop: 4 },
-  eventListPrice: { color: '#ffffff', fontWeight: '900', fontSize: 14 },
+  emptyTitleDark: { color: '#ffffff' },
+  emptyText: { color: COLORS.muted, fontSize: 13, lineHeight: 20 },
+  emptyTextDark: { color: 'rgba(255,255,255,0.72)' },
+  metaPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#f3f4f6',
+  },
+  metaPillDark: { backgroundColor: 'rgba(255,255,255,0.10)' },
+  metaPillAccent: { backgroundColor: '#ecfdf5' },
+  metaPillText: { color: COLORS.text, fontSize: 11, fontWeight: '900' },
+  metaPillTextDark: { color: '#ffffff' },
+  metaPillTextAccent: { color: COLORS.greenDark },
+
+  foodHeroBanner: {
+    borderRadius: 26,
+    backgroundColor: COLORS.purple,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  foodHeroBannerTitle: { color: COLORS.yellow, fontSize: 42, fontWeight: '900' },
+  foodHeroBannerSub: { color: '#ffffff', fontSize: 15, fontWeight: '800', marginTop: 6 },
+  foodHeroBannerButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,205,0,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  foodHeroBannerButtonText: { color: COLORS.yellow, fontSize: 13, fontWeight: '900' },
+  highlightRow: { flexDirection: 'row', gap: 12 },
+  highlightCard: {
+    flex: 1,
+    minHeight: 148,
+    borderRadius: 22,
+    backgroundColor: COLORS.yellow,
+    padding: 14,
+    justifyContent: 'space-between',
+  },
+  highlightEmoji: { fontSize: 26 },
+  highlightTitle: { color: COLORS.purpleDark, fontSize: 16, fontWeight: '900' },
+  highlightBadge: { color: '#7c2d12', fontSize: 12, fontWeight: '800', lineHeight: 17 },
+  horizontalRail: { gap: 12 },
+  snapshotCard: { width: 156 },
+  snapshotImage: {
+    height: 132,
+    borderRadius: 24,
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+  snapshotBadgeWrap: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.16)' },
+  snapshotOffer: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
+  snapshotHeart: { position: 'absolute', top: 10, right: 10 },
+  snapshotAvatar: { color: '#ffffff', fontSize: 36, fontWeight: '900', alignSelf: 'center', marginTop: 12 },
+  snapshotTitle: { color: COLORS.text, fontSize: 16, fontWeight: '900', marginTop: 10 },
+  snapshotMeta: { color: COLORS.muted, fontSize: 12, fontWeight: '700', marginTop: 4 },
+
+  vendorCard: {
+    borderRadius: 22,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 14,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  vendorThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vendorThumbText: { color: COLORS.text, fontSize: 22, fontWeight: '900' },
+  vendorTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  vendorName: { flex: 1, color: COLORS.text, fontSize: 17, fontWeight: '900' },
+  vendorDesc: { color: COLORS.muted, fontSize: 13, lineHeight: 18, marginTop: 4 },
+  vendorMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+
+  warehouseBanner: {
+    borderRadius: 26,
+    backgroundColor: COLORS.blueDark,
+    padding: 20,
+  },
+  warehouseBannerTitle: { color: '#ffffff', fontSize: 34, fontWeight: '900', textTransform: 'uppercase' },
+  warehouseBannerSub: { color: '#dbeafe', fontSize: 14, lineHeight: 20, marginTop: 8 },
+  warehouseMiniBanner: {
+    width: 152,
+    minHeight: 122,
+    borderRadius: 22,
+    backgroundColor: COLORS.blue,
+    padding: 14,
+    justifyContent: 'space-between',
+  },
+  warehouseMiniBannerEmoji: { fontSize: 28 },
+  warehouseMiniBannerTitle: { color: '#ffffff', fontSize: 15, fontWeight: '800', lineHeight: 21 },
+  infoStripCard: {
+    backgroundColor: COLORS.blueDark,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  infoStripText: { color: '#ffffff', fontSize: 13, fontWeight: '800', flex: 1 },
+  warehouseDealsPanel: {
+    borderRadius: 24,
+    backgroundColor: '#eef2ff',
+    paddingVertical: 16,
+  },
+  warehouseDealsHeader: { paddingHorizontal: 16, marginBottom: 8 },
+  warehouseDealsTitle: { color: COLORS.blueDark, fontSize: 28, fontWeight: '900' },
+  warehouseDealsSub: { color: COLORS.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
+  warehouseDealCard: {
+    width: 182,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+  },
+  warehouseDealBadge: { color: COLORS.blueDark, fontSize: 12, fontWeight: '900' },
+  warehouseDealIconWrap: {
+    marginTop: 12,
+    width: 68,
+    height: 68,
+    borderRadius: 18,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  warehouseDealIcon: { fontSize: 28 },
+  warehouseDealTitle: { color: COLORS.text, fontSize: 16, fontWeight: '900', marginTop: 12 },
+  warehouseDealMeta: { color: COLORS.muted, fontSize: 12, marginTop: 4 },
+  warehouseDealFooter: { marginTop: 14, gap: 10 },
+  warehouseDealPrice: { color: COLORS.text, fontSize: 16, fontWeight: '900' },
+  selectButton: {
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectButtonText: { color: COLORS.blueDark, fontSize: 13, fontWeight: '900' },
+
+  eatoutHeroCard: {
+    borderRadius: 26,
+    backgroundColor: '#24104d',
+    padding: 20,
+    flexDirection: 'row',
+    gap: 16,
+    alignItems: 'center',
+  },
+  eatoutHeroTitle: { color: '#ffffff', fontSize: 42, fontWeight: '900', lineHeight: 42 },
+  eatoutHeroSub: { color: '#ddd6fe', fontSize: 14, lineHeight: 20, marginTop: 10 },
+  eatoutHeroAvatarWrap: {
+    width: 92,
+    height: 92,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eatoutHeroAvatar: { fontSize: 44 },
+  eatoutOfferGrid: { flexDirection: 'row', gap: 12 },
+  eatoutBigOffer: {
+    flex: 1,
+    minHeight: 214,
+    borderRadius: 24,
+    backgroundColor: COLORS.yellow,
+    padding: 16,
+    justifyContent: 'space-between',
+  },
+  eatoutBigOfferEmoji: { fontSize: 36 },
+  eatoutBigOfferTitle: { color: COLORS.black, fontSize: 26, fontWeight: '900' },
+  eatoutBigOfferSub: { color: '#78350f', fontSize: 13, lineHeight: 18 },
+  eatoutSmallOfferCol: { flex: 1, gap: 10 },
+  eatoutSmallOffer: {
+    minHeight: 100,
+    borderRadius: 20,
+    backgroundColor: COLORS.yellow,
+    padding: 14,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  eatoutSmallOfferTitle: { color: COLORS.black, fontSize: 14, fontWeight: '900' },
+  eatoutSmallOfferSub: { color: '#78350f', fontSize: 11, lineHeight: 16, marginTop: 4 },
+  eatoutSmallOfferEmoji: { fontSize: 28 },
+  cashbackStrip: {
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: '#1f2937',
+  },
+  cashbackStripText: { color: '#ffffff', fontSize: 13, fontWeight: '800', textAlign: 'center' },
+
+  sceneHeroCard: { borderRadius: 26, backgroundColor: '#24104d', padding: 20 },
+  sceneHeroEyebrow: { color: '#c4b5fd', fontSize: 12, fontWeight: '900', textTransform: 'uppercase' },
+  sceneHeroTitle: { color: '#ffffff', fontSize: 28, fontWeight: '900', marginTop: 8 },
+  sceneHeroSub: { color: 'rgba(255,255,255,0.72)', fontSize: 14, lineHeight: 20, marginTop: 8 },
+  sceneEventCard: {
+    width: 214,
+    borderRadius: 24,
+    padding: 16,
+    justifyContent: 'space-between',
+    minHeight: 260,
+  },
+  sceneEventEmoji: { fontSize: 34, marginBottom: 10 },
+  sceneEventPrice: { color: '#ffffff', fontSize: 13, fontWeight: '900', marginTop: 12 },
+  sceneEventTitle: { color: '#ffffff', fontSize: 18, fontWeight: '900', lineHeight: 24, marginTop: 8 },
+  sceneEventVenue: { color: 'rgba(255,255,255,0.74)', fontSize: 13, lineHeight: 18, marginTop: 6 },
+  sceneCategoryTile: {
+    width: '47%',
+    minHeight: 116,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: 16,
+    justifyContent: 'space-between',
+  },
+  sceneCategoryText: { color: '#ffffff', fontSize: 16, fontWeight: '900' },
+
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  categoryTileLarge: { width: '47%', minHeight: 120, borderRadius: 22, padding: 16, justifyContent: 'space-between' },
-  categoryTileDark: { width: '47%', minHeight: 120, borderRadius: 22, padding: 16, justifyContent: 'space-between', backgroundColor: COLORS.dark800, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  categoryEmoji: { fontSize: 28 },
+  categoryTile: {
+    width: '47%',
+    minHeight: 116,
+    borderRadius: 22,
+    padding: 16,
+    justifyContent: 'space-between',
+  },
+  categoryEmoji: { fontSize: 30 },
   categoryTitle: { color: COLORS.text, fontSize: 16, fontWeight: '900' },
-  categoryTitleDark: { color: '#ffffff', fontSize: 16, fontWeight: '900' },
+
   overlayArea: { position: 'absolute', left: 16, right: 16, gap: 10 },
-  floatingCartBar: { borderRadius: 22, paddingHorizontal: 18, paddingVertical: 16, backgroundColor: COLORS.green800, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  floatingCartBar: {
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    backgroundColor: COLORS.green,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   floatingCartTitle: { color: '#ffffff', fontSize: 15, fontWeight: '900' },
   floatingCartText: { color: '#d1fae5', fontSize: 13, fontWeight: '700', marginTop: 2 },
   deliveryStrip: { borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#052e23' },
   deliveryStripText: { color: '#d1fae5', fontSize: 12, fontWeight: '900', textAlign: 'center' },
-  panelCard: { borderRadius: 22, padding: 16, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, gap: 12 },
+
+  panelCard: {
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    gap: 12,
+  },
   panelTitle: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
   panelText: { color: COLORS.text, fontSize: 16, fontWeight: '800' },
   panelSubText: { color: COLORS.muted, fontSize: 13, lineHeight: 18 },
   segmentWrap: { flexDirection: 'row', gap: 10 },
-  segmentButton: { flex: 1, borderRadius: 999, paddingVertical: 12, backgroundColor: '#ffffff', borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' },
-  segmentButtonActive: { backgroundColor: COLORS.green800, borderColor: COLORS.green800 },
+  segmentButton: {
+    flex: 1,
+    borderRadius: 999,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  segmentButtonActive: { backgroundColor: COLORS.green, borderColor: COLORS.green },
   segmentButtonText: { color: COLORS.text, fontSize: 13, fontWeight: '900' },
   segmentButtonTextActive: { color: '#ffffff' },
-  orderCard: { borderRadius: 22, padding: 16, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
+  orderCard: { borderRadius: 22, padding: 16, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, gap: 10 },
   orderTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  orderThumb: { width: 46, height: 46, borderRadius: 14, backgroundColor: COLORS.green100, alignItems: 'center', justifyContent: 'center' },
-  orderThumbText: { color: COLORS.green900, fontWeight: '900' },
+  orderThumb: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  orderThumbText: { color: COLORS.text, fontWeight: '900' },
   orderTitle: { color: COLORS.text, fontSize: 16, fontWeight: '900' },
-  orderMeta: { color: COLORS.muted, fontSize: 13, marginTop: 4 },
-  orderStatus: { color: COLORS.green900, fontSize: 12, fontWeight: '900' },
-  orderLine: { color: COLORS.text, fontSize: 14, fontWeight: '700', marginTop: 14 },
+  orderMeta: { color: COLORS.muted, fontSize: 13 },
+  orderStatus: { color: COLORS.greenDark, fontSize: 12, fontWeight: '900' },
+  orderLine: { color: COLORS.text, fontSize: 14, fontWeight: '700' },
+  orderLabelRow: { flexDirection: 'row' },
+
   simpleListRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   simpleListIcon: { width: 40, height: 40, borderRadius: 14, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center' },
   simpleListIconText: { color: COLORS.text, fontWeight: '900' },
   simpleListTitle: { color: COLORS.text, fontSize: 15, fontWeight: '800', flex: 1 },
   simpleListMeta: { color: COLORS.muted, fontSize: 12, marginTop: 2 },
-  accountHeaderCard: { borderRadius: 24, padding: 18, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  accountName: { color: COLORS.text, fontSize: 22, fontWeight: '900' },
-  accountSubText: { color: COLORS.muted, fontSize: 13, marginTop: 4 },
-  helpButton: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: COLORS.green100 },
-  helpButtonText: { color: COLORS.green900, fontSize: 12, fontWeight: '900' },
-  oneCard: { borderRadius: 22, padding: 16, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  quickCard: { width: '47%', borderRadius: 20, padding: 16, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, gap: 12 },
-  quickCardText: { color: COLORS.text, fontSize: 14, fontWeight: '800' },
-  innerHeader: { paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: COLORS.bg, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconButton: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderWidth: 1, borderColor: COLORS.border },
+
+  innerHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.bg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
   innerHeaderTitle: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
   innerHeaderSubtitle: { color: COLORS.muted, fontSize: 12, marginTop: 4 },
   vendorHeroCard: { borderRadius: 24, padding: 18, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
   vendorHeroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  vendorInitialBadge: { width: 64, height: 64, borderRadius: 18, backgroundColor: COLORS.green100, alignItems: 'center', justifyContent: 'center' },
-  vendorInitialBadgeText: { color: COLORS.green900, fontSize: 22, fontWeight: '900' },
+  vendorInitialBadge: { width: 64, height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  vendorInitialBadgeText: { color: COLORS.text, fontSize: 22, fontWeight: '900' },
   vendorHeroTitle: { color: COLORS.text, fontSize: 22, fontWeight: '900', marginTop: 14 },
   vendorHeroText: { color: COLORS.muted, fontSize: 14, lineHeight: 20, marginTop: 6 },
-  searchBoxPlain: { height: 52, borderRadius: 20, backgroundColor: '#ffffff', borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  searchBoxPlain: {
+    height: 52,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   searchInput: { flex: 1, color: COLORS.text, fontSize: 15, fontWeight: '600' },
-  floatingCartCta: { position: 'absolute', left: 16, right: 16, bottom: 16, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 16, backgroundColor: COLORS.green800, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  productCard: {
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    flexDirection: 'row',
+    gap: 16,
+  },
+  productBadge: { color: COLORS.greenDark, fontSize: 11, fontWeight: '900' },
+  productTitle: { color: COLORS.text, fontSize: 17, fontWeight: '900', marginTop: 8 },
+  productDesc: { color: COLORS.muted, fontSize: 13, lineHeight: 18, marginTop: 6 },
+  productPrice: { color: COLORS.text, fontSize: 17, fontWeight: '900', marginTop: 12 },
+  productActionCol: { justifyContent: 'space-between', alignItems: 'flex-end' },
+  productIconWrap: {
+    width: 76,
+    height: 76,
+    borderRadius: 22,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  productIcon: { fontSize: 30 },
+  addButton: {
+    minWidth: 86,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#86efac',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButtonText: { color: COLORS.greenDark, fontSize: 13, fontWeight: '900' },
+  qtyStepper: {
+    height: 40,
+    minWidth: 92,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 6,
+  },
+  qtyButton: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f3f4f6' },
+  qtyText: { color: COLORS.text, fontSize: 14, fontWeight: '900' },
+
+  floatingCartCta: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 16,
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    backgroundColor: COLORS.green,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   progressTrack: { height: 10, borderRadius: 999, overflow: 'hidden', backgroundColor: COLORS.bg, marginTop: 6 },
-  progressFill: { height: 10, borderRadius: 999, backgroundColor: COLORS.green800 },
+  progressFill: { height: 10, borderRadius: 999, backgroundColor: COLORS.green },
   cartLine: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   cartLineTitle: { color: COLORS.text, fontSize: 15, fontWeight: '800' },
   cartLineMeta: { color: COLORS.muted, fontSize: 12, marginTop: 4 },
@@ -1971,7 +2259,7 @@ const styles = StyleSheet.create({
   summaryDivider: { height: 1, backgroundColor: COLORS.border },
   summaryLabelStrong: { color: COLORS.text, fontSize: 16, fontWeight: '900' },
   summaryValueStrong: { color: COLORS.text, fontSize: 16, fontWeight: '900' },
-  primaryButton: { height: 50, borderRadius: 16, backgroundColor: COLORS.green800, alignItems: 'center', justifyContent: 'center' },
+  primaryButton: { height: 50, borderRadius: 16, backgroundColor: COLORS.green, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: '#ffffff', fontSize: 15, fontWeight: '900' },
   secondaryButton: { height: 50, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
   secondaryButtonText: { color: COLORS.text, fontSize: 15, fontWeight: '900' },
