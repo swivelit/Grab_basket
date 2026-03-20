@@ -13,51 +13,57 @@ import { useRouter } from 'expo-router';
 import { useGrabBasket } from '../../../App';
 
 const COLORS = {
-  bg: '#f5f5f7',
+  bg: '#f5f6f8',
   card: '#ffffff',
-  text: '#171717',
+  text: '#111827',
   muted: '#6b7280',
   subtle: '#9ca3af',
-  border: '#e7e7ea',
-  shadow: 'rgba(15, 23, 42, 0.06)',
+  border: '#e5e7eb',
+  green: '#0f9d58',
+  greenDark: '#07693b',
+  greenSoft: '#ecfdf5',
+  purple: '#6d28d9',
+  purpleDark: '#4f1bb0',
+  purpleSoft: '#ede9fe',
+  blueDark: '#082a73',
+  blueSoft: '#dbeafe',
+  yellowSoft: '#fef3c7',
   peach: '#fff1ea',
   peachText: '#f97316',
-  green: '#10b981',
-  greenSoft: '#dcfce7',
-  blackPurple: '#2a0222',
-  blackPurpleSoft: '#4b003f',
-  orderStatus: '#10b981',
-  chipBg: '#efeff4',
-  chipActive: '#000000',
-  chipActiveText: '#ffffff',
-  headerFrom: '#d95a54',
-  headerTo: '#b33c59',
+  shadow: 'rgba(15, 23, 42, 0.08)',
 };
 
 const DEMO_PROFILE = {
   name: 'Guest User',
-  phone: '+91 - 0000000000',
+  phone: '+91 00000 00000',
   email: 'hello@grabbasket.app',
+  address: 'Valliachans Place · Great Orchard',
 };
 
 const QUICK_ACTIONS = [
+  { key: 'orders', icon: 'time-outline', label: 'Past\nOrders' },
   { key: 'address', icon: 'location-outline', label: 'Saved\nAddress' },
   { key: 'payment', icon: 'wallet-outline', label: 'Payment\nModes' },
-  { key: 'refunds', icon: 'chatbubble-ellipses-outline', label: 'My\nRefunds' },
-  { key: 'wallet', icon: 'card-outline', label: 'GrabBasket\nMoney' },
+  { key: 'support', icon: 'help-buoy-outline', label: 'Help &\nSupport' },
 ];
 
 const ACCOUNT_ROWS = [
-  { key: 'card', icon: 'card-outline', label: 'GrabBasket Credit Card' },
-  { key: 'voucher', icon: 'ticket-outline', label: 'My Vouchers' },
-  { key: 'statement', icon: 'document-text-outline', label: 'Account Statements' },
-  { key: 'train', icon: 'train-outline', label: 'Order Food on Train' },
-  { key: 'corporate', icon: 'briefcase-outline', label: 'Corporate Rewards' },
-  { key: 'student', icon: 'school-outline', label: 'Student Rewards' },
-  { key: 'wishlist', icon: 'bookmark-outline', label: 'My Instamart Wishlist' },
-  { key: 'favourites', icon: 'heart-outline', label: 'Favourites' },
-  { key: 'partner', icon: 'sparkles-outline', label: 'Partner Rewards' },
-  { key: 'contact', icon: 'call-outline', label: 'Allow restaurants to contact you' },
+  { key: 'plus', icon: 'sparkles-outline', label: 'GrabBasket One' },
+  { key: 'wallet', icon: 'card-outline', label: 'GrabBasket Money' },
+  { key: 'vouchers', icon: 'ticket-outline', label: 'My Vouchers' },
+  { key: 'warehouse-wishlist', icon: 'bookmark-outline', label: 'My Warehouse Wishlist' },
+  { key: 'favourites', icon: 'heart-outline', label: 'Favourite Stores' },
+  { key: 'eatout', icon: 'restaurant-outline', label: 'Eatout Offers & Bookings' },
+  { key: 'statements', icon: 'document-text-outline', label: 'Account Statements' },
+  { key: 'notifications', icon: 'notifications-outline', label: 'Notification Preferences' },
+  { key: 'contact', icon: 'call-outline', label: 'Restaurant Contact Preferences' },
+];
+
+const ORDER_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'food', label: 'Food' },
+  { key: 'warehouse', label: 'Warehouse' },
+  { key: 'eatout', label: 'Eatout' },
 ];
 
 const FALLBACK_ORDERS = [
@@ -67,32 +73,42 @@ const FALLBACK_ORDERS = [
     vendorName: 'Bakeryt',
     location: 'Manali Rd',
     items: [{ name: 'Chocolate Truffle', qty: 1 }],
-    orderedAt: 'February 11, 5:18 PM',
+    orderedAt: 'Feb 11, 5:18 PM',
     total: 511,
     status: 'Delivered',
   },
   {
     id: 'food-2',
     service: 'food',
-    vendorName: 'Sweet Truth - Cake and Desserts',
+    vendorName: 'Sweet Truth - Cake & Desserts',
     location: 'Manali Rd',
     items: [{ name: 'Red Velvet Jar', qty: 2 }],
-    orderedAt: 'February 9, 7:10 PM',
+    orderedAt: 'Feb 09, 7:10 PM',
     total: 298,
     status: 'Delivered',
   },
   {
-    id: 'instamart-1',
-    service: 'instamart',
-    vendorName: 'Instamart Daily',
+    id: 'warehouse-1',
+    service: 'warehouse',
+    vendorName: 'Warehouse Daily',
     location: 'Great Orchard',
     items: [
       { name: 'Curd', qty: 1 },
       { name: 'Cadbury Dairy Milk', qty: 1 },
     ],
-    orderedAt: 'March 18, 2:40 PM',
+    orderedAt: 'Mar 18, 2:40 PM',
     total: 109,
     status: 'Delivered',
+  },
+  {
+    id: 'eatout-1',
+    service: 'eatout',
+    vendorName: 'Cafe Papaya',
+    location: 'Kakkanad',
+    items: [{ name: 'Table for 2', qty: 1 }],
+    orderedAt: 'Mar 20, 8:15 PM',
+    total: 799,
+    status: 'Booked',
   },
 ];
 
@@ -101,7 +117,7 @@ function money(value) {
 }
 
 function initials(name = '') {
-  return String(name)
+  return String(name || '')
     .split(' ')
     .filter(Boolean)
     .map((part) => part[0])
@@ -110,27 +126,72 @@ function initials(name = '') {
     .toUpperCase();
 }
 
-function getOrderAccent(service) {
-  return service === 'instamart' ? '#dff6e8' : '#fde9e3';
+function normalizeService(value = '') {
+  const service = String(value || '').trim().toLowerCase();
+  if (service === 'instamart') return 'warehouse';
+  if (service === 'dineout') return 'eatout';
+  return service || 'food';
 }
 
-function getOrderTag(service) {
-  return service === 'instamart' ? 'Instamart' : 'Food';
+function getServiceLabel(service = '') {
+  const normalized = normalizeService(service);
+  if (normalized === 'warehouse') return 'Warehouse';
+  if (normalized === 'eatout') return 'Eatout';
+  return 'Food';
 }
 
-function RatingStars() {
+function getServiceAccent(service = '') {
+  const normalized = normalizeService(service);
+  if (normalized === 'warehouse') return COLORS.blueSoft;
+  if (normalized === 'eatout') return COLORS.yellowSoft;
+  return COLORS.purpleSoft;
+}
+
+function getServicePillStyle(service = '') {
+  const normalized = normalizeService(service);
+  if (normalized === 'warehouse') {
+    return {
+      backgroundColor: '#eff6ff',
+      textColor: COLORS.blueDark,
+    };
+  }
+  if (normalized === 'eatout') {
+    return {
+      backgroundColor: '#fff7ed',
+      textColor: '#c2410c',
+    };
+  }
+  return {
+    backgroundColor: '#f5f3ff',
+    textColor: COLORS.purpleDark,
+  };
+}
+
+function getStatusColor(status = '') {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'booked') return '#c2410c';
+  return COLORS.greenDark;
+}
+
+function buildItemLine(order) {
+  const firstItem = order.items?.[0];
+  if (!firstItem) return 'Order';
+  const moreCount = Math.max(0, order.items.length - 1);
+  return `${firstItem.qty || 1} x ${firstItem.name}${moreCount > 0 ? ` +${moreCount} more` : ''}`;
+}
+
+function StatCard({ label, value, tint }) {
   return (
-    <View style={styles.starsRow}>
-      {[0, 1, 2, 3, 4].map((star) => (
-        <Ionicons key={star} name="star-outline" size={18} color="#d1d5db" />
-      ))}
+    <View style={[styles.statCard, { backgroundColor: tint }]}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
 
 function QuickActionCard({ icon, label, onPress }) {
   return (
-    <TouchableOpacity activeOpacity={0.9} style={styles.quickActionCard} onPress={onPress}>
+    <TouchableOpacity activeOpacity={0.92} style={styles.quickActionCard} onPress={onPress}>
       <View style={styles.quickActionIconWrap}>
         <Ionicons name={icon} size={22} color={COLORS.text} />
       </View>
@@ -142,11 +203,11 @@ function QuickActionCard({ icon, label, onPress }) {
 function AccountListRow({ icon, label, isLast = false, onPress }) {
   return (
     <TouchableOpacity
-      activeOpacity={0.9}
+      activeOpacity={0.92}
       style={[styles.accountRow, !isLast && styles.accountRowBorder]}
       onPress={onPress}>
       <View style={styles.accountRowLeft}>
-        <Ionicons name={icon} size={22} color={COLORS.text} />
+        <Ionicons name={icon} size={20} color={COLORS.text} />
         <Text style={styles.accountRowLabel}>{label}</Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={COLORS.subtle} />
@@ -154,16 +215,28 @@ function AccountListRow({ icon, label, isLast = false, onPress }) {
   );
 }
 
-function PastOrderCard({ order, onReorder }) {
-  const firstItem = order.items?.[0];
-  const itemLine = firstItem
-    ? `${firstItem.qty || 1} x ${firstItem.name}${order.items.length > 1 ? ` +${order.items.length - 1} more` : ''}`
-    : 'Order';
+function EmptyOrdersState({ activeFilter }) {
+  return (
+    <View style={styles.emptyOrdersCard}>
+      <Text style={styles.emptyOrdersTitle}>
+        No {activeFilter === 'all' ? '' : `${getServiceLabel(activeFilter)} `}orders yet
+      </Text>
+      <Text style={styles.emptyOrdersText}>
+        Demo orders and bookings placed from cart will show up here with the new Food, Warehouse and Eatout flows.
+      </Text>
+    </View>
+  );
+}
+
+function PastOrderCard({ order, onPressPrimary }) {
+  const normalizedService = normalizeService(order.service);
+  const pill = getServicePillStyle(normalizedService);
+  const itemLine = buildItemLine(order);
 
   return (
     <View style={styles.orderCard}>
       <View style={styles.orderHeaderRow}>
-        <View style={[styles.orderThumb, { backgroundColor: getOrderAccent(order.service) }]}>
+        <View style={[styles.orderThumb, { backgroundColor: getServiceAccent(normalizedService) }]}>
           <Text style={styles.orderThumbText}>{initials(order.vendorName)}</Text>
         </View>
 
@@ -171,46 +244,35 @@ function PastOrderCard({ order, onReorder }) {
           <Text style={styles.orderStoreName} numberOfLines={1}>
             {order.vendorName}
           </Text>
-          <Text style={styles.orderStoreLocation}>{order.location}</Text>
+          <Text style={styles.orderStoreLocation} numberOfLines={1}>
+            {order.location}
+          </Text>
         </View>
 
         <View style={styles.orderStatusWrap}>
-          <Text style={styles.orderStatus}>{order.status}</Text>
-          <Ionicons name="checkmark-circle" size={16} color={COLORS.orderStatus} />
+          <Text style={[styles.orderStatus, { color: getStatusColor(order.status) }]}>{order.status}</Text>
         </View>
       </View>
 
-      <View style={styles.orderItemRow}>
-        <View style={styles.orderQtyPill}>
-          <Text style={styles.orderQtyPillText}>{firstItem?.qty || 1} x</Text>
-        </View>
-        <Text style={styles.orderItemText} numberOfLines={1}>
-          {itemLine.replace(/^\d+\s+x\s+/i, '')}
-        </Text>
-      </View>
-
-      <View style={styles.ratingSection}>
-        <View style={styles.ratingCol}>
-          <Text style={styles.ratingLabel}>Your {getOrderTag(order.service)} Rating</Text>
-          <RatingStars />
-        </View>
-
-        <View style={styles.ratingDivider} />
-
-        <View style={styles.ratingCol}>
-          <Text style={styles.ratingLabel}>Delivery Rating</Text>
-          <RatingStars />
+      <View style={styles.orderPillRow}>
+        <View style={[styles.serviceTag, { backgroundColor: pill.backgroundColor }]}>
+          <Text style={[styles.serviceTagText, { color: pill.textColor }]}>{getServiceLabel(normalizedService)}</Text>
         </View>
       </View>
 
-      <TouchableOpacity activeOpacity={0.9} style={styles.reorderButton} onPress={onReorder}>
-        <Text style={styles.reorderButtonText}>REORDER</Text>
-        <Ionicons name="chevron-forward" size={16} color={COLORS.peachText} />
-      </TouchableOpacity>
-
+      <Text style={styles.orderItemText}>{itemLine}</Text>
       <Text style={styles.orderFooterText}>
-        Ordered: {order.orderedAt} • Bill Total: {money(order.total)}
+        Ordered: {order.orderedAt} · Bill Total: {money(order.total)}
       </Text>
+
+      <View style={styles.orderActionRow}>
+        <TouchableOpacity activeOpacity={0.92} style={styles.reorderButton} onPress={onPressPrimary}>
+          <Text style={styles.reorderButtonText}>
+            {normalizedService === 'eatout' ? 'VIEW BOOKING' : 'REORDER'}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.peachText} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -219,17 +281,36 @@ export default function AccountScreen() {
   const router = useRouter();
   const scrollRef = useRef(null);
   const [pastOrdersY, setPastOrdersY] = useState(0);
-  const [activeTab, setActiveTab] = useState('food');
+  const [activeFilter, setActiveFilter] = useState('all');
 
-  const { orderHistory } = useGrabBasket();
+  const { orderHistory, recentSearches, favorites, cartCount, cartTotal } = useGrabBasket();
 
   const allOrders = useMemo(() => {
-    return orderHistory?.length > 0 ? orderHistory : FALLBACK_ORDERS;
+    const source = orderHistory?.length > 0 ? orderHistory : FALLBACK_ORDERS;
+    return source.map((order) => ({
+      ...order,
+      service: normalizeService(order.service),
+    }));
   }, [orderHistory]);
 
   const filteredOrders = useMemo(() => {
-    return allOrders.filter((order) => order.service === activeTab);
-  }, [activeTab, allOrders]);
+    if (activeFilter === 'all') return allOrders;
+    return allOrders.filter((order) => normalizeService(order.service) === activeFilter);
+  }, [activeFilter, allOrders]);
+
+  const stats = useMemo(() => {
+    const totalOrders = allOrders.length;
+    const favouriteCount = Object.values(favorites || {}).filter(Boolean).length;
+    const searchCount = recentSearches?.length || 0;
+    const savedEstimate = allOrders.reduce((sum, order) => sum + Math.round(Number(order.total || 0) * 0.04), 0);
+
+    return {
+      totalOrders,
+      favouriteCount,
+      searchCount,
+      savedEstimate,
+    };
+  }, [allOrders, favorites, recentSearches]);
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -248,22 +329,22 @@ export default function AccountScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
 
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.topIconButton} onPress={handleBack}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
         </TouchableOpacity>
 
-        <Text style={styles.topBarTitle}>MY ACCOUNT</Text>
+        <Text style={styles.topBarTitle}>My Account</Text>
 
         <View style={styles.topBarRight}>
-          <TouchableOpacity style={styles.helpPill} activeOpacity={0.9}>
+          <TouchableOpacity style={styles.helpPill} activeOpacity={0.92}>
             <Text style={styles.helpPillText}>Help</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.topIconButton} activeOpacity={0.9}>
-            <Ionicons name="ellipsis-vertical" size={20} color={COLORS.text} />
+          <TouchableOpacity style={styles.topIconButton} activeOpacity={0.92}>
+            <Ionicons name="ellipsis-horizontal" size={20} color={COLORS.text} />
           </TouchableOpacity>
         </View>
       </View>
@@ -277,41 +358,81 @@ export default function AccountScreen() {
           <View style={styles.heroPatternTwo} />
           <View style={styles.heroPatternThree} />
 
-          <View style={styles.profileTextBlock}>
-            <Text style={styles.profileName}>{DEMO_PROFILE.name}</Text>
-            <Text style={styles.profileSubText}>{DEMO_PROFILE.phone}</Text>
-            <Text style={styles.profileSubText}>{DEMO_PROFILE.email}</Text>
+          <View style={styles.profileTopRow}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>{initials(DEMO_PROFILE.name)}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.profileName}>{DEMO_PROFILE.name}</Text>
+              <Text style={styles.profileSubText}>{DEMO_PROFILE.phone}</Text>
+              <Text style={styles.profileSubText}>{DEMO_PROFILE.email}</Text>
+              <Text style={styles.profileAddress}>{DEMO_PROFILE.address}</Text>
+            </View>
           </View>
+
+          <View style={styles.profileBadgeRow}>
+            <View style={styles.heroBadge}>
+              <Ionicons name="shield-checkmark-outline" size={14} color="#ffffff" />
+              <Text style={styles.heroBadgeText}>Guest mode</Text>
+            </View>
+            <View style={styles.heroBadge}>
+              <Ionicons name="bag-handle-outline" size={14} color="#ffffff" />
+              <Text style={styles.heroBadgeText}>{stats.totalOrders} orders</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.statsRow}>
+          <StatCard label="Orders" value={String(stats.totalOrders)} tint="#ffffff" />
+          <StatCard label="Saved est." value={money(stats.savedEstimate)} tint="#ecfdf5" />
+          <StatCard label="Favourites" value={String(stats.favouriteCount)} tint="#eff6ff" />
+          <StatCard label="Searches" value={String(stats.searchCount)} tint="#fef3c7" />
         </View>
 
         <View style={styles.membershipCard}>
           <View style={styles.membershipTopRow}>
-            <Text style={styles.membershipBrand}>one</Text>
+            <View>
+              <Text style={styles.membershipEyebrow}>GrabBasket One</Text>
+              <Text style={styles.membershipTitle}>Production-ready loyalty surface</Text>
+            </View>
             <View style={styles.activeBadge}>
               <Text style={styles.activeBadgeText}>ACTIVE</Text>
             </View>
           </View>
 
-          <Text style={styles.membershipTitle}>₹35 saved in 36 days</Text>
-          <Text style={styles.membershipSubtitle}>Explore all GrabBasket One benefits</Text>
+          <Text style={styles.membershipSubtitle}>
+            Consistent savings messaging, clearer rewards language and cleaner hierarchy.
+          </Text>
 
-          <View style={styles.membershipChevron}>
-            <Ionicons name="chevron-down" size={20} color={COLORS.subtle} />
+          <View style={styles.membershipFeatureRow}>
+            <View style={styles.membershipFeature}>
+              <Ionicons name="flash-outline" size={16} color={COLORS.greenDark} />
+              <Text style={styles.membershipFeatureText}>Faster checkout feel</Text>
+            </View>
+            <View style={styles.membershipFeature}>
+              <Ionicons name="pricetag-outline" size={16} color={COLORS.greenDark} />
+              <Text style={styles.membershipFeatureText}>Offer-led surfaces</Text>
+            </View>
           </View>
         </View>
 
-        <TouchableOpacity activeOpacity={0.92} style={styles.blackBanner}>
-          <View style={styles.blackBannerBadge}>
-            <Text style={styles.blackBannerBadgeText}>BLCK</Text>
-          </View>
-
-          <View style={styles.blackBannerContent}>
-            <Text style={styles.blackBannerTitle}>Your exclusive invite to upgrade is here!</Text>
-            <Text style={styles.blackBannerSubtitle}>Join One BLCK now</Text>
-          </View>
-
-          <Ionicons name="chevron-forward" size={18} color="#ffffff" />
-        </TouchableOpacity>
+        {cartCount > 0 ? (
+          <TouchableOpacity
+            activeOpacity={0.92}
+            style={styles.liveBasketCard}
+            onPress={() => router.push('/cart')}>
+            <View style={styles.liveBasketIcon}>
+              <Ionicons name="bag-handle-outline" size={20} color={COLORS.greenDark} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.liveBasketTitle}>You have an active basket</Text>
+              <Text style={styles.liveBasketSubtitle}>
+                {cartCount} items · {money(cartTotal)}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.greenDark} />
+          </TouchableOpacity>
+        ) : null}
 
         <View style={styles.quickActionsRow}>
           {QUICK_ACTIONS.map((action) => (
@@ -319,7 +440,21 @@ export default function AccountScreen() {
               key={action.key}
               icon={action.icon}
               label={action.label}
-              onPress={() => {}}
+              onPress={() => {
+                if (action.key === 'orders') {
+                  scrollToPastOrders();
+                  return;
+                }
+                if (action.key === 'support') {
+                  return;
+                }
+                if (action.key === 'payment') {
+                  return;
+                }
+                if (action.key === 'address') {
+                  return;
+                }
+              }}
             />
           ))}
         </View>
@@ -337,38 +472,39 @@ export default function AccountScreen() {
         </View>
 
         <TouchableOpacity activeOpacity={0.92} style={styles.browsePastOrdersButton} onPress={scrollToPastOrders}>
-          <Text style={styles.browsePastOrdersText}>BROWSE PAST ORDERS</Text>
+          <Text style={styles.browsePastOrdersText}>Browse past orders</Text>
+          <Ionicons name="arrow-down" size={16} color={COLORS.text} />
         </TouchableOpacity>
 
         <View onLayout={(event) => setPastOrdersY(event.nativeEvent.layout.y)}>
-          <Text style={styles.pastOrdersTitle}>PAST ORDERS</Text>
+          <View style={styles.sectionHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Past Orders</Text>
+              <Text style={styles.sectionSubtitle}>
+                Cleanly separated across Food, Warehouse and Eatout.
+              </Text>
+            </View>
+          </View>
 
           <View style={styles.segmentWrap}>
-            <TouchableOpacity
-              activeOpacity={0.92}
-              style={[styles.segmentButton, activeTab === 'food' && styles.segmentButtonActive]}
-              onPress={() => setActiveTab('food')}>
-              <Text
-                style={[
-                  styles.segmentButtonText,
-                  activeTab === 'food' && styles.segmentButtonTextActive,
-                ]}>
-                Food
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.92}
-              style={[styles.segmentButton, activeTab === 'instamart' && styles.segmentButtonActive]}
-              onPress={() => setActiveTab('instamart')}>
-              <Text
-                style={[
-                  styles.segmentButtonText,
-                  activeTab === 'instamart' && styles.segmentButtonTextActive,
-                ]}>
-                Instamart
-              </Text>
-            </TouchableOpacity>
+            {ORDER_FILTERS.map((item) => {
+              const active = activeFilter === item.key;
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  activeOpacity={0.92}
+                  style={[styles.segmentButton, active && styles.segmentButtonActive]}
+                  onPress={() => setActiveFilter(item.key)}>
+                  <Text
+                    style={[
+                      styles.segmentButtonText,
+                      active && styles.segmentButtonTextActive,
+                    ]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {filteredOrders.length > 0 ? (
@@ -376,16 +512,11 @@ export default function AccountScreen() {
               <PastOrderCard
                 key={order.id}
                 order={order}
-                onReorder={() => router.push('/reorder')}
+                onPressPrimary={() => router.push('/reorder')}
               />
             ))
           ) : (
-            <View style={styles.emptyOrdersCard}>
-              <Text style={styles.emptyOrdersTitle}>No {getOrderTag(activeTab)} orders yet</Text>
-              <Text style={styles.emptyOrdersText}>
-                Once demo orders are placed, they will show up here in a Swiggy-style past orders flow.
-              </Text>
-            </View>
+            <EmptyOrdersState activeFilter={activeFilter} />
           )}
         </View>
       </ScrollView>
@@ -398,12 +529,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bg,
   },
+
   topBar: {
     height: 64,
     paddingHorizontal: 16,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f2',
+    backgroundColor: COLORS.bg,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -412,7 +542,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
     color: COLORS.text,
-    letterSpacing: 0.4,
     marginLeft: 8,
   },
   topBarRight: {
@@ -420,14 +549,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   topIconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   helpPill: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 18,
     backgroundColor: COLORS.peach,
@@ -438,34 +567,36 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.peachText,
   },
+
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 40,
+    paddingTop: 8,
+    paddingBottom: 44,
   },
+
   profileHero: {
-    height: 182,
-    borderRadius: 28,
+    minHeight: 206,
+    borderRadius: 30,
     overflow: 'hidden',
-    backgroundColor: COLORS.headerTo,
+    backgroundColor: COLORS.purpleDark,
     marginBottom: 16,
-    paddingHorizontal: 22,
-    paddingVertical: 22,
-    justifyContent: 'flex-end',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    justifyContent: 'space-between',
   },
   heroPatternOne: {
     position: 'absolute',
-    right: -18,
+    right: -20,
     top: 18,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   heroPatternTwo: {
     position: 'absolute',
-    right: 56,
-    top: 46,
+    right: 52,
+    top: 52,
     width: 88,
     height: 88,
     borderRadius: 44,
@@ -473,28 +604,96 @@ const styles = StyleSheet.create({
   },
   heroPatternThree: {
     position: 'absolute',
-    left: -36,
-    bottom: -56,
+    left: -42,
+    bottom: -60,
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  profileTextBlock: {
+  profileTopRow: {
     zIndex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  avatarCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '900',
   },
   profileName: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '900',
     color: '#ffffff',
-    marginBottom: 8,
   },
   profileSubText: {
     fontSize: 13,
-    lineHeight: 19,
+    lineHeight: 18,
     color: 'rgba(255,255,255,0.88)',
-    fontWeight: '500',
+    marginTop: 4,
   },
+  profileAddress: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#ddd6fe',
+    marginTop: 6,
+    fontWeight: '700',
+  },
+  profileBadgeRow: {
+    zIndex: 1,
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  heroBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroBadgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  statsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 16,
+  },
+  statCard: {
+    width: '47%',
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  statValue: {
+    color: COLORS.text,
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  statLabel: {
+    color: COLORS.muted,
+    fontSize: 13,
+    marginTop: 6,
+    fontWeight: '700',
+  },
+
   membershipCard: {
     backgroundColor: COLORS.card,
     borderRadius: 24,
@@ -503,7 +702,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     marginBottom: 14,
-    position: 'relative',
     shadowColor: '#000',
     shadowOpacity: 0.03,
     shadowRadius: 10,
@@ -512,330 +710,328 @@ const styles = StyleSheet.create({
   },
   membershipTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  membershipBrand: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#f97316',
-    marginRight: 10,
-  },
-  activeBadge: {
-    backgroundColor: COLORS.green,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  activeBadgeText: {
-    color: '#ffffff',
-    fontWeight: '900',
+  membershipEyebrow: {
+    color: COLORS.greenDark,
     fontSize: 12,
-    letterSpacing: 0.2,
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
   membershipTitle: {
+    color: COLORS.text,
     fontSize: 18,
     fontWeight: '900',
-    color: COLORS.text,
-    marginBottom: 4,
+    marginTop: 6,
   },
   membershipSubtitle: {
-    fontSize: 14,
     color: COLORS.muted,
-    fontWeight: '500',
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 10,
   },
-  membershipChevron: {
-    position: 'absolute',
-    right: 16,
-    top: 30,
+  membershipFeatureRow: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+    marginTop: 14,
   },
-  blackBanner: {
-    borderRadius: 18,
-    backgroundColor: COLORS.blackPurple,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+  membershipFeature: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 18,
+    gap: 8,
+    backgroundColor: COLORS.greenSoft,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  blackBannerBadge: {
-    minWidth: 48,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: COLORS.blackPurpleSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    paddingHorizontal: 8,
+  membershipFeatureText: {
+    color: COLORS.greenDark,
+    fontSize: 12,
+    fontWeight: '800',
   },
-  blackBannerBadgeText: {
-    color: '#ffffff',
+  activeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: COLORS.greenSoft,
+  },
+  activeBadgeText: {
+    color: COLORS.greenDark,
     fontSize: 11,
     fontWeight: '900',
-    letterSpacing: 0.5,
   },
-  blackBannerContent: {
-    flex: 1,
+
+  liveBasketCard: {
+    marginBottom: 14,
+    borderRadius: 22,
+    backgroundColor: COLORS.greenSoft,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  blackBannerTitle: {
-    color: '#f3e8ff',
-    fontSize: 13,
-    fontWeight: '800',
-    marginBottom: 2,
+  liveBasketIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#dcfce7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  blackBannerSubtitle: {
-    color: '#ffffff',
+  liveBasketTitle: {
+    color: COLORS.greenDark,
     fontSize: 15,
     fontWeight: '900',
   },
+  liveBasketSubtitle: {
+    color: COLORS.greenDark,
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '700',
+  },
+
   quickActionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 18,
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 14,
   },
   quickActionCard: {
-    width: '23.4%',
+    width: '47%',
+    backgroundColor: COLORS.card,
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    minHeight: 108,
+    justifyContent: 'space-between',
+  },
+  quickActionIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 19,
+  },
+
+  accountListCard: {
     backgroundColor: COLORS.card,
     borderRadius: 24,
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingHorizontal: 10,
-    paddingTop: 14,
-    paddingBottom: 14,
-    minHeight: 136,
-  },
-  quickActionIconWrap: {
-    marginBottom: 12,
-  },
-  quickActionText: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '700',
-    color: '#4b5563',
-  },
-  accountListCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden',
-    marginBottom: 18,
+    paddingHorizontal: 16,
+    marginBottom: 14,
   },
   accountRow: {
-    minHeight: 62,
-    paddingHorizontal: 18,
+    minHeight: 58,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   accountRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#efeff2',
+    borderBottomColor: '#f3f4f6',
   },
   accountRowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+    paddingRight: 10,
     flex: 1,
-    paddingRight: 16,
   },
   accountRowLabel: {
-    marginLeft: 16,
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#4b5563',
-    flex: 1,
-  },
-  browsePastOrdersButton: {
-    alignSelf: 'center',
-    backgroundColor: '#040816',
-    borderRadius: 999,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    marginBottom: 22,
-  },
-  browsePastOrdersText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '900',
-    letterSpacing: 0.4,
-  },
-  pastOrdersTitle: {
-    fontSize: 16,
-    fontWeight: '900',
     color: COLORS.text,
-    letterSpacing: 0.5,
-    marginBottom: 14,
-  },
-  segmentWrap: {
-    backgroundColor: COLORS.chipBg,
-    borderRadius: 999,
-    padding: 4,
-    flexDirection: 'row',
-    marginBottom: 18,
-  },
-  segmentButton: {
+    fontSize: 14,
+    fontWeight: '700',
     flex: 1,
-    height: 44,
-    borderRadius: 999,
+  },
+
+  browsePastOrdersButton: {
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  browsePastOrdersText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+
+  sectionHeader: {
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    color: COLORS.text,
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  sectionSubtitle: {
+    color: COLORS.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 4,
+  },
+
+  segmentWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 16,
+  },
+  segmentButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   segmentButtonActive: {
-    backgroundColor: COLORS.chipActive,
+    backgroundColor: COLORS.text,
+    borderColor: COLORS.text,
   },
   segmentButtonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#4b5563',
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '900',
   },
   segmentButtonTextActive: {
-    color: COLORS.chipActiveText,
+    color: '#ffffff',
   },
+
   orderCard: {
-    backgroundColor: COLORS.card,
     borderRadius: 24,
+    backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 14,
     shadowColor: '#000',
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 1,
   },
   orderHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
+    gap: 12,
   },
   orderThumb: {
-    width: 58,
-    height: 58,
-    borderRadius: 14,
+    width: 52,
+    height: 52,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
   },
   orderThumbText: {
-    fontSize: 18,
-    fontWeight: '900',
     color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '900',
   },
   orderMetaBlock: {
     flex: 1,
-    paddingRight: 10,
   },
   orderStoreName: {
-    fontSize: 17,
-    fontWeight: '800',
     color: COLORS.text,
-    marginBottom: 2,
+    fontSize: 16,
+    fontWeight: '900',
   },
   orderStoreLocation: {
-    fontSize: 14,
     color: COLORS.muted,
-    fontWeight: '500',
+    fontSize: 12,
+    marginTop: 4,
   },
   orderStatusWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
   },
   orderStatus: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: COLORS.orderStatus,
-    marginRight: 4,
+    fontSize: 12,
+    fontWeight: '900',
   },
-  orderItemRow: {
+  orderPillRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
+    marginTop: 14,
   },
-  orderQtyPill: {
-    minWidth: 36,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-    paddingHorizontal: 8,
+  serviceTag: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  orderQtyPillText: {
-    color: '#6b7280',
-    fontWeight: '800',
-    fontSize: 13,
+  serviceTagText: {
+    fontSize: 11,
+    fontWeight: '900',
   },
   orderItemText: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 12,
   },
-  ratingSection: {
-    borderTopWidth: 1,
-    borderTopColor: '#efeff2',
-    borderBottomWidth: 1,
-    borderBottomColor: '#efeff2',
-    paddingVertical: 14,
-    flexDirection: 'row',
-    marginBottom: 14,
-  },
-  ratingCol: {
-    flex: 1,
-  },
-  ratingDivider: {
-    width: 1,
-    backgroundColor: '#efeff2',
-    marginHorizontal: 12,
-  },
-  ratingLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+  orderFooterText: {
     color: COLORS.muted,
-    marginBottom: 8,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 8,
   },
-  starsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  orderActionRow: {
+    marginTop: 14,
   },
   reorderButton: {
-    height: 48,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     borderRadius: 14,
     backgroundColor: COLORS.peach,
-    alignItems: 'center',
-    justifyContent: 'center',
     flexDirection: 'row',
-    marginBottom: 12,
+    alignItems: 'center',
+    gap: 6,
   },
   reorderButtonText: {
     color: COLORS.peachText,
-    fontSize: 17,
+    fontSize: 13,
     fontWeight: '900',
-    marginRight: 4,
   },
-  orderFooterText: {
-    fontSize: 14,
-    color: COLORS.muted,
-    fontWeight: '500',
-  },
+
   emptyOrdersCard: {
-    backgroundColor: COLORS.card,
     borderRadius: 22,
+    backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 18,
+    marginBottom: 14,
   },
   emptyOrdersTitle: {
-    fontSize: 16,
-    fontWeight: '800',
     color: COLORS.text,
-    marginBottom: 6,
+    fontSize: 18,
+    fontWeight: '900',
   },
   emptyOrdersText: {
-    fontSize: 14,
-    lineHeight: 21,
     color: COLORS.muted,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 8,
   },
 });
