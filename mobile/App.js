@@ -925,7 +925,7 @@ export default function App() {
     );
   };
 
-  const renderInstamartBody = () => (
+  const InstamartServiceSection = () => (
     <View style={styles.bodySurface}>
       <View style={styles.everydayBanner}>
         <View style={styles.everydayBadge}>
@@ -1038,7 +1038,7 @@ export default function App() {
     </View>
   );
 
-  const renderFoodBody = () => (
+  const FoodServiceSection = () => (
     <View style={styles.bodySurface}>
       <View style={[styles.foodHeroBanner, { backgroundColor: theme.hero }]}>
         <Text style={styles.foodHeroEyebrow}>CRAVE</Text>
@@ -1097,7 +1097,7 @@ export default function App() {
     </View>
   );
 
-  const renderDineoutBody = () => (
+  const DineoutServiceSection = () => (
     <View style={styles.bodySurface}>
       <View style={styles.dineoutBanner}>
         <View style={{ flex: 1 }}>
@@ -1147,7 +1147,7 @@ export default function App() {
     </View>
   );
 
-  const renderScenesBody = () => (
+  const ScenesServiceSection = () => (
     <View style={styles.bodySurfaceDark}>
       <SectionHeader
         title="When is the plan?"
@@ -1156,7 +1156,7 @@ export default function App() {
       />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.miniRail}>
-        {['Today’s vibe', 'Weekend mood', 'This week’s drops', 'Next weekend tea'].map((item, index) => (
+        {["Today’s vibe", 'Weekend mood', "This week’s drops", 'Next weekend tea'].map((item, index) => (
           <View key={item} style={[styles.bucketPill, { backgroundColor: ['#7e1e6f', '#164e63', '#5b3f93', '#6b4a1f'][index] }]}>
             <Text style={styles.bucketPillText}>{item}</Text>
           </View>
@@ -1186,132 +1186,136 @@ export default function App() {
     </View>
   );
 
-  const renderHome = () => {
+  const HomeHeroSection = () => {
     const isEta = theme.headlineType === 'eta';
 
     return (
-      <View style={styles.screen}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.homeScrollContent,
-            activeService === 'scenes' && { backgroundColor: COLORS.dark900 },
-          ]}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => loadVendors({ pullToRefresh: true })}
-              tintColor={theme.bodyDark ? '#ffffff' : '#ffffff'}
-            />
-          }>
-          <View style={[styles.heroShell, { backgroundColor: theme.hero }]}>
-            <View style={styles.heroTopRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={isEta ? styles.heroEta : theme.bodyDark ? styles.heroTitleLight : styles.heroTitle}>
-                  {theme.headline}
-                </Text>
-                <TouchableOpacity activeOpacity={0.88} style={styles.addressRow}>
-                  <Text style={styles.addressText} numberOfLines={1}>
-                    {theme.address}
-                  </Text>
-                  <Ionicons name="chevron-down" size={16} color="#d1fae5" />
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity style={[styles.profileButton, { backgroundColor: theme.heroPill }]} activeOpacity={0.9}>
-                <Ionicons name="person-outline" size={22} color="#ffffff" />
-              </TouchableOpacity>
-            </View>
+      <View style={[styles.heroShell, { backgroundColor: theme.hero }]}>
+        <View style={styles.heroTopRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={isEta ? styles.heroEta : theme.bodyDark ? styles.heroTitleLight : styles.heroTitle}>
+              {theme.headline}
+            </Text>
+            <TouchableOpacity activeOpacity={0.88} style={styles.addressRow}>
+              <Text style={styles.addressText} numberOfLines={1}>
+                {theme.address}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#d1fae5" />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={[styles.profileButton, { backgroundColor: theme.heroPill }]} activeOpacity={0.9}>
+            <Ionicons name="person-outline" size={22} color="#ffffff" />
+          </TouchableOpacity>
+        </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.serviceRail}>
-              {TOP_SERVICES.map((item) => {
-                const active = activeService === item.key;
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.serviceRail}>
+          {TOP_SERVICES.map((item) => {
+            const active = activeService === item.key;
+            return (
+              <TouchableOpacity
+                key={item.key}
+                activeOpacity={0.9}
+                style={[
+                  styles.serviceCard,
+                  active && { backgroundColor: theme.heroAccent, borderColor: 'rgba(255,255,255,0.24)' },
+                ]}
+                onPress={() => {
+                  setActiveService(item.key);
+                  setActiveTab('home');
+                }}>
+                <View style={[styles.serviceIconWrap, active && styles.serviceIconWrapActive]}>
+                  <Ionicons name={item.icon} size={22} color={active ? theme.hero : '#ffffff'} />
+                </View>
+                <Text style={[styles.serviceLabel, active && styles.serviceLabelActive]}>{item.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        <View style={styles.heroSearchRow}>
+          <View style={styles.searchBoxHero}>
+            <Ionicons name="search-outline" size={20} color={COLORS.muted} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder={theme.searchPlaceholder}
+              placeholderTextColor={COLORS.subtle}
+              value={homeSearch}
+              onChangeText={setHomeSearch}
+              onSubmitEditing={() => rememberSearch(homeSearch)}
+            />
+            <Ionicons name={activeService === 'food' ? 'mic-outline' : 'receipt-outline'} size={20} color={COLORS.muted} />
+          </View>
+          <TouchableOpacity style={[styles.bookmarkButton, { backgroundColor: theme.heroPill }]} activeOpacity={0.9}>
+            <Ionicons name="bookmark-outline" size={22} color="#ffffff" />
+          </TouchableOpacity>
+        </View>
+
+        {activeService === 'instamart' ? (
+          <>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shortcutRail}>
+              {HOME_SHORTCUTS.map((item) => {
+                const active = activeShortcut === item.key;
                 return (
                   <TouchableOpacity
                     key={item.key}
-                    activeOpacity={0.9}
-                    style={[
-                      styles.serviceCard,
-                      active && { backgroundColor: theme.heroAccent, borderColor: 'rgba(255,255,255,0.24)' },
-                    ]}
-                    onPress={() => {
-                      setActiveService(item.key);
-                      setActiveTab('home');
-                    }}>
-                    <View style={[styles.serviceIconWrap, active && styles.serviceIconWrapActive]}>
-                      <Ionicons name={item.icon} size={22} color={active ? theme.hero : '#ffffff'} />
+                    style={styles.shortcutItem}
+                    activeOpacity={0.92}
+                    onPress={() => setActiveShortcut(item.key)}>
+                    <View style={[styles.shortcutIconWrap, active && styles.shortcutIconWrapActive]}>
+                      <Ionicons name={item.icon} size={16} color={active ? '#ffffff' : '#d1fae5'} />
                     </View>
-                    <Text style={[styles.serviceLabel, active && styles.serviceLabelActive]}>{item.label}</Text>
+                    <Text style={[styles.shortcutLabel, active && styles.shortcutLabelActive]}>{item.label}</Text>
+                    <View style={[styles.shortcutUnderline, !active && styles.shortcutUnderlineHidden]} />
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
 
-            <View style={styles.heroSearchRow}>
-              <View style={styles.searchBoxHero}>
-                <Ionicons name="search-outline" size={20} color={COLORS.muted} />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder={theme.searchPlaceholder}
-                  placeholderTextColor={COLORS.subtle}
-                  value={homeSearch}
-                  onChangeText={setHomeSearch}
-                  onSubmitEditing={() => rememberSearch(homeSearch)}
-                />
-                <Ionicons name={activeService === 'food' ? 'mic-outline' : 'receipt-outline'} size={20} color={COLORS.muted} />
-              </View>
-              <TouchableOpacity style={[styles.bookmarkButton, { backgroundColor: theme.heroPill }]} activeOpacity={0.9}>
-                <Ionicons name="bookmark-outline" size={22} color="#ffffff" />
-              </TouchableOpacity>
+            <View style={styles.celebrationWrap}>
+              <Text style={styles.celebrationEyebrow}>SEASON OF</Text>
+              <Text style={styles.celebrationTitle}>CELEBRATION</Text>
             </View>
 
-            {activeService === 'instamart' ? (
-              <>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shortcutRail}>
-                  {HOME_SHORTCUTS.map((item) => {
-                    const active = activeShortcut === item.key;
-                    return (
-                      <TouchableOpacity
-                        key={item.key}
-                        style={styles.shortcutItem}
-                        activeOpacity={0.92}
-                        onPress={() => setActiveShortcut(item.key)}>
-                        <View style={[styles.shortcutIconWrap, active && styles.shortcutIconWrapActive]}>
-                          <Ionicons name={item.icon} size={16} color={active ? '#ffffff' : '#d1fae5'} />
-                        </View>
-                        <Text style={[styles.shortcutLabel, active && styles.shortcutLabelActive]}>{item.label}</Text>
-                        <View style={[styles.shortcutUnderline, !active && styles.shortcutUnderlineHidden]} />
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-
-                <View style={styles.celebrationWrap}>
-                  <Text style={styles.celebrationEyebrow}>SEASON OF</Text>
-                  <Text style={styles.celebrationTitle}>CELEBRATION</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.festivalRail}>
+              {FESTIVAL_TILES.map((item) => (
+                <View key={item.key} style={styles.festivalCard}>
+                  <Text style={styles.festivalTitle}>{item.title}</Text>
+                  <Text style={styles.festivalEmoji}>{item.emoji}</Text>
                 </View>
-
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.festivalRail}>
-                  {FESTIVAL_TILES.map((item) => (
-                    <View key={item.key} style={styles.festivalCard}>
-                      <Text style={styles.festivalTitle}>{item.title}</Text>
-                      <Text style={styles.festivalEmoji}>{item.emoji}</Text>
-                    </View>
-                  ))}
-                </ScrollView>
-              </>
-            ) : null}
-          </View>
-
-          {activeService === 'instamart' && renderInstamartBody()}
-          {activeService === 'food' && renderFoodBody()}
-          {activeService === 'dineout' && renderDineoutBody()}
-          {activeService === 'scenes' && renderScenesBody()}
-        </ScrollView>
+              ))}
+            </ScrollView>
+          </>
+        ) : null}
       </View>
     );
   };
 
-  const renderExplore = () => {
+  const HomeScreen = () => (
+    <View style={styles.screen}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.homeScrollContent,
+          activeService === 'scenes' && { backgroundColor: COLORS.dark900 },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadVendors({ pullToRefresh: true })}
+            tintColor={theme.bodyDark ? '#ffffff' : '#ffffff'}
+          />
+        }>
+        <HomeHeroSection />
+
+        {activeService === 'instamart' && <InstamartServiceSection />}
+        {activeService === 'food' && <FoodServiceSection />}
+        {activeService === 'dineout' && <DineoutServiceSection />}
+        {activeService === 'scenes' && <ScenesServiceSection />}
+      </ScrollView>
+    </View>
+  );
+
+  const ExploreScreen = () => {
     const tiles = EXPLORE_TILES[activeService] || CATEGORY_GRID;
     const title =
       activeService === 'instamart'
@@ -1366,7 +1370,7 @@ export default function App() {
     );
   };
 
-  const renderReorder = () => (
+  const ReorderScreen = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
       <SectionHeader title="Reorder" subtitle="Local order history makes this useful even before auth is wired." />
 
@@ -1426,7 +1430,7 @@ export default function App() {
     </ScrollView>
   );
 
-  const renderAccount = () => (
+  const AccountScreen = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
       <View style={styles.accountHeaderCard}>
         <View>
@@ -1486,7 +1490,7 @@ export default function App() {
     </ScrollView>
   );
 
-  const renderVendorDetails = () => (
+  const VendorDetailsScreen = () => (
     <View style={styles.screen}>
       <View style={styles.innerHeader}>
         <TouchableOpacity style={styles.iconButton} onPress={() => setSelectedVendor(null)}>
@@ -1597,7 +1601,7 @@ export default function App() {
     </View>
   );
 
-  const renderCart = () => (
+  const CartScreen = () => (
     <View style={styles.screen}>
       <View style={styles.innerHeader}>
         <TouchableOpacity style={styles.iconButton} onPress={() => setShowCart(false)}>
@@ -1653,20 +1657,20 @@ export default function App() {
     </View>
   );
 
-  const renderContent = () => {
-    if (selectedVendor) return renderVendorDetails();
-    if (showCart) return renderCart();
+  const ActiveScreen = () => {
+    if (selectedVendor) return <VendorDetailsScreen />;
+    if (showCart) return <CartScreen />;
 
     switch (activeTab) {
       case 'explore':
-        return renderExplore();
+        return <ExploreScreen />;
       case 'reorder':
-        return renderReorder();
+        return <ReorderScreen />;
       case 'account':
-        return renderAccount();
+        return <AccountScreen />;
       case 'home':
       default:
-        return renderHome();
+        return <HomeScreen />;
     }
   };
 
@@ -1693,7 +1697,7 @@ export default function App() {
         barStyle={isHomeRoot ? 'light-content' : 'dark-content'}
         backgroundColor={isHomeRoot ? theme.hero : COLORS.bg}
       />
-      {renderContent()}
+      <ActiveScreen />
 
       {!selectedVendor && !showCart ? (
         <>
