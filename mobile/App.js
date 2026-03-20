@@ -16,9 +16,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL } from './src/config';
 
-const STORAGE_CART = '@grab_basket/cart_v3';
+const STORAGE_CART = '@grab_basket/cart_v4';
 const STORAGE_FAVORITES = '@grab_basket/favorites_v1';
-const STORAGE_RECENT_STORES = '@grab_basket/recent_stores_v1';
+const STORAGE_RECENT_STORES = '@grab_basket/recent_stores_v2';
+const STORAGE_RECENT_SEARCHES = '@grab_basket/recent_searches_v1';
+
+const FREE_DELIVERY_THRESHOLD = 199;
+const PLATFORM_FEE = 6;
 
 const TOP_SERVICES = [
   { key: 'food', icon: 'restaurant-outline', label: 'Food', subtitle: 'Restaurants' },
@@ -85,6 +89,25 @@ function initials(name = '') {
     .toUpperCase();
 }
 
+function normalizeText(value = '') {
+  return value.trim().toLowerCase();
+}
+
+function dedupeStrings(values = []) {
+  const seen = new Set();
+  const result = [];
+
+  values.forEach((value) => {
+    const raw = String(value || '').trim();
+    const key = normalizeText(raw);
+    if (!raw || seen.has(key)) return;
+    seen.add(key);
+    result.push(raw);
+  });
+
+  return result;
+}
+
 function estimateEta(vendor) {
   if (vendor?.distance_km != null) {
     if (vendor.distance_km <= 2) return '15-20 mins';
@@ -107,6 +130,13 @@ function getDeliveryFeeLabel(vendor) {
 
 function getStoreTone(seed = 0) {
   return STORE_TONES[seed % STORE_TONES.length];
+}
+
+function getStoreStatusLabel(vendor) {
+  const eta = estimateEta(vendor);
+  if (eta === '15-20 mins') return 'FAST';
+  if (getDeliveryFeeAmount(vendor) === 0) return 'FREE';
+  return vendor?.open_now ? 'OPEN' : 'STORE';
 }
 
 function buildVendorQuery(search, filter) {
@@ -141,6 +171,32 @@ function createKeywordMap(vendors = []) {
     ramzan: vendors.filter((vendor) => /(dates|dry|drink|juice|sweet|iftar|festival)/i.test(`${vendor.name} ${vendor.description}`)),
     exam: vendors.filter((vendor) => /(snack|drink|coffee|tea|quick|ready)/i.test(`${vendor.name} ${vendor.description}`)),
   };
+}
+
+function pickEmoji(name = '') {
+  const value = name.toLowerCase();
+  if (/(curd|milk|paneer|yogurt|dairy)/.test(value)) return '🥛';
+  if (/(chip|snack|nacho|lays|cracker)/.test(value)) return '🥔';
+  if (/(jam|fruit|berry|strawberry)/.test(value)) return '🍓';
+  if (/(chocolate|candy|bar|cocoa)/.test(value)) return '🍫';
+  if (/(bread|toast|bun|bakery)/.test(value)) return '🍞';
+  if (/(drink|juice|cola|soda|water)/.test(value)) return '🥤';
+  if (/(vegetable|tomato|onion|potato)/.test(value)) return '🥬';
+  return '🛒';
+}
+
+function buildSuggestionPool(recentSearches, vendors, deals) {
+  return dedupeStrings([
+    ...recentSearches,
+    ...deals.map((item) => item.name),
+    ...vendors.map((item) => item.name),
+    ...CATEGORY_GRID.map((item) => item.title),
+    'Sunscreen',
+  ]).slice(0, 10);
+}
+
+function buildVendorSearchChips(products = []) {
+  return dedupeStrings(products.map((item) => item.name)).slice(0, 8);
 }
 
 async function apiRequest(path) {
@@ -192,6 +248,7 @@ export default function App() {
   const [cart, setCart] = useState({ vendorId: null, items: {} });
   const [favorites, setFavorites] = useState({});
   const [recentStoreIds, setRecentStoreIds] = useState([]);
+  const [recentSearches, setRecentSearches] = useState([]);
   const [showCart, setShowCart] = useState(false);
 
   useEffect(() => {
@@ -203,16 +260,19 @@ export default function App() {
           STORAGE_CART,
           STORAGE_FAVORITES,
           STORAGE_RECENT_STORES,
+          STORAGE_RECENT_SEARCHES,
         ]);
         if (!active) return;
 
         const savedCart = stored[0]?.[1];
         const savedFavorites = stored[1]?.[1];
         const savedRecentStores = stored[2]?.[1];
+        const savedRecentSearches = stored[3]?.[1];
 
         if (savedCart) setCart(JSON.parse(savedCart));
         if (savedFavorites) setFavorites(JSON.parse(savedFavorites));
         if (savedRecentStores) setRecentStoreIds(JSON.parse(savedRecentStores));
+        if (savedRecentSearches) setRecentSearches(JSON.parse(savedRecentSearches));
       } catch {
         // Ignore boot persistence errors in guest mode.
       }
@@ -234,6 +294,16 @@ export default function App() {
   useEffect(() => {
     AsyncStorage.setItem(STORAGE_RECENT_STORES, JSON.stringify(recentStoreIds)).catch(() => {});
   }, [recentStoreIds]);
+
+  useEffect(() => {
+    AsyncStorage.setItem(STORAGE_RECENT_SEARCHES, JSON.stringify(recentSearches)).catch(() => {});
+  }, [recentSearches]);
+
+  const rememberSearch = useCallback((term) => {
+    const value = String(term || '').trim();
+    if (!value) return;
+    setRecentSearches((current) => [value, ...current.filter((item) => normalizeText(item) !== normalizeText(value))].slice(0, 8));
+  }, []);
 
   const loadVendors = useCallback(
     async ({ pullToRefresh = false } = {}) => {
@@ -343,10 +413,7 @@ export default function App() {
   }, [selectedVendor, productSearch, loadProducts]);
 
   const cartItems = useMemo(() => Object.values(cart.items), [cart]);
-  const cartCount = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.qty, 0),
-    [cartItems]
-  );
+  const cartCount = useMemo(() => cartItems.reduce((sum, item) => sum + item.qty, 0), [cartItems]);
   const cartSubtotal = useMemo(
     () => cartItems.reduce((sum, item) => sum + Number(item.price || 0) * item.qty, 0),
     [cartItems]
@@ -359,8 +426,10 @@ export default function App() {
 
   const cartVendorName = cartVendor?.name || 'your store';
   const deliveryFeeAmount = cartCount > 0 ? getDeliveryFeeAmount(cartVendor) : 0;
-  const platformFeeAmount = cartCount > 0 ? 6 : 0;
+  const platformFeeAmount = cartCount > 0 ? PLATFORM_FEE : 0;
   const cartTotal = cartSubtotal + deliveryFeeAmount + platformFeeAmount;
+  const freeDeliveryRemaining = Math.max(0, FREE_DELIVERY_THRESHOLD - cartSubtotal);
+  const freeDeliveryProgress = Math.min(1, cartSubtotal / FREE_DELIVERY_THRESHOLD);
 
   const keywordMap = useMemo(() => createKeywordMap(vendors), [vendors]);
 
@@ -385,11 +454,11 @@ export default function App() {
   );
 
   const bestSellerProducts = useMemo(() => products.slice(0, 4), [products]);
-
-  const searchSuggestions = useMemo(() => {
-    const names = homeDeals.map((item) => item.name).filter(Boolean);
-    return Array.from(new Set(['Sunscreen', ...names, ...CATEGORY_GRID.map((item) => item.title)])).slice(0, 8);
-  }, [homeDeals]);
+  const suggestionPool = useMemo(
+    () => buildSuggestionPool(recentSearches, vendors, homeDeals.length > 0 ? homeDeals : FALLBACK_HOME_DEALS),
+    [recentSearches, vendors, homeDeals]
+  );
+  const vendorSearchChips = useMemo(() => buildVendorSearchChips(products), [products]);
 
   const toggleFavorite = (vendorId) => {
     setFavorites((current) => ({
@@ -400,6 +469,11 @@ export default function App() {
 
   const rememberStore = (vendorId) => {
     setRecentStoreIds((current) => [vendorId, ...current.filter((id) => id !== vendorId)].slice(0, 8));
+  };
+
+  const applyHomeSearch = (term) => {
+    setHomeSearch(term);
+    rememberSearch(term);
   };
 
   const replaceCartWith = (product) => {
@@ -552,6 +626,7 @@ export default function App() {
                 placeholderTextColor="#9ca3af"
                 value={homeSearch}
                 onChangeText={setHomeSearch}
+                onSubmitEditing={() => rememberSearch(homeSearch)}
               />
               <Ionicons name="receipt-outline" size={20} color="#6b7280" />
             </View>
@@ -607,7 +682,7 @@ export default function App() {
 
           <SectionHeader
             title="Quick picks"
-            subtitle="The layout is now close to the reference, but Swiggy-quality polish still needs real images, real promotions and ranking from backend data."
+            subtitle="You are close to the screenshot, but not at Swiggy standard yet because merchandising, ratings, promotions and search are still partly synthetic."
           />
 
           {homeDealsLoading ? <LoadingBlock label="Loading quick picks..." /> : null}
@@ -625,8 +700,8 @@ export default function App() {
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionRail}>
-            {searchSuggestions.map((item) => (
-              <TouchableOpacity key={item} style={styles.suggestionChip} onPress={() => setHomeSearch(item)}>
+            {suggestionPool.map((item) => (
+              <TouchableOpacity key={item} style={styles.suggestionChip} onPress={() => applyHomeSearch(item)}>
                 <Ionicons name="search-outline" size={14} color="#0b7a5a" />
                 <Text style={styles.suggestionChipText}>{item}</Text>
               </TouchableOpacity>
@@ -644,7 +719,7 @@ export default function App() {
             ))}
           </ScrollView>
 
-          <SectionHeader title="Popular categories" subtitle="Use real category imagery later. Right now these are clean placeholders." />
+          <SectionHeader title="Popular categories" subtitle="Use real category imagery and CMS-driven ranking next." />
           <View style={styles.categoryGrid}>
             {CATEGORY_GRID.map((item) => (
               <View key={item.title} style={styles.categoryTile}>
@@ -656,7 +731,7 @@ export default function App() {
 
           {recentVendors.length > 0 ? (
             <>
-              <SectionHeader title="Recently opened" subtitle="A small guest-mode improvement that makes the home feel more product-grade." />
+              <SectionHeader title="Recently opened" subtitle="A guest-mode improvement that makes the home feel more product-grade." />
               {recentVendors.slice(0, 2).map((vendor, index) => (
                 <StoreCard
                   key={`recent-${vendor.id}`}
@@ -670,7 +745,10 @@ export default function App() {
             </>
           ) : null}
 
-          <SectionHeader title="Featured stores" subtitle="Still powered by your existing /vendors endpoint." />
+          <SectionHeader
+            title="Featured stores"
+            subtitle={`${featuredVendors.length} stores shown · still powered by your existing /vendors endpoint.`}
+          />
 
           {vendorsLoading ? (
             <LoadingBlock label="Loading stores..." />
@@ -767,6 +845,26 @@ export default function App() {
         </View>
       ) : null}
 
+      {recentSearches.length > 0 ? (
+        <View style={styles.panelCard}>
+          <Text style={styles.panelTitle}>Recent searches</Text>
+          <View style={styles.chipWrap}>
+            {recentSearches.map((item) => (
+              <TouchableOpacity
+                key={item}
+                style={styles.minorChip}
+                onPress={() => {
+                  setActiveTab('home');
+                  applyHomeSearch(item);
+                }}>
+                <Ionicons name="search-outline" size={14} color="#0b7a5a" />
+                <Text style={styles.minorChipText}>{item}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.noteCard}>
         <Text style={styles.noteTitle}>What still blocks a true reorder experience</Text>
         <Text style={styles.noteText}>
@@ -805,7 +903,7 @@ export default function App() {
       <View style={styles.noteCard}>
         <Text style={styles.noteTitle}>Biggest remaining gaps vs Swiggy</Text>
         <Text style={styles.noteText}>
-          Real image-led merchandising, dynamic offers, address-aware ETA, ratings, search suggestions API, checkout trust layers and order tracking polish.
+          Real image-led merchandising, dynamic offers, address-aware ETA, ratings, search suggestions API, checkout trust layers, tracking polish and list virtualization.
         </Text>
       </View>
     </ScrollView>
@@ -836,7 +934,7 @@ export default function App() {
           </Text>
           <View style={styles.vendorBadgeRow}>
             <MetaBadge text={selectedVendor?.open_now ? 'Open now' : 'Store'} />
-            <MetaBadge text={estimateEta(selectedVendor)} />
+            <MetaBadge text={`ETA ${estimateEta(selectedVendor)}`} />
             <MetaBadge text={getDeliveryFeeLabel(selectedVendor)} />
             {selectedVendor?.distance_km != null ? <MetaBadge text={`${selectedVendor.distance_km.toFixed(1)} km`} /> : null}
           </View>
@@ -850,8 +948,20 @@ export default function App() {
             placeholderTextColor="#9ca3af"
             value={productSearch}
             onChangeText={setProductSearch}
+            onSubmitEditing={() => rememberSearch(productSearch)}
           />
         </View>
+
+        {vendorSearchChips.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionRail}>
+            {vendorSearchChips.map((item) => (
+              <TouchableOpacity key={item} style={styles.suggestionChip} onPress={() => setProductSearch(item)}>
+                <Ionicons name="search-outline" size={14} color="#0b7a5a" />
+                <Text style={styles.suggestionChipText}>{item}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : null}
 
         {productsLoading ? <LoadingBlock label="Loading products..." /> : null}
 
@@ -918,6 +1028,8 @@ export default function App() {
           <EmptyState title="Your cart is empty" text="Add products from a single store and they will appear here." />
         ) : (
           <>
+            <FreeDeliveryCard subtotal={cartSubtotal} remaining={freeDeliveryRemaining} progress={freeDeliveryProgress} />
+
             <View style={styles.panelCard}>
               {cartItems.map((item) => (
                 <View key={item.id} style={styles.cartLine}>
@@ -976,6 +1088,12 @@ export default function App() {
   };
 
   const isHomeRoot = !selectedVendor && !showCart && activeTab === 'home';
+  const deliveryStripText =
+    cartSubtotal <= 0
+      ? `FREE DELIVERY on orders above ${money(FREE_DELIVERY_THRESHOLD)}`
+      : freeDeliveryRemaining > 0
+        ? `Add ${money(freeDeliveryRemaining)} more for FREE DELIVERY`
+        : 'FREE DELIVERY unlocked';
 
   return (
     <SafeAreaView style={[styles.safeArea, isHomeRoot && styles.safeAreaHome]}>
@@ -999,7 +1117,7 @@ export default function App() {
                 </TouchableOpacity>
               ) : null}
               <View style={styles.deliveryStrip}>
-                <Text style={styles.deliveryStripText}>FREE DELIVERY on orders above ₹199</Text>
+                <Text style={styles.deliveryStripText}>{deliveryStripText}</Text>
               </View>
             </View>
           ) : null}
@@ -1014,18 +1132,6 @@ export default function App() {
       ) : null}
     </SafeAreaView>
   );
-}
-
-function pickEmoji(name = '') {
-  const value = name.toLowerCase();
-  if (/(curd|milk|paneer|yogurt|dairy)/.test(value)) return '🥛';
-  if (/(chip|snack|nacho|lays)/.test(value)) return '🥔';
-  if (/(jam|fruit|berry|strawberry)/.test(value)) return '🍓';
-  if (/(chocolate|candy|bar|milk)/.test(value)) return '🍫';
-  if (/(bread|toast|bun|bakery)/.test(value)) return '🍞';
-  if (/(drink|juice|cola|soda)/.test(value)) return '🥤';
-  if (/(vegetable|tomato|onion|potato)/.test(value)) return '🥬';
-  return '🛒';
 }
 
 function SectionHeader({ title, subtitle }) {
@@ -1059,6 +1165,27 @@ function MetaBadge({ text }) {
   return (
     <View style={styles.metaBadge}>
       <Text style={styles.metaBadgeText}>{text}</Text>
+    </View>
+  );
+}
+
+function FreeDeliveryCard({ subtotal, remaining, progress }) {
+  return (
+    <View style={styles.freeDeliveryCard}>
+      <View style={styles.freeDeliveryHeader}>
+        <Ionicons name="bicycle-outline" size={18} color="#0b7a5a" />
+        <Text style={styles.freeDeliveryTitle}>Free delivery progress</Text>
+      </View>
+      <Text style={styles.freeDeliveryText}>
+        {subtotal <= 0
+          ? `Add items worth ${money(FREE_DELIVERY_THRESHOLD)} to unlock free delivery.`
+          : remaining > 0
+            ? `Add ${money(remaining)} more to unlock free delivery.`
+            : 'Free delivery unlocked for this basket.'}
+      </Text>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: progress === 0 ? '0%' : `${Math.max(8, progress * 100)}%` }]} />
+      </View>
     </View>
   );
 }
@@ -1103,9 +1230,8 @@ function StoreCard({ vendor, onOpen, onToggleFavorite, favorite, tone }) {
       <View style={styles.storeContent}>
         <View style={styles.storeTitleRow}>
           <Text style={styles.storeName} numberOfLines={1}>{vendor.name}</Text>
-          <View style={styles.ratingPill}>
-            <Ionicons name="star" size={12} color="#111827" />
-            <Text style={styles.ratingPillText}>4.4</Text>
+          <View style={styles.statusPill}>
+            <Text style={styles.statusPillText}>{getStoreStatusLabel(vendor)}</Text>
           </View>
         </View>
         <Text style={styles.storeDescription} numberOfLines={2}>
@@ -1113,7 +1239,7 @@ function StoreCard({ vendor, onOpen, onToggleFavorite, favorite, tone }) {
         </Text>
         <View style={styles.vendorBadgeRow}>
           <MetaBadge text={vendor.open_now ? 'Open now' : 'Store'} />
-          <MetaBadge text={estimateEta(vendor)} />
+          <MetaBadge text={`ETA ${estimateEta(vendor)}`} />
           <MetaBadge text={getDeliveryFeeLabel(vendor)} />
           {vendor.distance_km != null ? <MetaBadge text={`${vendor.distance_km.toFixed(1)} km`} /> : null}
         </View>
@@ -1135,7 +1261,11 @@ function ProductCard({ product, qty, onAdd, onRemove, featured = false }) {
         {featured ? <Text style={styles.featuredLabel}>BESTSELLER</Text> : null}
         <Text style={styles.productTitle}>{product.name}</Text>
         <Text style={styles.productDescription}>{product.description || 'Store product'}</Text>
-        <Text style={styles.productPrice}>{money(product.price)}</Text>
+        <View style={styles.productMetaRow}>
+          <Text style={styles.productPrice}>{money(product.price)}</Text>
+          <Text style={styles.productMetaDot}>•</Text>
+          <Text style={styles.productMetaText}>{qty > 0 ? `${qty} in basket` : 'Available now'}</Text>
+        </View>
       </View>
       <View style={styles.productRightBlock}>
         <View style={styles.productImageMock}>
@@ -1711,16 +1841,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#111827',
   },
-  ratingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  statusPill: {
     backgroundColor: '#f3f4f6',
     borderRadius: 999,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  ratingPillText: {
-    marginLeft: 4,
+  statusPillText: {
     fontSize: 12,
     fontWeight: '800',
     color: '#111827',
@@ -1947,11 +2074,25 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontSize: 13,
   },
-  productPrice: {
+  productMetaRow: {
     marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  productPrice: {
     fontSize: 17,
     fontWeight: '800',
     color: '#111827',
+  },
+  productMetaDot: {
+    marginHorizontal: 6,
+    color: '#9ca3af',
+  },
+  productMetaText: {
+    color: '#6b7280',
+    fontWeight: '600',
+    fontSize: 12,
   },
   productRightBlock: {
     width: 104,
@@ -2031,6 +2172,41 @@ const styles = StyleSheet.create({
   floatingCartSubtitle: {
     marginTop: 4,
     color: '#d1d5db',
+  },
+  freeDeliveryCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#d1fae5',
+    padding: 16,
+    marginBottom: 12,
+  },
+  freeDeliveryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  freeDeliveryTitle: {
+    marginLeft: 8,
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  freeDeliveryText: {
+    marginTop: 8,
+    color: '#374151',
+    lineHeight: 20,
+  },
+  progressTrack: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#e5e7eb',
+    marginTop: 12,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#10b981',
   },
   cartLine: {
     flexDirection: 'row',
@@ -2129,6 +2305,26 @@ const styles = StyleSheet.create({
     marginTop: 4,
     color: '#6b7280',
     fontSize: 13,
+  },
+  chipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 12,
+  },
+  minorChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ecfdf5',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginRight: 10,
+    marginBottom: 10,
+  },
+  minorChipText: {
+    marginLeft: 6,
+    color: '#0b7a5a',
+    fontWeight: '700',
   },
   rootOverlayArea: {
     position: 'absolute',
