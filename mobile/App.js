@@ -1,4 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,6 +21,8 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { API_BASE_URL } from './src/config';
 
 const STORAGE_CART = '@grab_basket/cart_v6';
@@ -69,7 +78,7 @@ const HOME_SHORTCUTS = [
 const STORE_FILTERS = ['All', 'Open now', 'Closest', 'A-Z'];
 
 const FESTIVAL_TILES = [
-  { key: 'navratri', title: 'Chaitra\nNavratri', emoji: '🪔' },
+  { key: 'navratri', title: 'Chaitra Navratri', emoji: '🪔' },
   { key: 'eid', title: 'Eid-Ul-Fitr', emoji: '🌙' },
   { key: 'ugadi', title: 'Ugadi', emoji: '🥭' },
   { key: 'gangaur', title: 'Gangaur', emoji: '🌼' },
@@ -87,130 +96,37 @@ const CATEGORY_GRID = [
 ];
 
 const FOOD_PROMO_TILES = [
-  {
-    key: 'food-deal',
-    title: 'Binge worthy deals',
-    subtitle: 'Up to 60% off & more',
-    emoji: '🍕',
-    tone: '#fde68a',
-  },
-  {
-    key: 'eatright',
-    title: 'EatRight',
-    subtitle: 'Win up to ₹300 free cash',
-    emoji: '🥗',
-    tone: '#fbcfe8',
-  },
-  {
-    key: 'awards',
-    title: 'Restaurant awards',
-    subtitle: 'Vote, share and win',
-    emoji: '🏆',
-    tone: '#fef08a',
-  },
+  { key: 'food-deal', title: 'Binge worthy deals', subtitle: 'Up to 60% off & more', emoji: '🍕', tone: '#fde68a' },
+  { key: 'eatright', title: 'EatRight', subtitle: 'Win up to ₹300 free cash', emoji: '🥗', tone: '#fbcfe8' },
+  { key: 'awards', title: 'Restaurant awards', subtitle: 'Vote, share and win', emoji: '🏆', tone: '#fef08a' },
 ];
 
 const FOOD_DISCOVERY = ['Restaurants near me', 'Pre-book offers', 'Late night', 'Cafe desserts'];
 
 const DINEOUT_PROMO_TILES = [
-  {
-    key: 'flat50',
-    title: 'Flat 50% off',
-    subtitle: 'On table bookings',
-    emoji: '🎉',
-    tone: '#fde68a',
-  },
-  {
-    key: 'girf',
-    title: 'GIRF Hall of Fame',
-    subtitle: 'Best dineout picks',
-    emoji: '🏆',
-    tone: '#ede9fe',
-  },
-  {
-    key: 'family',
-    title: 'Family-friendly spots',
-    subtitle: 'Comfortable and kid-friendly',
-    emoji: '🍽️',
-    tone: '#dcfce7',
-  },
-  {
-    key: 'cafes',
-    title: 'Cafes & quick bites',
-    subtitle: 'Coffee, snacks and desserts',
-    emoji: '☕',
-    tone: '#dbeafe',
-  },
+  { key: 'flat50', title: 'Flat 50% off', subtitle: 'On table bookings', emoji: '🎉', tone: '#fde68a' },
+  { key: 'girf', title: 'GIRF Hall of Fame', subtitle: 'Best dineout picks', emoji: '🏆', tone: '#ede9fe' },
+  { key: 'family', title: 'Family-friendly spots', subtitle: 'Comfortable and kid-friendly', emoji: '🍽️', tone: '#dcfce7' },
+  { key: 'cafes', title: 'Cafes & quick bites', subtitle: 'Coffee, snacks and desserts', emoji: '☕', tone: '#dbeafe' },
 ];
 
-const DINEOUT_DISCOVERY = [
-  'Restaurants near me',
-  'Pre-book offers',
-  'Quick bites',
-  'Premium dining',
-  'Rooftop',
-];
+const DINEOUT_DISCOVERY = ['Restaurants near me', 'Pre-book offers', 'Quick bites', 'Premium dining', 'Rooftop'];
 
 const SCENE_FILTERS = ['All', 'Today', 'This Week', 'This Weekend', 'Next Weekend'];
 
 const SCENE_EVENTS = [
-  {
-    id: 'scene-1',
-    title: 'Rage Room at Break N Chill',
-    venue: 'Break N Chill · Chittethukara',
-    price: 299,
-    date: '20 MAR',
-    bucket: 'Today',
-    emoji: '💥',
-    tone: '#2b0b16',
-  },
-  {
-    id: 'scene-2',
-    title: 'Pottery Wheel Throwing Workshop',
-    venue: 'Soil to Soul Ceramics · Kadavanthra',
-    price: 1000,
-    date: '20 MAR',
-    bucket: 'This Week',
-    emoji: '🏺',
-    tone: '#3a2c25',
-  },
-  {
-    id: 'scene-3',
-    title: 'Kimchi Culture',
-    venue: 'Skei Presents · Kochi',
-    price: 699,
-    date: '22 MAR',
-    bucket: 'This Weekend',
-    emoji: '🎎',
-    tone: '#5f1015',
-  },
-  {
-    id: 'scene-4',
-    title: 'Stand-up Comedy Night',
-    venue: 'Laugh Club · Kakkanad',
-    price: 499,
-    date: '23 MAR',
-    bucket: 'This Weekend',
-    emoji: '🎤',
-    tone: '#1e293b',
-  },
-  {
-    id: 'scene-5',
-    title: 'Kids Creative Lab',
-    venue: 'Mini Makers · Panampilly',
-    price: 399,
-    date: '29 MAR',
-    bucket: 'Next Weekend',
-    emoji: '🎨',
-    tone: '#3b1f65',
-  },
+  { id: 'scene-1', title: 'Rage Room at Break N Chill', venue: 'Break N Chill · Chittethukara', price: 299, date: '20 MAR', bucket: 'Today', emoji: '💥', tone: '#2b0b16' },
+  { id: 'scene-2', title: 'Pottery Wheel Throwing Workshop', venue: 'Soil to Soul Ceramics · Kadavanthra', price: 1000, date: '20 MAR', bucket: 'This Week', emoji: '🏺', tone: '#3a2c25' },
+  { id: 'scene-3', title: 'Kimchi Culture', venue: 'Skei Presents · Kochi', price: 699, date: '22 MAR', bucket: 'This Weekend', emoji: '🎎', tone: '#5f1015' },
+  { id: 'scene-4', title: 'Stand-up Comedy Night', venue: 'Laugh Club · Kakkanad', price: 499, date: '23 MAR', bucket: 'This Weekend', emoji: '🎤', tone: '#1e293b' },
+  { id: 'scene-5', title: 'Kids Creative Lab', venue: 'Mini Makers · Panampilly', price: 399, date: '29 MAR', bucket: 'Next Weekend', emoji: '🎨', tone: '#3b1f65' },
 ];
 
 const ACCOUNT_SHORTCUTS = [
-  { key: 'address', icon: 'location-outline', label: 'Saved\nAddress' },
-  { key: 'payment', icon: 'card-outline', label: 'Payment\nModes' },
-  { key: 'refunds', icon: 'reload-outline', label: 'My\nRefunds' },
-  { key: 'wallet', icon: 'wallet-outline', label: 'Swiggy\nMoney' },
+  { key: 'address', icon: 'location-outline', label: 'Saved Address' },
+  { key: 'payment', icon: 'card-outline', label: 'Payment Modes' },
+  { key: 'refunds', icon: 'reload-outline', label: 'My Refunds' },
+  { key: 'wallet', icon: 'wallet-outline', label: 'Swiggy Money' },
 ];
 
 const ACCOUNT_ROWS = [
@@ -383,6 +299,7 @@ function estimateEta(vendor) {
     if (vendor.distance_km <= 5) return '20-30 mins';
     return '30-45 mins';
   }
+
   return '23 mins';
 }
 
@@ -404,13 +321,6 @@ function getStoreTone(seed = 0) {
 function getVendorRating(vendor) {
   const seed = Number(vendor?.id || 0) || String(vendor?.name || '').length || 1;
   return (4.1 + (seed % 8) * 0.1).toFixed(1);
-}
-
-function getStoreStatusLabel(vendor) {
-  const eta = estimateEta(vendor);
-  if (eta === '15-20 mins') return 'FAST';
-  if (getDeliveryFeeAmount(vendor) === 0) return 'FREE';
-  return vendor?.open_now ? 'OPEN' : 'STORE';
 }
 
 function getStoreOfferLabel(vendor) {
@@ -495,6 +405,10 @@ function formatOrderTime(date = new Date()) {
   }
 }
 
+function findVendorById(list, id) {
+  return list.find((item) => String(item.id) === String(id)) || null;
+}
+
 async function apiRequest(path) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
@@ -516,14 +430,26 @@ async function apiRequest(path) {
       (data && typeof data === 'object' && (data.detail || data?.error?.message)) ||
       (typeof data === 'string' && data) ||
       'Request failed';
+
     throw new Error(message);
   }
 
   return data;
 }
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState('home');
+const GrabBasketContext = createContext(null);
+
+export function useGrabBasket() {
+  const value = useContext(GrabBasketContext);
+
+  if (!value) {
+    throw new Error('useGrabBasket must be used inside GrabBasketProvider');
+  }
+
+  return value;
+}
+
+export function GrabBasketProvider({ children }) {
   const [activeService, setActiveService] = useState('instamart');
   const [activeShortcut, setActiveShortcut] = useState('all');
   const [homeSearch, setHomeSearch] = useState('');
@@ -538,17 +464,11 @@ export default function App() {
   const [homeDeals, setHomeDeals] = useState([]);
   const [homeDealsLoading, setHomeDealsLoading] = useState(false);
 
-  const [selectedVendor, setSelectedVendor] = useState(null);
-  const [productSearch, setProductSearch] = useState('');
-  const [products, setProducts] = useState([]);
-  const [productsLoading, setProductsLoading] = useState(false);
-
   const [cart, setCart] = useState({ vendorId: null, items: {} });
   const [favorites, setFavorites] = useState({});
   const [recentStoreIds, setRecentStoreIds] = useState([]);
   const [recentSearches, setRecentSearches] = useState([]);
   const [orderHistory, setOrderHistory] = useState([]);
-  const [showCart, setShowCart] = useState(false);
 
   const theme = SERVICE_THEMES[activeService];
 
@@ -579,7 +499,7 @@ export default function App() {
         if (savedRecentSearches) setRecentSearches(JSON.parse(savedRecentSearches));
         if (savedOrders) setOrderHistory(JSON.parse(savedOrders));
       } catch {
-        // Ignore guest-mode boot persistence issues.
+        // ignore bad local state
       }
     })();
 
@@ -650,6 +570,7 @@ export default function App() {
 
   const loadHomeDeals = useCallback(async (vendorList) => {
     const topVendors = vendorList.slice(0, 4);
+
     if (topVendors.length === 0) {
       setHomeDeals([]);
       return;
@@ -657,6 +578,7 @@ export default function App() {
 
     try {
       setHomeDealsLoading(true);
+
       const groups = await Promise.all(
         topVendors.map(async (vendor) => {
           try {
@@ -700,30 +622,23 @@ export default function App() {
 
   const loadProducts = useCallback(async (vendor, searchValue = '') => {
     try {
-      setProductsLoading(true);
       const params = new URLSearchParams();
-      if (String(searchValue || '').trim()) params.set('q', String(searchValue).trim());
+
+      if (String(searchValue || '').trim()) {
+        params.set('q', String(searchValue).trim());
+      }
+
       params.set('limit', '200');
+
       const query = params.toString();
       const data = await apiRequest(`/vendors/${vendor.id}/products${query ? `?${query}` : ''}`);
-      setProducts(Array.isArray(data) ? data : []);
+
+      return Array.isArray(data) ? data : [];
     } catch (error) {
-      setProducts([]);
       Alert.alert('Could not load products', error.message);
-    } finally {
-      setProductsLoading(false);
+      return [];
     }
   }, []);
-
-  useEffect(() => {
-    if (!selectedVendor) return undefined;
-
-    const timer = setTimeout(() => {
-      loadProducts(selectedVendor, productSearch);
-    }, 250);
-
-    return () => clearTimeout(timer);
-  }, [selectedVendor, productSearch, loadProducts]);
 
   const cartItems = useMemo(() => Object.values(cart.items), [cart]);
   const cartCount = useMemo(
@@ -737,8 +652,8 @@ export default function App() {
 
   const cartVendor = useMemo(() => {
     if (!cart.vendorId) return null;
-    return vendors.find((item) => item.id === cart.vendorId) || selectedVendor || null;
-  }, [cart.vendorId, vendors, selectedVendor]);
+    return findVendorById(vendors, cart.vendorId);
+  }, [vendors, cart.vendorId]);
 
   const deliveryFeeAmount = cartCount > 0 ? getDeliveryFeeAmount(cartVendor) : 0;
   const platformFeeAmount = cartCount > 0 ? PLATFORM_FEE : 0;
@@ -757,10 +672,7 @@ export default function App() {
   const featuredVendors = useMemo(() => shortcutFilteredVendors.slice(0, 6), [shortcutFilteredVendors]);
 
   const recentVendors = useMemo(
-    () =>
-      recentStoreIds
-        .map((id) => vendors.find((vendor) => vendor.id === id))
-        .filter(Boolean),
+    () => recentStoreIds.map((id) => findVendorById(vendors, id)).filter(Boolean),
     [recentStoreIds, vendors]
   );
 
@@ -781,13 +693,6 @@ export default function App() {
     [recentSearches, homeDeals, vendors]
   );
 
-  const vendorSearchChips = useMemo(
-    () => dedupeStrings(products.map((item) => item.name)).slice(0, 8),
-    [products]
-  );
-
-  const bestSellerProducts = useMemo(() => products.slice(0, 6), [products]);
-
   const sceneEvents = useMemo(() => {
     if (sceneFilter === 'All') return SCENE_EVENTS;
     return SCENE_EVENTS.filter((event) => event.bucket === sceneFilter);
@@ -799,24 +704,26 @@ export default function App() {
     return items.filter((item) => item.service === pastOrderFilter.toLowerCase());
   }, [orderHistory, pastOrderFilter]);
 
-  const toggleFavorite = (vendorId) => {
+  const toggleFavorite = useCallback((vendorId) => {
     setFavorites((current) => ({
       ...current,
       [vendorId]: !current[vendorId],
     }));
-  };
+  }, []);
 
-  const rememberStore = (vendorId) => {
+  const rememberStore = useCallback((vendorId) => {
     setRecentStoreIds((current) => [vendorId, ...current.filter((id) => id !== vendorId)].slice(0, 8));
-  };
+  }, []);
 
-  const applyHomeSearch = (term) => {
-    setHomeSearch(term);
-    rememberSearch(term);
-    setActiveTab('home');
-  };
+  const applyHomeSearch = useCallback(
+    (term) => {
+      setHomeSearch(term);
+      rememberSearch(term);
+    },
+    [rememberSearch]
+  );
 
-  const replaceCartWith = (product) => {
+  const replaceCartWith = useCallback((product) => {
     setCart({
       vendorId: product.vendor_id,
       items: {
@@ -826,37 +733,41 @@ export default function App() {
         },
       },
     });
-  };
+  }, []);
 
-  const addToCart = (product) => {
-    if (cart.vendorId && cart.vendorId !== product.vendor_id) {
-      Alert.alert(
-        'Replace cart?',
-        'Only one store can stay active in the basket. Replace the current basket with this item?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Replace', style: 'destructive', onPress: () => replaceCartWith(product) },
-        ]
-      );
-      return;
-    }
+  const addToCart = useCallback(
+    (product) => {
+      if (cart.vendorId && String(cart.vendorId) !== String(product.vendor_id)) {
+        Alert.alert(
+          'Replace cart?',
+          'Only one store can stay active in the basket. Replace the current basket with this item?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Replace', style: 'destructive', onPress: () => replaceCartWith(product) },
+          ]
+        );
+        return;
+      }
 
-    setCart((current) => {
-      const existing = current.items[product.id];
-      return {
-        vendorId: product.vendor_id,
-        items: {
-          ...current.items,
-          [product.id]: {
-            ...(existing || product),
-            qty: existing ? existing.qty + 1 : 1,
+      setCart((current) => {
+        const existing = current.items[product.id];
+
+        return {
+          vendorId: product.vendor_id,
+          items: {
+            ...current.items,
+            [product.id]: {
+              ...(existing || product),
+              qty: existing ? existing.qty + 1 : 1,
+            },
           },
-        },
-      };
-    });
-  };
+        };
+      });
+    },
+    [cart.vendorId, replaceCartWith]
+  );
 
-  const updateQty = (product, delta) => {
+  const updateQty = useCallback((product, delta) => {
     setCart((current) => {
       const existing = current.items[product.id];
       if (!existing) return current;
@@ -880,24 +791,16 @@ export default function App() {
         items: nextItems,
       };
     });
-  };
+  }, []);
 
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setCart({ vendorId: null, items: {} });
-  };
+  }, []);
 
-  const openVendor = async (vendor) => {
-    rememberStore(vendor.id);
-    setSelectedVendor(vendor);
-    setProductSearch('');
-    setProducts([]);
-    await loadProducts(vendor, '');
-  };
-
-  const placeDemoOrder = () => {
+  const placeDemoOrder = useCallback(() => {
     if (cartItems.length === 0) {
       Alert.alert('Cart is empty', 'Add some products first.');
-      return;
+      return false;
     }
 
     const service = activeService === 'instamart' ? 'instamart' : 'food';
@@ -916,31 +819,385 @@ export default function App() {
 
     setOrderHistory((current) => [order, ...current].slice(0, 12));
     clearCart();
-    setShowCart(false);
-    setActiveTab('reorder');
 
     Alert.alert(
       'Demo order placed',
-      'Saved locally so your Reorder and Account screens now feel much closer to a real Swiggy flow.'
+      'Saved locally so your Reorder and Account screens now feel much closer to a real flow.'
     );
+
+    return true;
+  }, [cartItems, activeService, cartVendor, cartTotal, clearCart]);
+
+  const value = {
+    activeService,
+    setActiveService,
+    activeShortcut,
+    setActiveShortcut,
+    homeSearch,
+    setHomeSearch,
+    storeFilter,
+    setStoreFilter,
+    sceneFilter,
+    setSceneFilter,
+    pastOrderFilter,
+    setPastOrderFilter,
+    vendors,
+    vendorsLoading,
+    refreshing,
+    loadVendors,
+    homeDeals,
+    homeDealsLoading,
+    loadProducts,
+    cart,
+    cartItems,
+    cartCount,
+    cartSubtotal,
+    cartVendor,
+    deliveryFeeAmount,
+    platformFeeAmount,
+    cartTotal,
+    freeDeliveryRemaining,
+    freeDeliveryProgress,
+    favorites,
+    recentStoreIds,
+    recentSearches,
+    orderHistory,
+    theme,
+    featuredVendors,
+    recentVendors,
+    favoriteVendors,
+    suggestionPool,
+    sceneEvents,
+    pastOrders,
+    toggleFavorite,
+    rememberStore,
+    rememberSearch,
+    applyHomeSearch,
+    addToCart,
+    updateQty,
+    clearCart,
+    placeDemoOrder,
   };
 
-  const InstamartServiceSection = () => (
-    <View style={styles.bodySurface}>
-      <View style={styles.everydayBanner}>
-        <View style={styles.everydayBadge}>
-          <Text style={styles.everydayPrice}>₹9</Text>
+  return <GrabBasketContext.Provider value={value}>{children}</GrabBasketContext.Provider>;
+}
+
+function useOpenVendor() {
+  const router = useRouter();
+  const { rememberStore } = useGrabBasket();
+
+  return useCallback(
+    (vendor) => {
+      rememberStore(vendor.id);
+      router.push({
+        pathname: '/store/[vendorId]',
+        params: { vendorId: String(vendor.id) },
+      });
+    },
+    [rememberStore, router]
+  );
+}
+
+function SectionHeader({ title, subtitle, light = false }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={[styles.sectionTitle, light && styles.sectionTitleLight]}>{title}</Text>
+      {subtitle ? <Text style={[styles.sectionSubtitle, light && styles.sectionSubtitleLight]}>{subtitle}</Text> : null}
+    </View>
+  );
+}
+
+function LoadingBlock({ label, light = false }) {
+  return (
+    <View style={styles.loadingWrap}>
+      <ActivityIndicator size="large" color={light ? '#ffffff' : COLORS.green800} />
+      <Text style={[styles.loadingText, light && { color: '#ffffff' }]}>{label}</Text>
+    </View>
+  );
+}
+
+function EmptyState({ title, text, light = false }) {
+  return (
+    <View style={[styles.emptyCard, light && styles.emptyCardDark]}>
+      <Text style={[styles.emptyTitle, light && styles.sectionTitleLight]}>{title}</Text>
+      <Text style={[styles.emptyText, light && styles.sectionSubtitleLight]}>{text}</Text>
+    </View>
+  );
+}
+
+function MetaBadge({ text, dark = false }) {
+  return (
+    <View style={[styles.badge, dark && styles.badgeDark]}>
+      <Text style={[styles.badgeText, dark && styles.badgeTextDark]}>{text}</Text>
+    </View>
+  );
+}
+
+function QtyStepper({ qty, onAdd, onRemove }) {
+  return (
+    <View style={styles.qtyStepper}>
+      <TouchableOpacity style={styles.qtyButton} onPress={onRemove}>
+        <Ionicons name="remove" size={16} color={COLORS.text} />
+      </TouchableOpacity>
+      <Text style={styles.qtyText}>{qty}</Text>
+      <TouchableOpacity style={styles.qtyButton} onPress={onAdd}>
+        <Ionicons name="add" size={16} color={COLORS.text} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function QuickDealCard({ item, qty = 0, onAdd, onRemove }) {
+  return (
+    <View style={styles.dealCard}>
+      <Text style={styles.smallPill}>{getOfferLabel(item)}</Text>
+      <Text style={styles.dealEmoji}>{item.emoji || pickEmoji(item.name)}</Text>
+      <Text style={styles.dealTitle} numberOfLines={1}>{item.name}</Text>
+      <Text style={styles.dealMeta} numberOfLines={1}>{item.vendorName || item.brand}</Text>
+      <View style={styles.dealBottom}>
+        <Text style={styles.priceText}>{money(item.price)}</Text>
+        {qty > 0 && onAdd && onRemove ? (
+          <QtyStepper qty={qty} onAdd={onAdd} onRemove={onRemove} />
+        ) : (
+          <TouchableOpacity style={styles.addTinyButton} onPress={onAdd}>
+            <Text style={styles.addTinyButtonText}>{onAdd ? 'ADD' : 'VIEW'}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function PromoTile({ item }) {
+  return (
+    <View style={[styles.promoTile, { backgroundColor: item.tone }]}>
+      <Text style={styles.promoEmoji}>{item.emoji}</Text>
+      <Text style={styles.promoTitle}>{item.title}</Text>
+      <Text style={styles.promoSubtitle}>{item.subtitle}</Text>
+    </View>
+  );
+}
+
+function StoreCard({ vendor, favorite, onOpen, onToggleFavorite, dark = false }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.95}
+      style={[styles.storeCard, dark && styles.storeCardDark]}
+      onPress={onOpen}>
+      <View style={[styles.storeAvatar, { backgroundColor: getStoreTone(Number(vendor?.id || 0)) }]}>
+        <Text style={styles.storeAvatarText}>{initials(vendor.name)}</Text>
+      </View>
+
+      <View style={styles.storeContent}>
+        <View style={styles.storeTitleRow}>
+          <Text style={[styles.storeName, dark && styles.storeNameDark]} numberOfLines={1}>
+            {vendor.name}
+          </Text>
+          <TouchableOpacity onPress={onToggleFavorite}>
+            <Ionicons
+              name={favorite ? 'heart' : 'heart-outline'}
+              size={18}
+              color={dark ? '#ffffff' : COLORS.text}
+            />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={[styles.storeDescription, dark && styles.storeDescriptionDark]} numberOfLines={2}>
+          {vendor.description || vendor.address || 'Daily essentials and groceries'}
+        </Text>
+
+        <View style={styles.badgeRow}>
+          <MetaBadge text={estimateEta(vendor)} dark={dark} />
+          <MetaBadge text={getDeliveryFeeLabel(vendor)} dark={dark} />
+          <MetaBadge text={`${getVendorRating(vendor)} ★`} dark={dark} />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function ProductCard({ product, qty, onAdd, onRemove }) {
+  return (
+    <View style={styles.productCard}>
+      <View style={styles.productLeft}>
+        <Text style={styles.smallPill}>{getOfferLabel(product)}</Text>
+        <Text style={styles.productTitle}>{product.name}</Text>
+        <Text style={styles.productDesc}>{product.description || 'Store product'}</Text>
+        <Text style={styles.priceText}>{money(product.price)}</Text>
+      </View>
+
+      <View style={styles.productRight}>
+        <View style={styles.productEmojiWrap}>
+          <Text style={styles.productEmoji}>{pickEmoji(product.name)}</Text>
+        </View>
+        {qty > 0 ? (
+          <QtyStepper qty={qty} onAdd={onAdd} onRemove={onRemove} />
+        ) : (
+          <TouchableOpacity style={styles.addButton} onPress={onAdd}>
+            <Text style={styles.addButtonText}>ADD</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function PastOrderCard({ order, compact = false }) {
+  const firstItem = order.items?.[0];
+  const itemLine = firstItem
+    ? `${firstItem.qty || 1} x ${firstItem.name}${order.items.length > 1 ? ` +${order.items.length - 1} more` : ''}`
+    : 'Order';
+
+  return (
+    <View style={[styles.orderCard, compact && { marginBottom: 12 }]}>
+      <View style={styles.orderTop}>
+        <View style={styles.orderThumb}>
+          <Text style={styles.orderThumbText}>{initials(order.vendorName)}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.everydayTitle}>everyday</Text>
-          <Text style={styles.everydayText}>Shop for ₹199 to get one item at ₹9</Text>
+          <Text style={styles.orderTitle}>{order.vendorName}</Text>
+          <Text style={styles.orderMeta}>{order.location}</Text>
         </View>
+        <Text style={styles.orderStatus}>{order.status}</Text>
+      </View>
+
+      <Text style={styles.orderLine}>{itemLine}</Text>
+      <Text style={styles.orderMeta}>
+        Ordered: {order.orderedAt} · Bill Total: {money(order.total)}
+      </Text>
+    </View>
+  );
+}
+
+function HomeHeroSection() {
+  const {
+    activeService,
+    setActiveService,
+    activeShortcut,
+    setActiveShortcut,
+    homeSearch,
+    setHomeSearch,
+    rememberSearch,
+    theme,
+  } = useGrabBasket();
+
+  const isEta = theme.headlineType === 'eta';
+
+  return (
+    <View style={[styles.hero, { backgroundColor: theme.hero }]}>
+      <View style={styles.heroTop}>
+        <View style={{ flex: 1 }}>
+          <Text style={isEta ? styles.heroEta : styles.heroTitle}>{theme.headline}</Text>
+          <TouchableOpacity style={styles.addressRow} activeOpacity={0.9}>
+            <Text style={styles.addressText} numberOfLines={1}>{theme.address}</Text>
+            <Ionicons name="chevron-down" size={16} color="#d1fae5" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.profileCircle, { backgroundColor: theme.heroPill }]}>
+          <Ionicons name="person-outline" size={20} color="#ffffff" />
+        </View>
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.serviceRow}>
+        {TOP_SERVICES.map((item) => {
+          const active = activeService === item.key;
+          return (
+            <TouchableOpacity
+              key={item.key}
+              style={[
+                styles.servicePill,
+                active && { backgroundColor: theme.heroAccent, borderColor: 'rgba(255,255,255,0.3)' },
+              ]}
+              onPress={() => setActiveService(item.key)}>
+              <Ionicons name={item.icon} size={18} color="#ffffff" />
+              <Text style={styles.servicePillText}>{item.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      <View style={styles.heroSearch}>
+        <Ionicons name="search-outline" size={18} color={COLORS.muted} />
+        <TextInput
+          style={styles.heroSearchInput}
+          placeholder={theme.searchPlaceholder}
+          placeholderTextColor={COLORS.subtle}
+          value={homeSearch}
+          onChangeText={setHomeSearch}
+          onSubmitEditing={() => rememberSearch(homeSearch)}
+        />
+        <Ionicons
+          name={activeService === 'food' ? 'mic-outline' : 'receipt-outline'}
+          size={18}
+          color={COLORS.muted}
+        />
+      </View>
+
+      {activeService === 'instamart' ? (
+        <>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shortcutRow}>
+            {HOME_SHORTCUTS.map((item) => {
+              const active = activeShortcut === item.key;
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  style={[styles.shortcutChip, active && styles.shortcutChipActive]}
+                  onPress={() => setActiveShortcut(item.key)}>
+                  <Ionicons name={item.icon} size={14} color={active ? '#ffffff' : '#d1fae5'} />
+                  <Text style={[styles.shortcutChipText, active && styles.shortcutChipTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.festivalRow}>
+            {FESTIVAL_TILES.map((item) => (
+              <View key={item.key} style={styles.festivalCard}>
+                <Text style={styles.festivalEmoji}>{item.emoji}</Text>
+                <Text style={styles.festivalTitle}>{item.title}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+function InstamartServiceSection() {
+  const {
+    homeDealsLoading,
+    homeDeals,
+    cart,
+    addToCart,
+    updateQty,
+    suggestionPool,
+    applyHomeSearch,
+    storeFilter,
+    setStoreFilter,
+    recentVendors,
+    featuredVendors,
+    favoriteVendors,
+    favorites,
+    toggleFavorite,
+  } = useGrabBasket();
+
+  const openVendor = useOpenVendor();
+
+  return (
+    <View style={styles.surface}>
+      <View style={styles.bannerCard}>
+        <Text style={styles.bannerTitle}>everyday</Text>
+        <Text style={styles.bannerText}>Shop for ₹199 to get one item at ₹9</Text>
       </View>
 
       <SectionHeader title="Under ₹99" subtitle="Fast add-ons and daily essentials." />
       {homeDealsLoading ? <LoadingBlock label="Loading quick picks..." /> : null}
 
-      <View style={styles.quickGrid}>
+      <View style={styles.dealGrid}>
         {(homeDeals.length > 0 ? homeDeals : FALLBACK_HOME_DEALS).map((item) => (
           <QuickDealCard
             key={item.key || item.id}
@@ -952,16 +1209,16 @@ export default function App() {
         ))}
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionRail}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {suggestionPool.map((item) => (
-          <TouchableOpacity key={item} style={styles.suggestionChip} onPress={() => applyHomeSearch(item)}>
+          <TouchableOpacity key={item} style={styles.chip} onPress={() => applyHomeSearch(item)}>
             <Ionicons name="search-outline" size={14} color={COLORS.green800} />
-            <Text style={styles.suggestionChipText}>{item}</Text>
+            <Text style={styles.chipText}>{item}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRail}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {STORE_FILTERS.map((item) => (
           <TouchableOpacity
             key={item}
@@ -975,7 +1232,6 @@ export default function App() {
       </ScrollView>
 
       <SectionHeader title="Popular categories" subtitle="Daily-use aisles that feel familiar and easy to scan." />
-
       <View style={styles.categoryGrid}>
         {CATEGORY_GRID.map((item) => (
           <View key={item.key} style={styles.categoryTile}>
@@ -987,72 +1243,81 @@ export default function App() {
 
       {recentVendors.length > 0 ? (
         <>
-          <SectionHeader title="Recently opened" subtitle="Bring users back to the stores they already trust." />
-          {recentVendors.slice(0, 2).map((vendor, index) => (
+          <SectionHeader title="Recently opened" subtitle="Bring users back to trusted stores." />
+          {recentVendors.slice(0, 2).map((vendor) => (
             <StoreCard
               key={`recent-${vendor.id}`}
               vendor={vendor}
               favorite={!!favorites[vendor.id]}
               onOpen={() => openVendor(vendor)}
               onToggleFavorite={() => toggleFavorite(vendor.id)}
-              tone={getStoreTone(index + 1)}
             />
           ))}
         </>
       ) : null}
 
       <SectionHeader title="Featured stores" subtitle={`${featuredVendors.length} stores shown.`} />
-
-      {vendorsLoading ? (
-        <LoadingBlock label="Loading stores..." />
-      ) : featuredVendors.length === 0 ? (
+      {featuredVendors.length === 0 ? (
         <EmptyState title="No stores found" text="Seed vendors and products in the backend and this feed will fill out." />
       ) : (
-        featuredVendors.map((vendor, index) => (
+        featuredVendors.map((vendor) => (
           <StoreCard
             key={vendor.id}
             vendor={vendor}
             favorite={!!favorites[vendor.id]}
             onOpen={() => openVendor(vendor)}
             onToggleFavorite={() => toggleFavorite(vendor.id)}
-            tone={getStoreTone(index + 3)}
           />
         ))
       )}
 
       {favoriteVendors.length > 0 ? (
         <>
-          <SectionHeader title="Saved stores" subtitle="Useful even before authentication is added back." />
-          {favoriteVendors.slice(0, 2).map((vendor, index) => (
+          <SectionHeader title="Saved stores" subtitle="Useful even before auth is added back." />
+          {favoriteVendors.slice(0, 2).map((vendor) => (
             <StoreCard
               key={`favorite-${vendor.id}`}
               vendor={vendor}
               favorite={!!favorites[vendor.id]}
               onOpen={() => openVendor(vendor)}
               onToggleFavorite={() => toggleFavorite(vendor.id)}
-              tone={getStoreTone(index + 5)}
             />
           ))}
         </>
       ) : null}
     </View>
   );
+}
 
-  const FoodServiceSection = () => (
-    <View style={styles.bodySurface}>
-      <View style={[styles.foodHeroBanner, { backgroundColor: theme.hero }]}>
-        <Text style={styles.foodHeroEyebrow}>CRAVE</Text>
-        <Text style={styles.foodHeroTitle}>Up to 60% off & more</Text>
-        <Text style={styles.foodHeroText}>Sharper merchandising, stronger visual hierarchy, more like the reference.</Text>
+function FoodServiceSection() {
+  const {
+    homeDeals,
+    vendorsLoading,
+    featuredVendors,
+    cart,
+    addToCart,
+    updateQty,
+    favorites,
+    toggleFavorite,
+    applyHomeSearch,
+  } = useGrabBasket();
+
+  const openVendor = useOpenVendor();
+
+  return (
+    <View style={styles.surface}>
+      <View style={[styles.bannerCard, { backgroundColor: COLORS.purple100 }]}>
+        <Text style={styles.bannerTitle}>Up to 60% off & more</Text>
+        <Text style={styles.bannerText}>Sharper merchandising, stronger visual hierarchy.</Text>
       </View>
 
-      <View style={styles.tileGrid}>
+      <View style={styles.promoGrid}>
         {FOOD_PROMO_TILES.map((item) => (
-          <FeatureTile key={item.key} item={item} />
+          <PromoTile key={item.key} item={item} />
         ))}
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRail}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {FOOD_DISCOVERY.map((item) => (
           <TouchableOpacity key={item} style={styles.filterChip} onPress={() => applyHomeSearch(item)}>
             <Text style={styles.filterChipText}>{item}</Text>
@@ -1060,30 +1325,29 @@ export default function App() {
         ))}
       </ScrollView>
 
-      <SectionHeader title="Top rated near you" subtitle="Store cards now feel closer to Swiggy's food discovery blocks." />
+      <SectionHeader title="Top rated near you" subtitle="Closer to Swiggy-style food discovery blocks." />
 
       {vendorsLoading ? (
         <LoadingBlock label="Loading restaurants..." />
       ) : featuredVendors.length === 0 ? (
         <EmptyState title="No restaurants yet" text="Add more food vendors on the backend to make this feed feel full." />
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.miniRail}>
-          {featuredVendors.map((vendor, index) => (
-            <MiniStoreCard
-              key={`food-${vendor.id}`}
-              vendor={vendor}
-              tone={getStoreTone(index)}
-              favorite={!!favorites[vendor.id]}
-              onOpen={() => openVendor(vendor)}
-              onToggleFavorite={() => toggleFavorite(vendor.id)}
-            />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
+          {featuredVendors.map((vendor) => (
+            <View key={`food-${vendor.id}`} style={styles.railCard}>
+              <StoreCard
+                vendor={vendor}
+                favorite={!!favorites[vendor.id]}
+                onOpen={() => openVendor(vendor)}
+                onToggleFavorite={() => toggleFavorite(vendor.id)}
+              />
+            </View>
           ))}
         </ScrollView>
       )}
 
-      <SectionHeader title="Crave under ₹99" subtitle="Great for quick wins and high-conversion add-to-cart behavior." />
-
-      <View style={styles.quickGrid}>
+      <SectionHeader title="Crave under ₹99" subtitle="Great for quick wins and add-to-cart behavior." />
+      <View style={styles.dealGrid}>
         {(homeDeals.length > 0 ? homeDeals : FALLBACK_HOME_DEALS).map((item) => (
           <QuickDealCard
             key={`food-${item.key || item.id}`}
@@ -1096,26 +1360,27 @@ export default function App() {
       </View>
     </View>
   );
+}
 
-  const DineoutServiceSection = () => (
-    <View style={styles.bodySurface}>
-      <View style={styles.dineoutBanner}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.dineoutBannerTitle}>Flat 25% OFF</Text>
-          <Text style={styles.dineoutBannerText}>+10% cashback with dineout style campaigns</Text>
-        </View>
-        <Text style={styles.dineoutBannerEmoji}>🥂</Text>
+function DineoutServiceSection() {
+  const { vendorsLoading, featuredVendors, favorites, toggleFavorite, applyHomeSearch } = useGrabBasket();
+  const openVendor = useOpenVendor();
+
+  return (
+    <View style={styles.surface}>
+      <View style={[styles.bannerCard, { backgroundColor: COLORS.yellowSoft }]}>
+        <Text style={styles.bannerTitle}>Flat 25% OFF</Text>
+        <Text style={styles.bannerText}>+10% cashback with dineout-style campaigns.</Text>
       </View>
 
       <SectionHeader title="In the spotlight" subtitle="Curated booking hooks and campaign-led discovery." />
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.miniRail}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
         {DINEOUT_PROMO_TILES.map((item) => (
-          <FeatureTile key={item.key} item={item} compact />
+          <PromoTile key={item.key} item={item} />
         ))}
       </ScrollView>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRail}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {DINEOUT_DISCOVERY.map((item) => (
           <TouchableOpacity key={item} style={styles.filterChip} onPress={() => applyHomeSearch(item)}>
             <Text style={styles.filterChipText}>{item}</Text>
@@ -1123,210 +1388,160 @@ export default function App() {
         ))}
       </ScrollView>
 
-      <SectionHeader title="Popular picks" subtitle="You can later swap these with real dineout inventory and booking slots." />
-
+      <SectionHeader title="Popular picks" subtitle="Swap these later with real booking inventory." />
       {vendorsLoading ? (
         <LoadingBlock label="Loading popular picks..." />
       ) : featuredVendors.length === 0 ? (
-        <EmptyState title="No dineout picks yet" text="Use the same vendor base now, then split food vs dineout inventory later." />
+        <EmptyState title="No dineout picks yet" text="Use the same vendor base now, then split food vs dineout later." />
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.miniRail}>
-          {featuredVendors.map((vendor, index) => (
-            <MiniStoreCard
-              key={`dineout-${vendor.id}`}
-              vendor={vendor}
-              tone={getStoreTone(index + 2)}
-              favorite={!!favorites[vendor.id]}
-              onOpen={() => openVendor(vendor)}
-              onToggleFavorite={() => toggleFavorite(vendor.id)}
-              dineout
-            />
-          ))}
-        </ScrollView>
+        featuredVendors.map((vendor) => (
+          <StoreCard
+            key={`dineout-${vendor.id}`}
+            vendor={vendor}
+            favorite={!!favorites[vendor.id]}
+            onOpen={() => openVendor(vendor)}
+            onToggleFavorite={() => toggleFavorite(vendor.id)}
+          />
+        ))
       )}
     </View>
   );
+}
 
-  const ScenesServiceSection = () => (
-    <View style={styles.bodySurfaceDark}>
+function ScenesServiceSection() {
+  const { sceneFilter, setSceneFilter, sceneEvents } = useGrabBasket();
+
+  return (
+    <View style={styles.darkSurface}>
       <SectionHeader
         title="When is the plan?"
-        subtitle="The structure now matches the reference better: themed buckets, featured cards and event blocks."
+        subtitle="Buckets, featured cards and event blocks."
         light
       />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.miniRail}>
-        {["Today’s vibe", 'Weekend mood', "This week’s drops", 'Next weekend tea'].map((item, index) => (
-          <View key={item} style={[styles.bucketPill, { backgroundColor: ['#7e1e6f', '#164e63', '#5b3f93', '#6b4a1f'][index] }]}>
-            <Text style={styles.bucketPillText}>{item}</Text>
-          </View>
-        ))}
-      </ScrollView>
-
-      <SectionHeader title="All scenes" subtitle={`${sceneEvents.length} events`} light />
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRail}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {SCENE_FILTERS.map((item) => (
           <TouchableOpacity
             key={item}
-            style={[styles.darkFilterChip, sceneFilter === item && styles.darkFilterChipActive]}
+            style={[styles.filterChipDark, sceneFilter === item && styles.filterChipDarkActive]}
             onPress={() => setSceneFilter(item)}>
-            <Text style={[styles.darkFilterChipText, sceneFilter === item && styles.darkFilterChipTextActive]}>
+            <Text style={[styles.filterChipTextDark, sceneFilter === item && styles.filterChipTextDarkActive]}>
               {item}
             </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      <View style={styles.sceneGrid}>
-        {sceneEvents.map((item) => (
-          <SceneEventCard key={item.id} item={item} />
-        ))}
-      </View>
+      {sceneEvents.length === 0 ? (
+        <EmptyState title="No scenes" text="Try another bucket." light />
+      ) : (
+        sceneEvents.map((item) => (
+          <View key={item.id} style={[styles.sceneCard, { backgroundColor: item.tone }]}>
+            <View style={styles.sceneTop}>
+              <Text style={styles.sceneDate}>{item.date}</Text>
+              <Text style={styles.sceneEmoji}>{item.emoji}</Text>
+            </View>
+            <Text style={styles.sceneTitle}>{item.title}</Text>
+            <Text style={styles.sceneVenue}>{item.venue}</Text>
+            <Text style={styles.scenePrice}>Starts at {money(item.price)}</Text>
+          </View>
+        ))
+      )}
     </View>
   );
+}
 
-  const HomeHeroSection = () => {
-    const isEta = theme.headlineType === 'eta';
+export function HomeScreen() {
+  const {
+    activeService,
+    refreshing,
+    loadVendors,
+    theme,
+    cartCount,
+    cartTotal,
+    cartSubtotal,
+    freeDeliveryRemaining,
+  } = useGrabBasket();
 
-    return (
-      <View style={[styles.heroShell, { backgroundColor: theme.hero }]}>
-        <View style={styles.heroTopRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={isEta ? styles.heroEta : theme.bodyDark ? styles.heroTitleLight : styles.heroTitle}>
-              {theme.headline}
-            </Text>
-            <TouchableOpacity activeOpacity={0.88} style={styles.addressRow}>
-              <Text style={styles.addressText} numberOfLines={1}>
-                {theme.address}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color="#d1fae5" />
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity style={[styles.profileButton, { backgroundColor: theme.heroPill }]} activeOpacity={0.9}>
-            <Ionicons name="person-outline" size={22} color="#ffffff" />
-          </TouchableOpacity>
-        </View>
+  const router = useRouter();
+  const tabBarHeight = useBottomTabBarHeight();
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.serviceRail}>
-          {TOP_SERVICES.map((item) => {
-            const active = activeService === item.key;
-            return (
-              <TouchableOpacity
-                key={item.key}
-                activeOpacity={0.9}
-                style={[
-                  styles.serviceCard,
-                  active && { backgroundColor: theme.heroAccent, borderColor: 'rgba(255,255,255,0.24)' },
-                ]}
-                onPress={() => {
-                  setActiveService(item.key);
-                  setActiveTab('home');
-                }}>
-                <View style={[styles.serviceIconWrap, active && styles.serviceIconWrapActive]}>
-                  <Ionicons name={item.icon} size={22} color={active ? theme.hero : '#ffffff'} />
-                </View>
-                <Text style={[styles.serviceLabel, active && styles.serviceLabelActive]}>{item.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
+  const deliveryStripText =
+    cartSubtotal <= 0
+      ? `FREE DELIVERY on orders above ${money(FREE_DELIVERY_THRESHOLD)}`
+      : freeDeliveryRemaining > 0
+        ? `Add ${money(freeDeliveryRemaining)} more for FREE DELIVERY`
+        : 'FREE DELIVERY unlocked';
+
+  const isScenes = activeService === 'scenes';
+
+  return (
+    <SafeAreaView style={[styles.safeArea, isScenes && { backgroundColor: COLORS.dark900 }]}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={theme.hero}
+      />
+
+      <View style={styles.screen}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: tabBarHeight + 120 },
+            isScenes && { backgroundColor: COLORS.dark900 },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => loadVendors({ pullToRefresh: true })}
+              tintColor="#ffffff"
+            />
+          }>
+          <HomeHeroSection />
+          {activeService === 'instamart' && <InstamartServiceSection />}
+          {activeService === 'food' && <FoodServiceSection />}
+          {activeService === 'dineout' && <DineoutServiceSection />}
+          {activeService === 'scenes' && <ScenesServiceSection />}
         </ScrollView>
 
-        <View style={styles.heroSearchRow}>
-          <View style={styles.searchBoxHero}>
-            <Ionicons name="search-outline" size={20} color={COLORS.muted} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder={theme.searchPlaceholder}
-              placeholderTextColor={COLORS.subtle}
-              value={homeSearch}
-              onChangeText={setHomeSearch}
-              onSubmitEditing={() => rememberSearch(homeSearch)}
-            />
-            <Ionicons name={activeService === 'food' ? 'mic-outline' : 'receipt-outline'} size={20} color={COLORS.muted} />
-          </View>
-          <TouchableOpacity style={[styles.bookmarkButton, { backgroundColor: theme.heroPill }]} activeOpacity={0.9}>
-            <Ionicons name="bookmark-outline" size={22} color="#ffffff" />
-          </TouchableOpacity>
-        </View>
+        <View style={[styles.overlayArea, { bottom: tabBarHeight + 12 }]}>
+          {cartCount > 0 ? (
+            <TouchableOpacity style={styles.floatingCartBar} onPress={() => router.push('/cart')}>
+              <View>
+                <Text style={styles.floatingCartTitle}>View cart</Text>
+                <Text style={styles.floatingCartText}>{cartCount} items · {money(cartTotal)}</Text>
+              </View>
+              <Ionicons name="arrow-forward" size={20} color="#ffffff" />
+            </TouchableOpacity>
+          ) : null}
 
-        {activeService === 'instamart' ? (
-          <>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shortcutRail}>
-              {HOME_SHORTCUTS.map((item) => {
-                const active = activeShortcut === item.key;
-                return (
-                  <TouchableOpacity
-                    key={item.key}
-                    style={styles.shortcutItem}
-                    activeOpacity={0.92}
-                    onPress={() => setActiveShortcut(item.key)}>
-                    <View style={[styles.shortcutIconWrap, active && styles.shortcutIconWrapActive]}>
-                      <Ionicons name={item.icon} size={16} color={active ? '#ffffff' : '#d1fae5'} />
-                    </View>
-                    <Text style={[styles.shortcutLabel, active && styles.shortcutLabelActive]}>{item.label}</Text>
-                    <View style={[styles.shortcutUnderline, !active && styles.shortcutUnderlineHidden]} />
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            <View style={styles.celebrationWrap}>
-              <Text style={styles.celebrationEyebrow}>SEASON OF</Text>
-              <Text style={styles.celebrationTitle}>CELEBRATION</Text>
+          {activeService === 'instamart' ? (
+            <View style={styles.deliveryStrip}>
+              <Text style={styles.deliveryStripText}>{deliveryStripText}</Text>
             </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.festivalRail}>
-              {FESTIVAL_TILES.map((item) => (
-                <View key={item.key} style={styles.festivalCard}>
-                  <Text style={styles.festivalTitle}>{item.title}</Text>
-                  <Text style={styles.festivalEmoji}>{item.emoji}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          </>
-        ) : null}
+          ) : null}
+        </View>
       </View>
-    );
-  };
-
-  const HomeScreen = () => (
-    <View style={styles.screen}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.homeScrollContent,
-          activeService === 'scenes' && { backgroundColor: COLORS.dark900 },
-        ]}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => loadVendors({ pullToRefresh: true })}
-            tintColor={theme.bodyDark ? '#ffffff' : '#ffffff'}
-          />
-        }>
-        <HomeHeroSection />
-
-        {activeService === 'instamart' && <InstamartServiceSection />}
-        {activeService === 'food' && <FoodServiceSection />}
-        {activeService === 'dineout' && <DineoutServiceSection />}
-        {activeService === 'scenes' && <ScenesServiceSection />}
-      </ScrollView>
-    </View>
+    </SafeAreaView>
   );
+}
 
-  const ExploreScreen = () => {
-    const tiles = EXPLORE_TILES[activeService] || CATEGORY_GRID;
-    const title =
-      activeService === 'instamart'
-        ? 'Categories'
-        : activeService === 'dineout'
-          ? 'My corner'
-          : activeService === 'scenes'
-            ? 'Buckets'
-            : 'Explore';
+export function ExploreScreen() {
+  const { activeService } = useGrabBasket();
+  const router = useRouter();
 
-    return (
+  const tiles = EXPLORE_TILES[activeService] || CATEGORY_GRID;
+  const title =
+    activeService === 'instamart'
+      ? 'Categories'
+      : activeService === 'dineout'
+        ? 'My corner'
+        : activeService === 'scenes'
+          ? 'Buckets'
+          : 'Explore';
+
+  return (
+    <SafeAreaView style={[styles.safeArea, activeService === 'scenes' && { backgroundColor: COLORS.dark900 }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
@@ -1339,7 +1554,7 @@ export default function App() {
             activeService === 'instamart'
               ? 'Fast aisles, clear hierarchy, and easier browsing.'
               : activeService === 'food'
-                ? 'Cuisine-led discovery that feels closer to food delivery patterns.'
+                ? 'Cuisine-led discovery that feels closer to delivery patterns.'
                 : activeService === 'dineout'
                   ? 'Mood-led dineout discovery for bookings and offers.'
                   : 'Experience buckets and time-based discovery.'
@@ -1347,188 +1562,288 @@ export default function App() {
           light={activeService === 'scenes'}
         />
 
-        <View style={styles.categoryGridLarge}>
+        <View style={styles.categoryGrid}>
           {tiles.map((item, index) => (
             <TouchableOpacity
               key={item.key}
               activeOpacity={0.92}
               style={[
-                styles.categoryLargeTile,
-                { backgroundColor: activeService === 'scenes' ? COLORS.dark700 : getStoreTone(index) },
-              ]}>
-              <Text style={styles.categoryLargeEmoji}>{item.emoji}</Text>
-              <Text style={[styles.categoryLargeTitle, activeService === 'scenes' && styles.categoryLargeTitleLight]}>
+                styles.categoryTileLarge,
+                {
+                  backgroundColor: activeService === 'scenes' ? COLORS.dark700 : getStoreTone(index),
+                },
+              ]}
+              onPress={() => router.push('/')}>
+              <Text style={styles.categoryEmoji}>{item.emoji}</Text>
+              <Text
+                style={[
+                  styles.categoryTitle,
+                  activeService === 'scenes' && { color: '#ffffff' },
+                ]}>
                 {item.title}
-              </Text>
-              <Text style={[styles.categoryLargeHint, activeService === 'scenes' && styles.categoryLargeHintLight]}>
-                Tap to browse
               </Text>
             </TouchableOpacity>
           ))}
         </View>
       </ScrollView>
-    );
-  };
+    </SafeAreaView>
+  );
+}
 
-  const ReorderScreen = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
-      <SectionHeader title="Reorder" subtitle="Local order history makes this useful even before auth is wired." />
+export function ReorderScreen() {
+  const {
+    cartCount,
+    cartVendor,
+    cartTotal,
+    pastOrderFilter,
+    setPastOrderFilter,
+    pastOrders,
+    recentVendors,
+  } = useGrabBasket();
 
-      {cartCount === 0 ? (
-        <EmptyState title="No active basket yet" text="Open a store and add products. Demo orders placed from cart will show up here." />
-      ) : (
-        <View style={styles.panelCard}>
-          <Text style={styles.panelTitle}>Current basket snapshot</Text>
-          <Text style={styles.panelText}>{cartVendor?.name || 'Current store'}</Text>
-          <Text style={styles.panelSubText}>{cartCount} items · {money(cartTotal)}</Text>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => setShowCart(true)}>
-            <Text style={styles.primaryButtonText}>Open cart</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+  const router = useRouter();
+  const openVendor = useOpenVendor();
 
-      <View style={styles.segmentWrap}>
-        {['All', 'Food', 'Instamart'].map((item) => (
-          <TouchableOpacity
-            key={item}
-            style={[styles.segmentButton, pastOrderFilter === item && styles.segmentButtonActive]}
-            onPress={() => setPastOrderFilter(item)}>
-            <Text style={[styles.segmentButtonText, pastOrderFilter === item && styles.segmentButtonTextActive]}>
-              {item}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
+        <SectionHeader title="Reorder" subtitle="Local order history makes this useful even before auth is wired." />
 
-      {pastOrders.length === 0 ? (
-        <EmptyState title="No past orders yet" text="Place one demo order from cart and this section will become much stronger." />
-      ) : (
-        pastOrders.map((order) => (
-          <PastOrderCard key={order.id} order={order} />
-        ))
-      )}
+        {cartCount === 0 ? (
+          <EmptyState title="No active basket yet" text="Open a store and add products. Demo orders placed from cart will show up here." />
+        ) : (
+          <View style={styles.panelCard}>
+            <Text style={styles.panelTitle}>Current basket snapshot</Text>
+            <Text style={styles.panelText}>{cartVendor?.name || 'Current store'}</Text>
+            <Text style={styles.panelSubText}>{cartCount} items · {money(cartTotal)}</Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/cart')}>
+              <Text style={styles.primaryButtonText}>Open cart</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-      {recentVendors.length > 0 ? (
-        <View style={styles.panelCard}>
-          <Text style={styles.panelTitle}>Recent stores</Text>
-          {recentVendors.slice(0, 4).map((vendor) => (
-            <TouchableOpacity key={vendor.id} style={styles.simpleListRow} onPress={() => openVendor(vendor)}>
-              <View style={styles.simpleListIcon}>
-                <Text style={styles.simpleListIconText}>{initials(vendor.name)}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.simpleListTitle}>{vendor.name}</Text>
-                <Text style={styles.simpleListMeta}>
-                  {estimateEta(vendor)} · {getDeliveryFeeLabel(vendor)}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.subtle} />
+        <View style={styles.segmentWrap}>
+          {['All', 'Food', 'Instamart'].map((item) => (
+            <TouchableOpacity
+              key={item}
+              style={[styles.segmentButton, pastOrderFilter === item && styles.segmentButtonActive]}
+              onPress={() => setPastOrderFilter(item)}>
+              <Text style={[styles.segmentButtonText, pastOrderFilter === item && styles.segmentButtonTextActive]}>
+                {item}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
-      ) : null}
-    </ScrollView>
+
+        {pastOrders.length === 0 ? (
+          <EmptyState title="No past orders yet" text="Place one demo order from cart and this section will become much stronger." />
+        ) : (
+          pastOrders.map((order) => <PastOrderCard key={order.id} order={order} />)
+        )}
+
+        {recentVendors.length > 0 ? (
+          <View style={styles.panelCard}>
+            <Text style={styles.panelTitle}>Recent stores</Text>
+            {recentVendors.slice(0, 4).map((vendor) => (
+              <TouchableOpacity key={vendor.id} style={styles.simpleListRow} onPress={() => openVendor(vendor)}>
+                <View style={styles.simpleListIcon}>
+                  <Text style={styles.simpleListIconText}>{initials(vendor.name)}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.simpleListTitle}>{vendor.name}</Text>
+                  <Text style={styles.simpleListMeta}>
+                    {estimateEta(vendor)} · {getDeliveryFeeLabel(vendor)}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.subtle} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
+      </ScrollView>
+    </SafeAreaView>
   );
+}
 
-  const AccountScreen = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
-      <View style={styles.accountHeaderCard}>
-        <View>
-          <Text style={styles.accountName}>Guest</Text>
-          <Text style={styles.accountPhone}>+91 - 0000000000</Text>
-          <Text style={styles.accountEmail}>guest@grabbasket.app</Text>
-        </View>
-        <TouchableOpacity style={styles.helpButton}>
-          <Text style={styles.helpButtonText}>Help</Text>
-        </TouchableOpacity>
-      </View>
+export function AccountScreen() {
+  const { pastOrderFilter, setPastOrderFilter, pastOrders } = useGrabBasket();
 
-      <View style={styles.oneCard}>
-        <View>
-          <View style={styles.oneBadge}>
-            <Text style={styles.oneBadgeText}>ACTIVE</Text>
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
+        <View style={styles.accountHeaderCard}>
+          <View>
+            <Text style={styles.accountName}>Guest</Text>
+            <Text style={styles.accountSubText}>+91 - 0000000000</Text>
+            <Text style={styles.accountSubText}>guest@grabbasket.app</Text>
           </View>
-          <Text style={styles.oneTitle}>₹35 saved in 36 days</Text>
-          <Text style={styles.oneSubText}>Explore all membership benefits</Text>
-        </View>
-        <Ionicons name="chevron-down" size={20} color={COLORS.subtle} />
-      </View>
-
-      <View style={styles.accountQuickGrid}>
-        {ACCOUNT_SHORTCUTS.map((item) => (
-          <View key={item.key} style={styles.accountQuickCard}>
-            <Ionicons name={item.icon} size={20} color={COLORS.text} />
-            <Text style={styles.accountQuickText}>{item.label}</Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.accountListCard}>
-        {ACCOUNT_ROWS.map((item, index) => (
-          <AccountListRow key={item.label} item={item} first={index === 0} />
-        ))}
-      </View>
-
-      <SectionHeader title="Past orders" subtitle="Closer to the account screenshot, but still guest-mode friendly." />
-
-      <View style={styles.segmentWrap}>
-        {['All', 'Food', 'Instamart'].map((item) => (
-          <TouchableOpacity
-            key={item}
-            style={[styles.segmentButton, pastOrderFilter === item && styles.segmentButtonActive]}
-            onPress={() => setPastOrderFilter(item)}>
-            <Text style={[styles.segmentButtonText, pastOrderFilter === item && styles.segmentButtonTextActive]}>
-              {item}
-            </Text>
+          <TouchableOpacity style={styles.helpButton}>
+            <Text style={styles.helpButtonText}>Help</Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.oneCard}>
+          <View>
+            <Text style={styles.smallPill}>ACTIVE</Text>
+            <Text style={styles.panelTitle}>₹35 saved in 36 days</Text>
+            <Text style={styles.panelSubText}>Explore all membership benefits</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.subtle} />
+        </View>
+
+        <View style={styles.quickGrid}>
+          {ACCOUNT_SHORTCUTS.map((item) => (
+            <View key={item.key} style={styles.quickCard}>
+              <Ionicons name={item.icon} size={20} color={COLORS.text} />
+              <Text style={styles.quickCardText}>{item.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.accountListCard}>
+          {ACCOUNT_ROWS.map((item, index) => (
+            <View
+              key={item.label}
+              style={[styles.accountListRow, index !== 0 && styles.accountListRowBorder]}>
+              <Ionicons name={item.icon} size={18} color={COLORS.text} />
+              <Text style={styles.accountListLabel}>{item.label}</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.subtle} />
+            </View>
+          ))}
+        </View>
+
+        <SectionHeader title="Past orders" subtitle="Guest-mode friendly order history." />
+
+        <View style={styles.segmentWrap}>
+          {['All', 'Food', 'Instamart'].map((item) => (
+            <TouchableOpacity
+              key={item}
+              style={[styles.segmentButton, pastOrderFilter === item && styles.segmentButtonActive]}
+              onPress={() => setPastOrderFilter(item)}>
+              <Text style={[styles.segmentButtonText, pastOrderFilter === item && styles.segmentButtonTextActive]}>
+                {item}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {pastOrders.slice(0, 3).map((order) => (
+          <PastOrderCard key={`account-${order.id}`} order={order} compact />
         ))}
-      </View>
-
-      {pastOrders.slice(0, 3).map((order) => (
-        <PastOrderCard key={`account-${order.id}`} order={order} compact />
-      ))}
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
+}
 
-  const VendorDetailsScreen = () => (
-    <View style={styles.screen}>
+export function VendorDetailsScreen() {
+  const { vendorId } = useLocalSearchParams();
+  const router = useRouter();
+
+  const {
+    vendors,
+    vendorsLoading,
+    favorites,
+    toggleFavorite,
+    rememberStore,
+    rememberSearch,
+    cart,
+    cartCount,
+    cartTotal,
+    loadProducts,
+    addToCart,
+    updateQty,
+  } = useGrabBasket();
+
+  const vendor = useMemo(() => findVendorById(vendors, vendorId), [vendors, vendorId]);
+
+  const [productSearch, setProductSearch] = useState('');
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+
+  useEffect(() => {
+    if (vendor?.id) {
+      rememberStore(vendor.id);
+    }
+  }, [vendor, rememberStore]);
+
+  useEffect(() => {
+    if (!vendor) return undefined;
+
+    const timer = setTimeout(async () => {
+      setProductsLoading(true);
+      const list = await loadProducts(vendor, productSearch);
+      setProducts(list);
+      setProductsLoading(false);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [vendor, productSearch, loadProducts]);
+
+  if (vendorsLoading && !vendor) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <LoadingBlock label="Loading store..." />
+      </SafeAreaView>
+    );
+  }
+
+  if (!vendor) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.pageContent}>
+          <EmptyState title="Store not found" text="This vendor is missing or not loaded yet." />
+          <TouchableOpacity style={styles.primaryButton} onPress={() => router.replace('/')}>
+            <Text style={styles.primaryButtonText}>Back to home</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
       <View style={styles.innerHeader}>
-        <TouchableOpacity style={styles.iconButton} onPress={() => setSelectedVendor(null)}>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
           <Ionicons name="arrow-back-outline" size={20} color={COLORS.text} />
         </TouchableOpacity>
+
         <View style={{ flex: 1 }}>
-          <Text style={styles.innerHeaderTitle}>{selectedVendor?.name}</Text>
+          <Text style={styles.innerHeaderTitle}>{vendor.name}</Text>
           <Text style={styles.innerHeaderSubtitle}>
-            {estimateEta(selectedVendor)} · {selectedVendor?.open_now ? 'Open now' : 'Store details'}
+            {estimateEta(vendor)} · {vendor?.open_now ? 'Open now' : 'Store details'}
           </Text>
         </View>
-        <TouchableOpacity style={styles.iconButton} onPress={() => toggleFavorite(selectedVendor.id)}>
-          <Ionicons name={favorites[selectedVendor.id] ? 'heart' : 'heart-outline'} size={18} color={COLORS.text} />
+
+        <TouchableOpacity style={styles.iconButton} onPress={() => toggleFavorite(vendor.id)}>
+          <Ionicons
+            name={favorites[vendor.id] ? 'heart' : 'heart-outline'}
+            size={18}
+            color={COLORS.text}
+          />
         </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContentWithFloat}>
         <View style={styles.vendorHeroCard}>
-          <View style={styles.vendorHeroTopRow}>
+          <View style={styles.vendorHeroTop}>
             <View style={styles.vendorInitialBadge}>
-              <Text style={styles.vendorInitialBadgeText}>{initials(selectedVendor?.name || '')}</Text>
+              <Text style={styles.vendorInitialBadgeText}>{initials(vendor.name)}</Text>
             </View>
-            <View style={styles.ratingPill}>
-              <Ionicons name="star" size={12} color="#14532d" />
-              <Text style={styles.ratingPillText}>{getVendorRating(selectedVendor)}</Text>
-            </View>
+            <MetaBadge text={`${getVendorRating(vendor)} ★`} />
           </View>
 
-          <Text style={styles.vendorHeroTitle}>{selectedVendor?.name}</Text>
+          <Text style={styles.vendorHeroTitle}>{vendor.name}</Text>
           <Text style={styles.vendorHeroText}>
-            {selectedVendor?.description || selectedVendor?.address || 'Quick grocery and essentials store'}
+            {vendor.description || vendor.address || 'Quick grocery and essentials store'}
           </Text>
 
-          <View style={styles.vendorBadgeRow}>
-            <MetaBadge text={selectedVendor?.open_now ? 'Open now' : 'Store'} />
-            <MetaBadge text={`ETA ${estimateEta(selectedVendor)}`} />
-            <MetaBadge text={getDeliveryFeeLabel(selectedVendor)} />
-            {selectedVendor?.distance_km != null ? <MetaBadge text={`${selectedVendor.distance_km.toFixed(1)} km`} /> : null}
+          <View style={styles.badgeRow}>
+            <MetaBadge text={vendor?.open_now ? 'Open now' : 'Store'} />
+            <MetaBadge text={`ETA ${estimateEta(vendor)}`} />
+            <MetaBadge text={getDeliveryFeeLabel(vendor)} />
+            {vendor?.distance_km != null ? <MetaBadge text={`${vendor.distance_km.toFixed(1)} km`} /> : null}
           </View>
         </View>
 
@@ -1544,36 +1859,8 @@ export default function App() {
           />
         </View>
 
-        {vendorSearchChips.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionRail}>
-            {vendorSearchChips.map((item) => (
-              <TouchableOpacity key={item} style={styles.suggestionChip} onPress={() => setProductSearch(item)}>
-                <Ionicons name="search-outline" size={14} color={COLORS.green800} />
-                <Text style={styles.suggestionChipText}>{item}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        ) : null}
-
         {productsLoading ? <LoadingBlock label="Loading products..." /> : null}
 
-        {!productsLoading && bestSellerProducts.length > 0 ? (
-          <>
-            <SectionHeader title="Bestsellers" subtitle="High-conversion block that Swiggy-style stores need." />
-            {bestSellerProducts.map((product) => (
-              <ProductCard
-                key={`best-${product.id}`}
-                product={product}
-                featured
-                qty={cart.items[product.id]?.qty || 0}
-                onAdd={() => addToCart(product)}
-                onRemove={() => updateQty(product, -1)}
-              />
-            ))}
-          </>
-        ) : null}
-
-        <SectionHeader title="All items" subtitle="Fetched from /vendors/{id}/products." />
         {!productsLoading && products.length === 0 ? (
           <EmptyState title="No products yet" text="Add products from the seller side and this page will start looking complete." />
         ) : (
@@ -1589,24 +1876,45 @@ export default function App() {
         )}
       </ScrollView>
 
-      {cartCount > 0 && cart.vendorId === selectedVendor?.id ? (
-        <TouchableOpacity style={styles.floatingCart} onPress={() => setShowCart(true)}>
+      {cartCount > 0 && String(cart.vendorId) === String(vendor.id) ? (
+        <TouchableOpacity style={styles.floatingCartCta} onPress={() => router.push('/cart')}>
           <View>
             <Text style={styles.floatingCartTitle}>View cart</Text>
-            <Text style={styles.floatingCartSubtitle}>{cartCount} items · {money(cartTotal)}</Text>
+            <Text style={styles.floatingCartText}>{cartCount} items · {money(cartTotal)}</Text>
           </View>
           <Ionicons name="arrow-forward" size={20} color="#ffffff" />
         </TouchableOpacity>
       ) : null}
-    </View>
+    </SafeAreaView>
   );
+}
 
-  const CartScreen = () => (
-    <View style={styles.screen}>
+export function CartScreen() {
+  const router = useRouter();
+  const {
+    cartItems,
+    cartVendor,
+    cartSubtotal,
+    deliveryFeeAmount,
+    platformFeeAmount,
+    cartTotal,
+    freeDeliveryRemaining,
+    freeDeliveryProgress,
+    addToCart,
+    updateQty,
+    clearCart,
+    placeDemoOrder,
+  } = useGrabBasket();
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
       <View style={styles.innerHeader}>
-        <TouchableOpacity style={styles.iconButton} onPress={() => setShowCart(false)}>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
           <Ionicons name="arrow-back-outline" size={20} color={COLORS.text} />
         </TouchableOpacity>
+
         <View style={{ flex: 1 }}>
           <Text style={styles.innerHeaderTitle}>Cart</Text>
           <Text style={styles.innerHeaderSubtitle}>{cartVendor?.name || 'Your basket'}</Text>
@@ -1618,11 +1926,29 @@ export default function App() {
           <EmptyState title="Your cart is empty" text="Add products from a single store and they will appear here." />
         ) : (
           <>
-            <FreeDeliveryCard
-              subtotal={cartSubtotal}
-              remaining={freeDeliveryRemaining}
-              progress={freeDeliveryProgress}
-            />
+            <View style={styles.panelCard}>
+              <Text style={styles.panelTitle}>Free delivery progress</Text>
+              <Text style={styles.panelSubText}>
+                {cartSubtotal <= 0
+                  ? `Add items worth ${money(FREE_DELIVERY_THRESHOLD)} to unlock free delivery.`
+                  : freeDeliveryRemaining > 0
+                    ? `Add ${money(freeDeliveryRemaining)} more to unlock free delivery.`
+                    : 'Free delivery unlocked for this basket.'}
+              </Text>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width:
+                        freeDeliveryProgress === 0
+                          ? '0%'
+                          : `${Math.max(8, freeDeliveryProgress * 100)}%`,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
 
             <View style={styles.panelCard}>
               {cartItems.map((item) => (
@@ -1631,421 +1957,59 @@ export default function App() {
                     <Text style={styles.cartLineTitle}>{item.name}</Text>
                     <Text style={styles.cartLineMeta}>{money(item.price)} each</Text>
                   </View>
-                  <QtyStepper qty={item.qty} onAdd={() => addToCart(item)} onRemove={() => updateQty(item, -1)} />
+                  <QtyStepper
+                    qty={item.qty}
+                    onAdd={() => addToCart(item)}
+                    onRemove={() => updateQty(item, -1)}
+                  />
                 </View>
               ))}
             </View>
 
             <View style={styles.panelCard}>
               <Text style={styles.panelTitle}>Bill details</Text>
-              <SummaryRow label="Subtotal" value={money(cartSubtotal)} />
-              <SummaryRow label="Delivery fee" value={deliveryFeeAmount === 0 ? 'FREE' : money(deliveryFeeAmount)} />
-              <SummaryRow label="Platform fee" value={money(platformFeeAmount)} />
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Subtotal</Text>
+                <Text style={styles.summaryValue}>{money(cartSubtotal)}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Delivery fee</Text>
+                <Text style={styles.summaryValue}>{deliveryFeeAmount === 0 ? 'FREE' : money(deliveryFeeAmount)}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Platform fee</Text>
+                <Text style={styles.summaryValue}>{money(platformFeeAmount)}</Text>
+              </View>
               <View style={styles.summaryDivider} />
-              <SummaryRow label="Total" value={money(cartTotal)} strong />
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabelStrong}>Total</Text>
+                <Text style={styles.summaryValueStrong}>{money(cartTotal)}</Text>
+              </View>
             </View>
 
-            <TouchableOpacity style={styles.primaryButton} onPress={placeDemoOrder}>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => {
+                const ok = placeDemoOrder();
+                if (ok) {
+                  router.replace('/reorder');
+                }
+              }}>
               <Text style={styles.primaryButtonText}>Place demo order</Text>
             </TouchableOpacity>
+
             <TouchableOpacity style={styles.secondaryButton} onPress={clearCart}>
               <Text style={styles.secondaryButtonText}>Clear cart</Text>
             </TouchableOpacity>
           </>
         )}
       </ScrollView>
-    </View>
-  );
-
-  const ActiveScreen = () => {
-    if (selectedVendor) return <VendorDetailsScreen />;
-    if (showCart) return <CartScreen />;
-
-    switch (activeTab) {
-      case 'explore':
-        return <ExploreScreen />;
-      case 'reorder':
-        return <ReorderScreen />;
-      case 'account':
-        return <AccountScreen />;
-      case 'home':
-      default:
-        return <HomeScreen />;
-    }
-  };
-
-  const isHomeRoot = !selectedVendor && !showCart && activeTab === 'home';
-  const deliveryStripText =
-    cartSubtotal <= 0
-      ? `FREE DELIVERY on orders above ${money(FREE_DELIVERY_THRESHOLD)}`
-      : freeDeliveryRemaining > 0
-        ? `Add ${money(freeDeliveryRemaining)} more for FREE DELIVERY`
-        : 'FREE DELIVERY unlocked';
-
-  const exploreLabel =
-    activeService === 'instamart'
-      ? 'Categories'
-      : activeService === 'dineout'
-        ? 'My corner'
-        : activeService === 'scenes'
-          ? 'Buckets'
-          : 'Explore';
-
-  return (
-    <SafeAreaView style={[styles.safeArea, isHomeRoot && { backgroundColor: theme.hero }]}>
-      <StatusBar
-        barStyle={isHomeRoot ? 'light-content' : 'dark-content'}
-        backgroundColor={isHomeRoot ? theme.hero : COLORS.bg}
-      />
-      <ActiveScreen />
-
-      {!selectedVendor && !showCart ? (
-        <>
-          {activeTab === 'home' ? (
-            <View style={styles.rootOverlayArea} pointerEvents="box-none">
-              {cartCount > 0 ? (
-                <TouchableOpacity style={styles.rootCartBar} onPress={() => setShowCart(true)} activeOpacity={0.92}>
-                  <View>
-                    <Text style={styles.rootCartBarTitle}>View cart</Text>
-                    <Text style={styles.rootCartBarSubtitle}>{cartCount} items · {money(cartTotal)}</Text>
-                  </View>
-                  <Ionicons name="arrow-forward" size={20} color="#ffffff" />
-                </TouchableOpacity>
-              ) : null}
-              {activeService === 'instamart' ? (
-                <View style={styles.deliveryStrip}>
-                  <Text style={styles.deliveryStripText}>{deliveryStripText}</Text>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-
-          <View style={styles.bottomTabBar}>
-            <BottomTab
-              icon="home-outline"
-              label="Home"
-              active={activeTab === 'home'}
-              onPress={() => setActiveTab('home')}
-            />
-            <BottomTab
-              icon="grid-outline"
-              label={exploreLabel}
-              active={activeTab === 'explore'}
-              onPress={() => setActiveTab('explore')}
-            />
-            <BottomTab
-              icon="reload-outline"
-              label="Reorder"
-              active={activeTab === 'reorder'}
-              onPress={() => setActiveTab('reorder')}
-            />
-            <BottomTab
-              icon="person-outline"
-              label="Account"
-              active={activeTab === 'account'}
-              onPress={() => setActiveTab('account')}
-            />
-          </View>
-        </>
-      ) : null}
     </SafeAreaView>
   );
 }
 
-function SectionHeader({ title, subtitle, light = false }) {
-  return (
-    <View style={styles.sectionHeader}>
-      <Text style={[styles.sectionTitle, light && styles.sectionTitleLight]}>{title}</Text>
-      {subtitle ? <Text style={[styles.sectionSubtitle, light && styles.sectionSubtitleLight]}>{subtitle}</Text> : null}
-    </View>
-  );
-}
-
-function LoadingBlock({ label }) {
-  return (
-    <View style={styles.loadingWrap}>
-      <ActivityIndicator size="large" color={COLORS.green800} />
-      <Text style={styles.loadingText}>{label}</Text>
-    </View>
-  );
-}
-
-function EmptyState({ title, text }) {
-  return (
-    <View style={styles.emptyCard}>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyText}>{text}</Text>
-    </View>
-  );
-}
-
-function MetaBadge({ text }) {
-  return (
-    <View style={styles.metaBadge}>
-      <Text style={styles.metaBadgeText}>{text}</Text>
-    </View>
-  );
-}
-
-function FreeDeliveryCard({ subtotal, remaining, progress }) {
-  return (
-    <View style={styles.freeDeliveryCard}>
-      <View style={styles.freeDeliveryHeader}>
-        <Ionicons name="bicycle-outline" size={18} color={COLORS.green800} />
-        <Text style={styles.freeDeliveryTitle}>Free delivery progress</Text>
-      </View>
-      <Text style={styles.freeDeliveryText}>
-        {subtotal <= 0
-          ? `Add items worth ${money(FREE_DELIVERY_THRESHOLD)} to unlock free delivery.`
-          : remaining > 0
-            ? `Add ${money(remaining)} more to unlock free delivery.`
-            : 'Free delivery unlocked for this basket.'}
-      </Text>
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: progress === 0 ? '0%' : `${Math.max(8, progress * 100)}%` }]} />
-      </View>
-    </View>
-  );
-}
-
-function QuickDealCard({ item, qty = 0, onAdd, onRemove }) {
-  return (
-    <View style={styles.quickDealCard}>
-      <View style={styles.quickDealTopRow}>
-        <Text style={styles.quickDealOffer}>{getOfferLabel(item)}</Text>
-        {qty > 0 && onAdd && onRemove ? (
-          <QtyStepper qty={qty} onAdd={onAdd} onRemove={onRemove} compact />
-        ) : (
-          <TouchableOpacity style={styles.quickDealSelect} activeOpacity={0.9} onPress={onAdd}>
-            <Text style={styles.quickDealSelectText}>{onAdd ? 'ADD' : 'Preview'}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      <View style={styles.quickDealImageMock}>
-        <Text style={styles.quickDealEmoji}>{item.emoji || pickEmoji(item.name)}</Text>
-      </View>
-      <Text style={styles.quickDealTitle} numberOfLines={1}>{item.name}</Text>
-      <Text style={styles.quickDealSubtitle} numberOfLines={1}>{item.vendorName || item.brand}</Text>
-      <View style={styles.quickDealBottomRow}>
-        <Text style={styles.quickDealPrice}>{money(item.price)}</Text>
-        <Text style={styles.quickDealMeta}>{item.vendorDistance != null ? `${item.vendorDistance.toFixed(1)} km` : 'Fast'}</Text>
-      </View>
-    </View>
-  );
-}
-
-function FeatureTile({ item, compact = false }) {
-  return (
-    <View style={[styles.featureTile, compact && styles.featureTileCompact, { backgroundColor: item.tone }]}>
-      <Text style={styles.featureTileEmoji}>{item.emoji}</Text>
-      <Text style={styles.featureTileTitle}>{item.title}</Text>
-      <Text style={styles.featureTileSubtitle}>{item.subtitle}</Text>
-    </View>
-  );
-}
-
-function MiniStoreCard({ vendor, onOpen, onToggleFavorite, favorite, tone, dineout = false }) {
-  return (
-    <TouchableOpacity activeOpacity={0.94} style={styles.miniStoreCard} onPress={onOpen}>
-      <View style={[styles.miniStoreHero, { backgroundColor: tone }]}>
-        <View style={styles.miniStoreTopRow}>
-          <View style={styles.miniOfferBadge}>
-            <Text style={styles.miniOfferBadgeText}>{dineout ? 'UP TO 25% OFF' : getStoreOfferLabel(vendor)}</Text>
-          </View>
-          <TouchableOpacity onPress={onToggleFavorite} style={styles.favoriteButtonMini}>
-            <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={16} color={COLORS.text} />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.miniAvatar}>
-          <Text style={styles.miniAvatarText}>{initials(vendor.name)}</Text>
-        </View>
-      </View>
-      <View style={styles.miniStoreContent}>
-        <Text style={styles.miniStoreName} numberOfLines={1}>{vendor.name}</Text>
-        <Text style={styles.miniStoreMeta} numberOfLines={1}>
-          {dineout ? `${getVendorRating(vendor)} ★ · Booking friendly` : `${estimateEta(vendor)} · ${getDeliveryFeeLabel(vendor)}`}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function SceneEventCard({ item }) {
-  return (
-    <View style={[styles.sceneCard, { backgroundColor: item.tone }]}>
-      <View style={styles.sceneCardTop}>
-        <View style={styles.sceneDateBadge}>
-          <Text style={styles.sceneDateText}>{item.date}</Text>
-        </View>
-        <Text style={styles.sceneEmoji}>{item.emoji}</Text>
-      </View>
-      <View style={styles.scenePricePill}>
-        <Text style={styles.scenePricePillText}>Starts at {money(item.price)}</Text>
-      </View>
-      <Text style={styles.sceneTitle}>{item.title}</Text>
-      <Text style={styles.sceneVenue}>{item.venue}</Text>
-      <Text style={styles.sceneBucket}>{item.bucket}</Text>
-    </View>
-  );
-}
-
-function PastOrderCard({ order, compact = false }) {
-  const firstItem = order.items?.[0];
-  const itemLine = firstItem
-    ? `${firstItem.qty || 1} x ${firstItem.name}${order.items.length > 1 ? ` +${order.items.length - 1} more` : ''}`
-    : 'Order';
-
-  return (
-    <View style={[styles.pastOrderCard, compact && styles.pastOrderCardCompact]}>
-      <View style={styles.pastOrderHeader}>
-        <View style={styles.pastOrderThumb}>
-          <Text style={styles.pastOrderThumbText}>{initials(order.vendorName)}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <View style={styles.pastOrderTitleRow}>
-            <Text style={styles.pastOrderTitle} numberOfLines={1}>{order.vendorName}</Text>
-            <Text style={styles.pastOrderStatus}>{order.status}</Text>
-          </View>
-          <Text style={styles.pastOrderLocation} numberOfLines={1}>{order.location}</Text>
-        </View>
-      </View>
-
-      <Text style={styles.pastOrderItemLine}>{itemLine}</Text>
-      <Text style={styles.pastOrderMeta}>
-        Ordered: {order.orderedAt} · Bill Total: {money(order.total)}
-      </Text>
-
-      {!compact ? (
-        <TouchableOpacity style={styles.reorderButton}>
-          <Text style={styles.reorderButtonText}>REORDER</Text>
-        </TouchableOpacity>
-      ) : null}
-    </View>
-  );
-}
-
-function AccountListRow({ item, first }) {
-  return (
-    <View style={[styles.accountListRow, !first && styles.accountListRowBorder]}>
-      <View style={styles.accountListIcon}>
-        <Ionicons name={item.icon} size={18} color={COLORS.text} />
-      </View>
-      <Text style={styles.accountListLabel}>{item.label}</Text>
-      <Ionicons name="chevron-forward" size={18} color={COLORS.subtle} />
-    </View>
-  );
-}
-
-function StoreCard({ vendor, onOpen, onToggleFavorite, favorite, tone }) {
-  return (
-    <TouchableOpacity activeOpacity={0.94} style={styles.storeCard} onPress={onOpen}>
-      <View style={[styles.storeHero, { backgroundColor: tone }]}>
-        <View style={styles.storeHeroBadgeRow}>
-          <View style={styles.storePromoBadge}>
-            <Text style={styles.storePromoBadgeText}>{estimateEta(vendor)}</Text>
-          </View>
-          <TouchableOpacity onPress={onToggleFavorite} style={styles.favoriteButton}>
-            <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={18} color={COLORS.text} />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.storeHeroCircle}>
-          <Text style={styles.storeHeroCircleText}>{initials(vendor.name)}</Text>
-        </View>
-      </View>
-
-      <View style={styles.storeContent}>
-        <View style={styles.storeTitleRow}>
-          <Text style={styles.storeName} numberOfLines={1}>{vendor.name}</Text>
-          <View style={styles.ratingPillSmall}>
-            <Ionicons name="star" size={10} color="#14532d" />
-            <Text style={styles.ratingPillText}>{getVendorRating(vendor)}</Text>
-          </View>
-        </View>
-        <Text style={styles.storeDescription} numberOfLines={2}>
-          {vendor.description || vendor.address || 'Daily essentials and groceries'}
-        </Text>
-        <View style={styles.vendorBadgeRow}>
-          <MetaBadge text={vendor.open_now ? 'Open now' : 'Store'} />
-          <MetaBadge text={`ETA ${estimateEta(vendor)}`} />
-          <MetaBadge text={getDeliveryFeeLabel(vendor)} />
-          {vendor.distance_km != null ? <MetaBadge text={`${vendor.distance_km.toFixed(1)} km`} /> : null}
-        </View>
-        <View style={styles.storeCardBottom}>
-          <Text style={styles.storeAddress} numberOfLines={1}>{vendor.address || 'Tap to browse the store'}</Text>
-          <View style={styles.browsePill}>
-            <Text style={styles.browsePillText}>Browse</Text>
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function ProductCard({ product, qty, onAdd, onRemove, featured = false }) {
-  return (
-    <View style={styles.productCard}>
-      <View style={{ flex: 1, paddingRight: 12 }}>
-        <View style={styles.productHeaderRow}>
-          {featured ? <Text style={styles.featuredLabel}>BESTSELLER</Text> : <Text style={styles.featuredLabelMuted}>{getOfferLabel(product).toUpperCase()}</Text>}
-          <View style={styles.ratingPillSmall}>
-            <Ionicons name="star" size={10} color="#14532d" />
-            <Text style={styles.ratingPillText}>4.4</Text>
-          </View>
-        </View>
-        <Text style={styles.productTitle}>{product.name}</Text>
-        <Text style={styles.productDescription}>{product.description || 'Store product'}</Text>
-        <View style={styles.productMetaRow}>
-          <Text style={styles.productPrice}>{money(product.price)}</Text>
-          <Text style={styles.productMetaDot}>•</Text>
-          <Text style={styles.productMetaText}>{qty > 0 ? `${qty} in basket` : 'Available now'}</Text>
-        </View>
-      </View>
-      <View style={styles.productRightBlock}>
-        <View style={styles.productImageMock}>
-          <Text style={styles.productEmoji}>{pickEmoji(product.name)}</Text>
-        </View>
-        {qty > 0 ? (
-          <QtyStepper qty={qty} onAdd={onAdd} onRemove={onRemove} />
-        ) : (
-          <TouchableOpacity style={styles.addButton} onPress={onAdd}>
-            <Text style={styles.addButtonText}>ADD</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
-}
-
-function QtyStepper({ qty, onAdd, onRemove, compact = false }) {
-  return (
-    <View style={[styles.qtyStepper, compact && styles.qtyStepperCompact]}>
-      <TouchableOpacity style={styles.qtyAction} onPress={onRemove}>
-        <Ionicons name="remove" size={16} color={COLORS.text} />
-      </TouchableOpacity>
-      <Text style={styles.qtyText}>{qty}</Text>
-      <TouchableOpacity style={styles.qtyAction} onPress={onAdd}>
-        <Ionicons name="add" size={16} color={COLORS.text} />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function SummaryRow({ label, value, strong = false }) {
-  return (
-    <View style={styles.summaryRow}>
-      <Text style={[styles.summaryLabel, strong && styles.summaryLabelStrong]}>{label}</Text>
-      <Text style={[styles.summaryValue, strong && styles.summaryValueStrong]}>{value}</Text>
-    </View>
-  );
-}
-
-function BottomTab({ icon, label, active, onPress }) {
-  return (
-    <TouchableOpacity style={styles.bottomTab} onPress={onPress} activeOpacity={0.9}>
-      <Ionicons name={icon} size={20} color={active ? COLORS.text : COLORS.muted} />
-      <Text style={[styles.bottomTabLabel, active && styles.bottomTabLabelActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
+export default function LegacyAppModule() {
+  return null;
 }
 
 const styles = StyleSheet.create({
@@ -2053,1316 +2017,603 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bg,
   },
+
   screen: {
     flex: 1,
     backgroundColor: COLORS.bg,
   },
-  homeScrollContent: {
-    paddingBottom: 172,
+
+  scrollContent: {
+    paddingBottom: 120,
   },
+
   pageContent: {
     padding: 16,
-    paddingBottom: 110,
+    paddingBottom: 120,
     gap: 16,
   },
+
   pageContentWithFloat: {
     padding: 16,
     paddingBottom: 120,
     gap: 16,
   },
-  heroShell: {
+
+  hero: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 22,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 22,
   },
-  heroTopRow: {
+
+  heroTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: 12,
   },
+
   heroEta: {
     color: '#ffffff',
-    fontSize: 40,
+    fontSize: 38,
+    lineHeight: 42,
     fontWeight: '900',
-    lineHeight: 44,
   },
+
   heroTitle: {
     color: '#ffffff',
     fontSize: 28,
-    fontWeight: '900',
-    lineHeight: 34,
-  },
-  heroTitleLight: {
-    color: '#ffffff',
-    fontSize: 26,
-    fontWeight: '900',
     lineHeight: 32,
+    fontWeight: '900',
   },
+
   addressRow: {
-    marginTop: 6,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    marginTop: 6,
   },
+
   addressText: {
     flex: 1,
     color: 'rgba(255,255,255,0.92)',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
   },
-  profileButton: {
+
+  profileCircle: {
     width: 46,
     height: 46,
     borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
   },
-  serviceRail: {
+
+  serviceRow: {
     gap: 10,
     paddingTop: 18,
   },
-  serviceCard: {
-    width: 92,
-    minHeight: 88,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-  },
-  serviceIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  serviceIconWrapActive: {
-    backgroundColor: '#ffffff',
-  },
-  serviceLabel: {
-    marginTop: 8,
-    color: 'rgba(255,255,255,0.84)',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  serviceLabelActive: {
-    color: '#ffffff',
-  },
-  heroSearchRow: {
+
+  servicePill: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 18,
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.10)',
   },
-  searchBoxHero: {
-    flex: 1,
-    minHeight: 56,
+
+  servicePillText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  heroSearch: {
+    marginTop: 16,
+    minHeight: 54,
     borderRadius: 16,
     backgroundColor: '#ffffff',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
     gap: 10,
+    paddingHorizontal: 16,
   },
-  searchInput: {
+
+  heroSearchInput: {
     flex: 1,
     color: COLORS.text,
     fontSize: 16,
   },
-  bookmarkButton: {
-    width: 56,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-  },
-  shortcutRail: {
-    gap: 18,
+
+  shortcutRow: {
+    gap: 10,
     paddingTop: 16,
-    paddingBottom: 4,
   },
-  shortcutItem: {
+
+  shortcutChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    minWidth: 60,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.10)',
   },
-  shortcutIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+
+  shortcutChipActive: {
+    backgroundColor: 'rgba(255,255,255,0.24)',
   },
-  shortcutIconWrapActive: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-  shortcutLabel: {
-    marginTop: 8,
+
+  shortcutChipText: {
     color: '#d1fae5',
     fontWeight: '700',
     fontSize: 12,
   },
-  shortcutLabelActive: {
+
+  shortcutChipTextActive: {
     color: '#ffffff',
   },
-  shortcutUnderline: {
-    height: 3,
-    width: 20,
-    marginTop: 8,
-    borderRadius: 999,
-    backgroundColor: '#ffffff',
-  },
-  shortcutUnderlineHidden: {
-    opacity: 0,
-  },
-  celebrationWrap: {
-    alignItems: 'center',
-    marginTop: 18,
-  },
-  celebrationEyebrow: {
-    color: '#d8ffe9',
-    fontSize: 13,
-    letterSpacing: 3,
-    fontWeight: '700',
-  },
-  celebrationTitle: {
-    color: COLORS.pinkSoft,
-    fontSize: 30,
-    fontWeight: '900',
-    marginTop: 6,
-  },
-  festivalRail: {
-    gap: 12,
+
+  festivalRow: {
+    gap: 10,
     paddingTop: 14,
   },
+
   festivalCard: {
-    width: 128,
-    borderRadius: 22,
-    backgroundColor: COLORS.pink,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
+    width: 120,
+    minHeight: 90,
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    padding: 14,
     justifyContent: 'space-between',
   },
-  festivalTitle: {
-    color: '#3c2546',
-    fontSize: 18,
-    fontWeight: '800',
-    lineHeight: 21,
-    minHeight: 46,
-  },
+
   festivalEmoji: {
-    fontSize: 34,
-    textAlign: 'right',
-    marginTop: 18,
+    fontSize: 26,
   },
-  bodySurface: {
-    padding: 16,
-    gap: 18,
+
+  festivalTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  surface: {
     backgroundColor: COLORS.bg,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 24,
   },
-  bodySurfaceDark: {
-    padding: 16,
-    gap: 18,
+
+  darkSurface: {
     backgroundColor: COLORS.dark900,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 24,
   },
-  everydayBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    padding: 18,
-    shadowColor: '#000000',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
+
+  sectionHeader: {
+    marginBottom: 12,
+    marginTop: 4,
   },
-  everydayBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: '#eef2ff',
-    alignItems: 'center',
-    justifyContent: 'center',
+
+  sectionTitle: {
+    color: COLORS.text,
+    fontSize: 22,
+    fontWeight: '800',
   },
-  everydayPrice: {
-    color: '#4338ca',
-    fontSize: 28,
-    fontWeight: '900',
+
+  sectionTitleLight: {
+    color: '#ffffff',
   },
-  everydayTitle: {
+
+  sectionSubtitle: {
+    color: COLORS.muted,
+    fontSize: 14,
+    marginTop: 4,
+  },
+
+  sectionSubtitleLight: {
+    color: 'rgba(255,255,255,0.78)',
+  },
+
+  bannerCard: {
+    backgroundColor: COLORS.green100,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+  },
+
+  bannerTitle: {
     color: COLORS.text,
     fontSize: 20,
     fontWeight: '900',
   },
-  everydayText: {
+
+  bannerText: {
     color: COLORS.muted,
     fontSize: 14,
-    fontWeight: '600',
-    marginTop: 4,
-    lineHeight: 20,
-  },
-  foodHeroBanner: {
-    borderRadius: 28,
-    padding: 22,
-  },
-  foodHeroEyebrow: {
-    color: '#fef3c7',
-    fontSize: 15,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  foodHeroTitle: {
-    color: '#ffffff',
-    fontSize: 28,
-    fontWeight: '900',
-    marginTop: 8,
-  },
-  foodHeroText: {
-    color: 'rgba(255,255,255,0.88)',
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 8,
-  },
-  dineoutBanner: {
-    backgroundColor: '#166534',
-    borderRadius: 24,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dineoutBannerTitle: {
-    color: '#ffffff',
-    fontSize: 26,
-    fontWeight: '900',
-  },
-  dineoutBannerText: {
-    color: 'rgba(255,255,255,0.88)',
-    fontSize: 14,
-    lineHeight: 20,
     marginTop: 6,
   },
-  dineoutBannerEmoji: {
-    fontSize: 46,
-    marginLeft: 12,
-  },
-  sectionHeader: {
-    gap: 6,
-  },
-  sectionTitle: {
-    color: COLORS.text,
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  sectionTitleLight: {
-    color: '#ffffff',
-  },
-  sectionSubtitle: {
-    color: COLORS.muted,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  sectionSubtitleLight: {
-    color: 'rgba(255,255,255,0.72)',
-  },
-  tileGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  featureTile: {
-    width: '48%',
-    minHeight: 126,
-    borderRadius: 22,
-    padding: 16,
-    justifyContent: 'space-between',
-  },
-  featureTileCompact: {
-    width: 188,
-  },
-  featureTileEmoji: {
-    fontSize: 28,
-  },
-  featureTileTitle: {
-    color: COLORS.text,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  featureTileSubtitle: {
-    color: COLORS.text,
-    opacity: 0.7,
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 6,
-  },
-  quickGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  quickDealCard: {
-    width: '48%',
-    backgroundColor: '#ffffff',
-    borderRadius: 22,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  quickDealTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  quickDealOffer: {
-    backgroundColor: COLORS.yellowSoft,
-    color: '#92400e',
-    fontSize: 11,
-    fontWeight: '800',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  quickDealSelect: {
-    backgroundColor: COLORS.green100,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  quickDealSelectText: {
-    color: COLORS.green900,
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  quickDealImageMock: {
-    height: 90,
-    borderRadius: 18,
-    backgroundColor: COLORS.blueSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 14,
-  },
-  quickDealEmoji: {
-    fontSize: 40,
-  },
-  quickDealTitle: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  quickDealSubtitle: {
-    color: COLORS.muted,
-    fontSize: 12,
-    marginTop: 4,
-  },
-  quickDealBottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  quickDealPrice: {
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  quickDealMeta: {
-    color: COLORS.subtle,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  suggestionRail: {
-    gap: 10,
-  },
-  suggestionChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  suggestionChipText: {
-    color: COLORS.green800,
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  filterRail: {
-    gap: 10,
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  filterChipActive: {
-    backgroundColor: COLORS.green050,
-    borderColor: '#bbf7d0',
-  },
-  filterChipText: {
-    color: COLORS.muted,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  filterChipTextActive: {
-    color: COLORS.green900,
-  },
-  darkFilterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: COLORS.dark700,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  darkFilterChipActive: {
-    backgroundColor: '#ffffff',
-  },
-  darkFilterChipText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  darkFilterChipTextActive: {
-    color: COLORS.dark900,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  categoryTile: {
-    width: '22%',
-    backgroundColor: '#ffffff',
-    borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  categoryEmoji: {
-    fontSize: 26,
-  },
-  categoryTitle: {
-    color: COLORS.text,
-    fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  categoryGridLarge: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  categoryLargeTile: {
-    width: '48%',
-    borderRadius: 24,
-    padding: 18,
-    minHeight: 134,
-    justifyContent: 'space-between',
-  },
-  categoryLargeEmoji: {
-    fontSize: 34,
-  },
-  categoryLargeTitle: {
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  categoryLargeTitleLight: {
-    color: '#ffffff',
-  },
-  categoryLargeHint: {
-    color: COLORS.text,
-    opacity: 0.7,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  categoryLargeHintLight: {
-    color: 'rgba(255,255,255,0.7)',
-  },
-  miniRail: {
-    gap: 12,
-  },
-  miniStoreCard: {
-    width: 170,
-    backgroundColor: '#ffffff',
-    borderRadius: 22,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  miniStoreHero: {
-    padding: 12,
-  },
-  miniStoreTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  miniOfferBadge: {
-    backgroundColor: 'rgba(255,255,255,0.76)',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  miniOfferBadgeText: {
-    color: COLORS.text,
-    fontSize: 10,
-    fontWeight: '900',
-  },
-  favoriteButtonMini: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.76)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miniAvatar: {
-    width: 62,
-    height: 62,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.78)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 18,
-  },
-  miniAvatarText: {
-    color: COLORS.text,
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  miniStoreContent: {
-    padding: 12,
-  },
-  miniStoreName: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  miniStoreMeta: {
-    color: COLORS.muted,
-    fontSize: 12,
-    marginTop: 6,
-    lineHeight: 17,
-  },
-  bucketPill: {
-    minWidth: 128,
-    height: 92,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  bucketPillText: {
-    color: '#ffffff',
-    fontSize: 17,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  sceneGrid: {
-    gap: 12,
-  },
-  sceneCard: {
-    borderRadius: 24,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  sceneCardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sceneDateBadge: {
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  sceneDateText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  sceneEmoji: {
-    fontSize: 28,
-  },
-  scenePricePill: {
-    marginTop: 14,
-    alignSelf: 'flex-start',
-    backgroundColor: '#ec4899',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-  },
-  scenePricePillText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  sceneTitle: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '900',
-    marginTop: 14,
-  },
-  sceneVenue: {
-    color: 'rgba(255,255,255,0.74)',
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 6,
-  },
-  sceneBucket: {
-    color: '#fbcfe8',
-    fontSize: 12,
-    fontWeight: '800',
-    marginTop: 12,
-  },
-  storeCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  storeHero: {
-    padding: 16,
-  },
-  storeHeroBadgeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  storePromoBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-  },
-  storePromoBadgeText: {
-    color: COLORS.text,
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  favoriteButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  storeHeroCircle: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
-    backgroundColor: 'rgba(255,255,255,0.82)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 18,
-  },
-  storeHeroCircleText: {
-    color: COLORS.text,
-    fontSize: 24,
-    fontWeight: '900',
-  },
-  storeContent: {
-    padding: 16,
-    gap: 10,
-  },
-  storeTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  storeName: {
-    flex: 1,
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  storeDescription: {
-    color: COLORS.muted,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  vendorBadgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  metaBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#f3f4f6',
-  },
-  metaBadgeText: {
-    color: COLORS.text,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  storeCardBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  storeAddress: {
-    flex: 1,
-    color: COLORS.subtle,
-    fontSize: 13,
-  },
-  browsePill: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: COLORS.green050,
-  },
-  browsePillText: {
-    color: COLORS.green900,
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  ratingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#dcfce7',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  ratingPillSmall: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#dcfce7',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  ratingPillText: {
-    color: '#14532d',
-    fontSize: 12,
-    fontWeight: '900',
-  },
+
   loadingWrap: {
     paddingVertical: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
   },
+
   loadingText: {
+    marginTop: 10,
     color: COLORS.muted,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
+
   emptyCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
+    padding: 18,
   },
+
+  emptyCardDark: {
+    backgroundColor: COLORS.dark800,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+
   emptyTitle: {
     color: COLORS.text,
     fontSize: 18,
-    fontWeight: '900',
+    fontWeight: '800',
   },
+
   emptyText: {
     color: COLORS.muted,
     fontSize: 14,
-    lineHeight: 20,
     marginTop: 8,
+    lineHeight: 20,
   },
-  panelCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  panelTitle: {
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '900',
-    marginBottom: 12,
-  },
-  panelText: {
-    color: COLORS.text,
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  panelSubText: {
-    color: COLORS.muted,
-    fontSize: 14,
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  simpleListRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-  },
-  simpleListIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: COLORS.purpleSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  simpleListIconText: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  simpleListTitle: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  simpleListMeta: {
-    color: COLORS.muted,
-    fontSize: 13,
-    marginTop: 3,
-  },
-  accountHeaderCard: {
-    backgroundColor: '#d9465f',
-    borderRadius: 28,
-    padding: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  accountName: {
-    color: '#ffffff',
-    fontSize: 32,
-    fontWeight: '900',
-  },
-  accountPhone: {
-    color: 'rgba(255,255,255,0.92)',
-    fontSize: 18,
-    marginTop: 10,
-  },
-  accountEmail: {
-    color: 'rgba(255,255,255,0.92)',
-    fontSize: 16,
-    marginTop: 4,
-  },
-  helpButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  helpButtonText: {
-    color: '#ffffff',
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  oneCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  oneBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#dcfce7',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    marginBottom: 10,
-  },
-  oneBadgeText: {
-    color: '#166534',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  oneTitle: {
-    color: COLORS.text,
-    fontSize: 24,
-    fontWeight: '900',
-  },
-  oneSubText: {
-    color: COLORS.muted,
-    fontSize: 14,
-    marginTop: 4,
-  },
-  accountQuickGrid: {
+
+  dealGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-  },
-  accountQuickCard: {
-    width: '22%',
-    minHeight: 102,
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 10,
-    paddingVertical: 14,
     justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 16,
   },
-  accountQuickText: {
-    color: COLORS.text,
-    fontSize: 12,
-    fontWeight: '700',
-    lineHeight: 16,
-    marginTop: 10,
-  },
-  accountListCard: {
+
+  dealCard: {
+    width: '48%',
     backgroundColor: '#ffffff',
-    borderRadius: 24,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
+    padding: 14,
+  },
+
+  smallPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: COLORS.green050,
+    color: COLORS.green800,
+    fontSize: 11,
+    fontWeight: '800',
     overflow: 'hidden',
   },
-  accountListRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 12,
+
+  dealEmoji: {
+    fontSize: 32,
+    marginTop: 10,
   },
-  accountListRowBorder: {
-    borderTopWidth: 1,
-    borderTopColor: '#eef0f3',
-  },
-  accountListIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  accountListLabel: {
-    flex: 1,
+
+  dealTitle: {
     color: COLORS.text,
     fontSize: 15,
-    fontWeight: '700',
-  },
-  segmentWrap: {
-    backgroundColor: '#eef0f3',
-    borderRadius: 18,
-    padding: 4,
-    flexDirection: 'row',
-  },
-  segmentButton: {
-    flex: 1,
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  segmentButtonActive: {
-    backgroundColor: '#111827',
-  },
-  segmentButtonText: {
-    color: COLORS.muted,
-    fontSize: 14,
     fontWeight: '800',
+    marginTop: 10,
   },
-  segmentButtonTextActive: {
-    color: '#ffffff',
-  },
-  pastOrderCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  pastOrderCardCompact: {
-    paddingBottom: 14,
-  },
-  pastOrderHeader: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'center',
-  },
-  pastOrderThumb: {
-    width: 54,
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: COLORS.yellowSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pastOrderThumbText: {
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  pastOrderTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  pastOrderTitle: {
-    flex: 1,
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  pastOrderStatus: {
-    color: '#16a34a',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  pastOrderLocation: {
+
+  dealMeta: {
     color: COLORS.muted,
     fontSize: 13,
     marginTop: 4,
   },
-  pastOrderItemLine: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 14,
-  },
-  pastOrderMeta: {
-    color: COLORS.muted,
-    fontSize: 13,
-    marginTop: 8,
-  },
-  reorderButton: {
-    marginTop: 16,
-    backgroundColor: '#fde7df',
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  reorderButtonText: {
-    color: '#ea580c',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  innerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 10,
-    backgroundColor: COLORS.bg,
-  },
-  iconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  innerHeaderTitle: {
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  innerHeaderSubtitle: {
-    color: COLORS.muted,
-    fontSize: 13,
-    marginTop: 2,
-  },
-  vendorHeroCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 26,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  vendorHeroTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  vendorInitialBadge: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: COLORS.purpleSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  vendorInitialBadgeText: {
-    color: COLORS.text,
-    fontSize: 20,
-    fontWeight: '900',
-  },
-  vendorHeroTitle: {
-    color: COLORS.text,
-    fontSize: 24,
-    fontWeight: '900',
-  },
-  vendorHeroText: {
-    color: COLORS.muted,
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 8,
-    marginBottom: 14,
-  },
-  searchBoxPlain: {
-    minHeight: 56,
-    borderRadius: 18,
-    backgroundColor: '#ffffff',
-    flexDirection: 'row',
-    alignItems: 'center',
+
+  dealBottom: {
+    marginTop: 12,
     gap: 10,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
-  productCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 22,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  productHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 8,
-  },
-  featuredLabel: {
-    color: '#065f46',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-  },
-  featuredLabelMuted: {
-    color: COLORS.subtle,
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-  },
-  productTitle: {
+
+  priceText: {
     color: COLORS.text,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '900',
   },
-  productDescription: {
-    color: COLORS.muted,
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 6,
+
+  addTinyButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.green800,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  productMetaRow: {
+
+  addTinyButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  chipRow: {
+    gap: 10,
+    paddingBottom: 14,
+  },
+
+  chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
-  productPrice: {
+
+  chipText: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  filterChip: {
+    backgroundColor: '#ffffff',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+
+  filterChipActive: {
+    backgroundColor: COLORS.green800,
+    borderColor: COLORS.green800,
+  },
+
+  filterChipText: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  filterChipTextActive: {
+    color: '#ffffff',
+  },
+
+  filterChipDark: {
+    backgroundColor: COLORS.dark800,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+
+  filterChipDarkActive: {
+    backgroundColor: '#ffffff',
+  },
+
+  filterChipTextDark: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  filterChipTextDarkActive: {
+    color: COLORS.dark900,
+  },
+
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 16,
+  },
+
+  categoryTile: {
+    width: '48%',
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    alignItems: 'center',
+  },
+
+  categoryTileLarge: {
+    width: '48%',
+    minHeight: 110,
+    borderRadius: 18,
+    padding: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  categoryEmoji: {
+    fontSize: 28,
+    marginBottom: 10,
+  },
+
+  categoryTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+
+  horizontalRail: {
+    gap: 12,
+    paddingBottom: 12,
+  },
+
+  railCard: {
+    width: 290,
+  },
+
+  promoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 16,
+  },
+
+  promoTile: {
+    width: '48%',
+    borderRadius: 18,
+    padding: 16,
+  },
+
+  promoEmoji: {
+    fontSize: 28,
+  },
+
+  promoTitle: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 10,
+  },
+
+  promoSubtitle: {
+    color: COLORS.muted,
+    fontSize: 13,
+    marginTop: 6,
+  },
+
+  storeCard: {
+    flexDirection: 'row',
+    gap: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 14,
+    marginBottom: 12,
+  },
+
+  storeCardDark: {
+    backgroundColor: COLORS.dark800,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+
+  storeAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  storeAvatarText: {
     color: COLORS.text,
     fontSize: 18,
     fontWeight: '900',
   },
-  productMetaDot: {
-    color: COLORS.subtle,
-    fontSize: 14,
+
+  storeContent: {
+    flex: 1,
   },
-  productMetaText: {
+
+  storeTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  storeName: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+  storeNameDark: {
+    color: '#ffffff',
+  },
+
+  storeDescription: {
     color: COLORS.muted,
+    fontSize: 13,
+    marginTop: 6,
+  },
+
+  storeDescriptionDark: {
+    color: 'rgba(255,255,255,0.72)',
+  },
+
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+
+  badge: {
+    backgroundColor: COLORS.green050,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+
+  badgeDark: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+
+  badgeText: {
+    color: COLORS.green800,
     fontSize: 12,
     fontWeight: '700',
   },
-  productRightBlock: {
+
+  badgeTextDark: {
+    color: '#ffffff',
+  },
+
+  overlayArea: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
     alignItems: 'center',
-    gap: 10,
   },
-  productImageMock: {
-    width: 88,
-    height: 88,
-    borderRadius: 20,
-    backgroundColor: COLORS.blueSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  productEmoji: {
-    fontSize: 40,
-  },
-  addButton: {
-    minWidth: 78,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    backgroundColor: COLORS.green100,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-  },
-  addButtonText: {
-    color: COLORS.green900,
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  qtyStepper: {
+
+  floatingCartBar: {
+    width: '100%',
+    backgroundColor: COLORS.green800,
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minWidth: 94,
-    borderRadius: 14,
-    backgroundColor: COLORS.green100,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
+    marginBottom: 10,
+    shadowColor: '#000000',
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
-  qtyStepperCompact: {
-    minWidth: 82,
-  },
-  qtyAction: {
-    width: 28,
-    height: 28,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qtyText: {
-    color: COLORS.green900,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  floatingCart: {
+
+  floatingCartCta: {
     position: 'absolute',
     left: 16,
     right: 16,
@@ -3380,195 +2631,592 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 6,
   },
+
   floatingCartTitle: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '900',
   },
-  floatingCartSubtitle: {
+
+  floatingCartText: {
     color: 'rgba(255,255,255,0.88)',
     fontSize: 13,
     marginTop: 4,
   },
-  freeDeliveryCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  freeDeliveryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  freeDeliveryTitle: {
-    color: COLORS.text,
-    fontSize: 17,
-    fontWeight: '900',
-  },
-  freeDeliveryText: {
-    color: COLORS.muted,
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 8,
-  },
-  progressTrack: {
-    marginTop: 14,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: '#e5e7eb',
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: COLORS.green800,
-  },
-  cartLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eef0f3',
-  },
-  cartLineTitle: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  cartLineMeta: {
-    color: COLORS.muted,
-    fontSize: 13,
-    marginTop: 4,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-  },
-  summaryLabel: {
-    color: COLORS.muted,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  summaryLabelStrong: {
-    color: COLORS.text,
-    fontWeight: '900',
-  },
-  summaryValue: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  summaryValueStrong: {
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: '#eef0f3',
-    marginVertical: 8,
-  },
-  primaryButton: {
-    backgroundColor: COLORS.green800,
-    borderRadius: 18,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButtonText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  secondaryButton: {
-    backgroundColor: '#ffffff',
-    borderRadius: 18,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  secondaryButtonText: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  rootOverlayArea: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 78,
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  rootCartBar: {
-    width: '100%',
-    backgroundColor: COLORS.green800,
-    borderRadius: 22,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-    shadowColor: '#000000',
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
-  },
-  rootCartBarTitle: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  rootCartBarSubtitle: {
-    color: 'rgba(255,255,255,0.88)',
-    fontSize: 13,
-    marginTop: 4,
-  },
+
   deliveryStrip: {
     backgroundColor: '#dff8f0',
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+
   deliveryStripText: {
     color: COLORS.green900,
     fontSize: 13,
     fontWeight: '900',
-    letterSpacing: 0.3,
     textAlign: 'center',
   },
-  bottomTabBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+
+  panelCard: {
     backgroundColor: '#ffffff',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    flexDirection: 'row',
-    paddingTop: 8,
-    paddingBottom: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
   },
-  bottomTab: {
-    flex: 1,
+
+  panelTitle: {
+    color: COLORS.text,
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  panelText: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+
+  panelSubText: {
+    color: COLORS.muted,
+    fontSize: 13,
+    marginTop: 6,
+  },
+
+  primaryButton: {
+    backgroundColor: COLORS.green800,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    paddingVertical: 14,
   },
-  bottomTabLabel: {
+
+  primaryButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  secondaryButton: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+  },
+
+  secondaryButtonText: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  segmentWrap: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  segmentButton: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+
+  segmentButtonActive: {
+    backgroundColor: COLORS.green800,
+    borderColor: COLORS.green800,
+  },
+
+  segmentButtonText: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  segmentButtonTextActive: {
+    color: '#ffffff',
+  },
+
+  simpleListRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingTop: 14,
+  },
+
+  simpleListIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: COLORS.green100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  simpleListIconText: {
+    color: COLORS.green800,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  simpleListTitle: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  simpleListMeta: {
     color: COLORS.muted,
-    fontSize: 12,
+    fontSize: 13,
+    marginTop: 4,
+  },
+
+  accountHeaderCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+
+  accountName: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+
+  accountSubText: {
+    color: COLORS.muted,
+    fontSize: 13,
+    marginTop: 4,
+  },
+
+  helpButton: {
+    borderRadius: 12,
+    backgroundColor: COLORS.green050,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignSelf: 'flex-start',
+  },
+
+  helpButtonText: {
+    color: COLORS.green800,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  oneCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  quickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  quickCard: {
+    width: '48%',
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    gap: 10,
+  },
+
+  quickCardText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  accountListCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+
+  accountListRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+
+  accountListRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+
+  accountListLabel: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 14,
     fontWeight: '700',
   },
-  bottomTabLabelActive: {
+
+  innerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: COLORS.bg,
+  },
+
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  innerHeaderTitle: {
     color: COLORS.text,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  innerHeaderSubtitle: {
+    color: COLORS.muted,
+    fontSize: 13,
+    marginTop: 4,
+  },
+
+  vendorHeroCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+  },
+
+  vendorHeroTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  vendorInitialBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: COLORS.green100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  vendorInitialBadgeText: {
+    color: COLORS.green800,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+
+  vendorHeroTitle: {
+    color: COLORS.text,
+    fontSize: 22,
+    fontWeight: '900',
+    marginTop: 14,
+  },
+
+  vendorHeroText: {
+    color: COLORS.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+  },
+
+  searchBoxPlain: {
+    minHeight: 54,
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+  },
+
+  searchInput: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 16,
+  },
+
+  productCard: {
+    flexDirection: 'row',
+    gap: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 14,
+  },
+
+  productLeft: {
+    flex: 1,
+  },
+
+  productTitle: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 10,
+  },
+
+  productDesc: {
+    color: COLORS.muted,
+    fontSize: 13,
+    marginTop: 6,
+  },
+
+  productRight: {
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  productEmojiWrap: {
+    width: 82,
+    height: 82,
+    borderRadius: 18,
+    backgroundColor: COLORS.green050,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  productEmoji: {
+    fontSize: 36,
+  },
+
+  addButton: {
+    backgroundColor: COLORS.green800,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+
+  addButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  qtyStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    height: 38,
+  },
+
+  qtyButton: {
+    width: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  qtyText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '900',
+    minWidth: 24,
+    textAlign: 'center',
+  },
+
+  progressTrack: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#e5e7eb',
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: COLORS.green800,
+  },
+
+  cartLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+
+  cartLineTitle: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  cartLineMeta: {
+    color: COLORS.muted,
+    fontSize: 13,
+    marginTop: 4,
+  },
+
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+
+  summaryLabel: {
+    color: COLORS.muted,
+    fontSize: 14,
+  },
+
+  summaryValue: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
+  summaryDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 8,
+  },
+
+  summaryLabelStrong: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  summaryValueStrong: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  orderCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    marginBottom: 12,
+  },
+
+  orderTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  orderThumb: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: COLORS.green100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  orderThumbText: {
+    color: COLORS.green800,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  orderTitle: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  orderMeta: {
+    color: COLORS.muted,
+    fontSize: 13,
+    marginTop: 4,
+  },
+
+  orderStatus: {
+    color: COLORS.green800,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  orderLine: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 12,
+    marginBottom: 6,
+  },
+
+  sceneCard: {
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+  },
+
+  sceneTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  sceneDate: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
+    opacity: 0.92,
+  },
+
+  sceneEmoji: {
+    fontSize: 26,
+  },
+
+  sceneTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 16,
+  },
+
+  sceneVenue: {
+    color: 'rgba(255,255,255,0.84)',
+    fontSize: 14,
+    marginTop: 8,
+  },
+
+  scenePrice: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 12,
   },
 });
