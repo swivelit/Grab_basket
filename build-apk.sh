@@ -24,7 +24,6 @@ fi
 [[ -d "$MOBILE_DIR" ]] || fail "Could not find the Expo mobile app folder."
 [[ -f "$MOBILE_DIR/package.json" ]] || fail "mobile/package.json not found. Create the Expo app first."
 
-# Default to release instead of debug
 BUILD_TYPE="${BUILD_TYPE:-release}"
 BUILD_TYPE="$(printf '%s' "$BUILD_TYPE" | tr '[:upper:]' '[:lower:]')"
 
@@ -65,11 +64,48 @@ export ANDROID_SDK_ROOT="$ANDROID_SDK"
 export ANDROID_HOME="$ANDROID_SDK"
 export PATH="$ANDROID_SDK/platform-tools:$ANDROID_SDK/emulator:$PATH"
 
-# API URL passed into Expo at build time
-export EXPO_PUBLIC_API_BASE_URL="${API_BASE_URL:-${EXPO_PUBLIC_API_BASE_URL:-http://10.0.2.2:8000}}"
+ENV_FILE="$MOBILE_DIR/.env"
+if [[ -f "$ENV_FILE" ]]; then
+  info "Loading environment from: $ENV_FILE"
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
+
+INPUT_API_BASE_URL="${API_BASE_URL:-${EXPO_PUBLIC_API_BASE_URL:-}}"
+
+if [[ -z "$INPUT_API_BASE_URL" ]]; then
+  if [[ "$BUILD_TYPE" == "release" ]]; then
+    fail "No API base URL configured. Set EXPO_PUBLIC_API_BASE_URL in mobile/.env or pass API_BASE_URL=... when running the script."
+  else
+    INPUT_API_BASE_URL="http://10.0.2.2:8000"
+    echo "⚠️  No API URL configured for debug build. Falling back to $INPUT_API_BASE_URL"
+  fi
+fi
+
+INPUT_API_BASE_URL="${INPUT_API_BASE_URL%/}"
+
+if [[ "$BUILD_TYPE" == "release" ]]; then
+  case "$INPUT_API_BASE_URL" in
+    http://10.0.2.2*|http://127.0.0.1*|http://localhost*|https://127.0.0.1*|https://localhost*)
+      fail "Release builds cannot use emulator/local URLs. Use your live backend URL, for example: https://grab-basket.onrender.com"
+      ;;
+  esac
+fi
+
+if [[ "$BUILD_TYPE" == "release" ]]; then
+  DEFAULT_APP_ENV="production"
+else
+  DEFAULT_APP_ENV="development"
+fi
+
+export EXPO_PUBLIC_APP_ENV="${EXPO_PUBLIC_APP_ENV:-$DEFAULT_APP_ENV}"
+export EXPO_PUBLIC_API_BASE_URL="$INPUT_API_BASE_URL"
 
 info "Using mobile app at: $MOBILE_DIR"
 info "Build type: $BUILD_TYPE"
+info "App env: $EXPO_PUBLIC_APP_ENV"
 info "API base URL: $EXPO_PUBLIC_API_BASE_URL"
 
 cd "$MOBILE_DIR"
@@ -129,7 +165,7 @@ echo ""
 echo "Examples:"
 echo "  ./build-apk.sh"
 echo "  BUILD_TYPE=debug ./build-apk.sh"
-echo "  API_BASE_URL=https://your-api-domain.com ./build-apk.sh"
+echo "  API_BASE_URL=https://grab-basket.onrender.com ./build-apk.sh"
 echo ""
 echo "Install on device with:"
 echo "  adb install -r \"$DIST_DIR/$APK_NAME\""
