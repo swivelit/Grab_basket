@@ -2,7 +2,10 @@ const pkg = require('./package.json');
 
 function readEnv(key, fallback = '') {
   const value = process.env[key];
-  if (value === undefined || value === null) return fallback;
+
+  if (value === undefined || value === null) {
+    return fallback;
+  }
 
   const text = String(value).trim();
   return text === '' ? fallback : text;
@@ -10,29 +13,67 @@ function readEnv(key, fallback = '') {
 
 function readBool(key, fallback = false) {
   const value = readEnv(key, '');
-  if (!value) return fallback;
+
+  if (!value) {
+    return fallback;
+  }
+
   return ['1', 'true', 'yes', 'on', 'enabled'].includes(value.toLowerCase());
 }
 
 function readInt(key, fallback, { min = Number.NEGATIVE_INFINITY } = {}) {
   const raw = readEnv(key, '');
-  if (!raw) return fallback;
+
+  if (!raw) {
+    return fallback;
+  }
 
   const value = Number.parseInt(raw, 10);
-  if (!Number.isFinite(value)) return fallback;
-  if (value < min) return fallback;
+
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  if (value < min) {
+    return fallback;
+  }
 
   return value;
+}
+
+function normalizeAppEnv(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+
+  if (!normalized) {
+    return 'development';
+  }
+
+  if (['prod', 'production', 'release'].includes(normalized)) {
+    return 'production';
+  }
+
+  if (['dev', 'development', 'debug'].includes(normalized)) {
+    return 'development';
+  }
+
+  return normalized;
+}
+
+function isHttpUrl(value = '') {
+  return /^http:\/\//i.test(String(value || '').trim());
 }
 
 const APP_NAME = readEnv('EXPO_PUBLIC_APP_NAME', 'Grab Basket');
 const APP_SLUG = readEnv('EXPO_PUBLIC_APP_SLUG', 'grab-basket-mobile');
 const APP_SCHEME = readEnv('EXPO_PUBLIC_APP_SCHEME', 'grabbasket');
 const APP_VERSION = readEnv('EXPO_PUBLIC_APP_VERSION', pkg.version || '1.0.0');
-const APP_ENV = readEnv(
-  'EXPO_PUBLIC_APP_ENV',
-  process.env.NODE_ENV === 'production' ? 'production' : 'development'
-).toLowerCase();
+
+const APP_ENV = normalizeAppEnv(
+  readEnv(
+    'EXPO_PUBLIC_APP_ENV',
+    process.env.NODE_ENV === 'production' ? 'production' : 'development'
+  )
+);
 
 const IOS_BUNDLE_IDENTIFIER = readEnv(
   'EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER',
@@ -44,7 +85,6 @@ const ANDROID_PACKAGE = readEnv(
   'com.grabbasket.mobile'
 );
 
-// Android requires versionCode > 0.
 const ANDROID_VERSION_CODE = readInt(
   'EXPO_PUBLIC_ANDROID_VERSION_CODE',
   1,
@@ -62,7 +102,8 @@ const HAS_META_CREDENTIALS = Boolean(META_APP_ID && META_CLIENT_TOKEN);
 const API_BASE_URL = readEnv('EXPO_PUBLIC_API_BASE_URL', '');
 const API_HOST = readEnv('EXPO_PUBLIC_API_HOST', '');
 const API_PORT = readEnv('EXPO_PUBLIC_API_PORT', '8000');
-const API_SCHEME = readEnv('EXPO_PUBLIC_API_SCHEME', 'http');
+const API_SCHEME = readEnv('EXPO_PUBLIC_API_SCHEME', 'http').toLowerCase();
+
 const API_TIMEOUT_MS = readInt(
   'EXPO_PUBLIC_API_TIMEOUT_MS',
   15000,
@@ -72,8 +113,23 @@ const API_TIMEOUT_MS = readInt(
 const ENABLE_ADS = readBool('EXPO_PUBLIC_ENABLE_ADS', false);
 const ENABLE_NEW_ARCH = readBool('EXPO_PUBLIC_ENABLE_NEW_ARCH', true);
 
+const HAS_API_HINT = Boolean(API_BASE_URL || API_HOST || APP_ENV !== 'production');
+
+const ALLOW_CLEARTEXT = readBool(
+  'EXPO_PUBLIC_ALLOW_CLEARTEXT',
+  isHttpUrl(API_BASE_URL) || (HAS_API_HINT && API_SCHEME === 'http')
+);
+
 const plugins = [
   'expo-router',
+  [
+    'expo-build-properties',
+    {
+      android: {
+        usesCleartextTraffic: ALLOW_CLEARTEXT,
+      },
+    },
+  ],
   [
     'expo-tracking-transparency',
     {
@@ -154,6 +210,7 @@ const expoConfig = {
     apiPort: API_PORT,
     apiScheme: API_SCHEME,
     apiTimeoutMs: API_TIMEOUT_MS,
+    allowCleartextTraffic: ALLOW_CLEARTEXT,
     meta: {
       appId: META_APP_ID,
       adAccountId: META_AD_ACCOUNT_ID,
