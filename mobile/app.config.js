@@ -1,55 +1,164 @@
-const hasMetaCredentials = Boolean(
-  process.env.EXPO_PUBLIC_META_APP_ID &&
-    process.env.EXPO_PUBLIC_META_CLIENT_TOKEN
+const pkg = require('./package.json');
+
+function readEnv(key, fallback = '') {
+  const value = process.env[key];
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return fallback;
+  }
+  return String(value).trim();
+}
+
+function readBool(key, fallback = false) {
+  const value = readEnv(key, '');
+  if (!value) return fallback;
+  return ['1', 'true', 'yes', 'on', 'enabled'].includes(value.toLowerCase());
+}
+
+function readInt(key, fallback) {
+  const value = Number(readEnv(key, ''));
+  return Number.isFinite(value) ? value : fallback;
+}
+
+const APP_NAME = readEnv('EXPO_PUBLIC_APP_NAME', 'Grab Basket');
+const APP_SLUG = readEnv('EXPO_PUBLIC_APP_SLUG', 'grab-basket-mobile');
+const APP_SCHEME = readEnv('EXPO_PUBLIC_APP_SCHEME', 'grabbasket');
+const APP_VERSION = readEnv('EXPO_PUBLIC_APP_VERSION', pkg.version || '1.0.0');
+const APP_ENV = readEnv(
+  'EXPO_PUBLIC_APP_ENV',
+  process.env.NODE_ENV === 'production' ? 'production' : 'development'
+).toLowerCase();
+
+const IOS_BUNDLE_IDENTIFIER = readEnv(
+  'EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER',
+  'com.grabbasket.mobile'
 );
 
-module.exports = () => ({
-  expo: {
-    name: 'Grab Basket',
-    slug: 'grab-basket-mobile',
-    scheme: 'grabbasket',
-    version: '1.0.0',
-    orientation: 'portrait',
-    userInterfaceStyle: 'light',
-    experiments: {
-      typedRoutes: true,
+const ANDROID_PACKAGE = readEnv(
+  'EXPO_PUBLIC_ANDROID_PACKAGE',
+  'com.grabbasket.mobile'
+);
+
+const ANDROID_VERSION_CODE = readInt('EXPO_PUBLIC_ANDROID_VERSION_CODE', 1);
+const EAS_PROJECT_ID = readEnv('EXPO_PUBLIC_EAS_PROJECT_ID', '');
+const EXPO_OWNER = readEnv('EXPO_PUBLIC_EXPO_OWNER', '');
+
+const META_APP_ID = readEnv('EXPO_PUBLIC_META_APP_ID', '');
+const META_CLIENT_TOKEN = readEnv('EXPO_PUBLIC_META_CLIENT_TOKEN', '');
+const META_AD_ACCOUNT_ID = readEnv('EXPO_PUBLIC_META_AD_ACCOUNT_ID', '');
+const HAS_META_CREDENTIALS = Boolean(META_APP_ID && META_CLIENT_TOKEN);
+
+const API_BASE_URL = readEnv('EXPO_PUBLIC_API_BASE_URL', '');
+const API_HOST = readEnv('EXPO_PUBLIC_API_HOST', '');
+const API_PORT = readEnv('EXPO_PUBLIC_API_PORT', '8000');
+const API_SCHEME = readEnv('EXPO_PUBLIC_API_SCHEME', 'http');
+const API_TIMEOUT_MS = readInt('EXPO_PUBLIC_API_TIMEOUT_MS', 15000);
+
+const ENABLE_ADS = readBool('EXPO_PUBLIC_ENABLE_ADS', false);
+const ENABLE_NEW_ARCH = readBool('EXPO_PUBLIC_ENABLE_NEW_ARCH', true);
+
+const plugins = [
+  'expo-router',
+  [
+    'expo-tracking-transparency',
+    {
+      userTrackingPermission:
+        'We use this data to improve measurement, attribution, and relevant sponsored content.',
     },
-    assetBundlePatterns: ['**/*'],
-    splash: {
-      resizeMode: 'contain',
-      backgroundColor: '#ffffff',
+  ],
+];
+
+if (HAS_META_CREDENTIALS) {
+  plugins.push([
+    'react-native-fbsdk-next',
+    {
+      appID: META_APP_ID,
+      clientToken: META_CLIENT_TOKEN,
+      displayName: APP_NAME,
+      scheme: `fb${META_APP_ID}`,
+      advertiserIDCollectionEnabled: true,
+      autoLogAppEventsEnabled: true,
+      isAutoInitEnabled: true,
+      iosUserTrackingPermission:
+        'We use this identifier to improve attribution and personalize relevant sponsored content.',
     },
-    web: {
-      bundler: 'metro',
-    },
-    android: {
-      package: 'com.grabbasket.mobile',
-      versionCode: 1,
-    },
-    ios: {
-      bundleIdentifier: 'com.grabbasket.mobile',
-      supportsTablet: true,
-    },
-    plugins: [
-      'expo-router',
-      ...(hasMetaCredentials
-        ? [
-            [
-              'react-native-fbsdk-next',
-              {
-                appID: process.env.EXPO_PUBLIC_META_APP_ID,
-                clientToken: process.env.EXPO_PUBLIC_META_CLIENT_TOKEN,
-                displayName: 'Grab Basket',
-                scheme: `fb${process.env.EXPO_PUBLIC_META_APP_ID}`,
-                advertiserIDCollectionEnabled: true,
-                autoLogAppEventsEnabled: true,
-                isAutoInitEnabled: true,
-                iosUserTrackingPermission:
-                  'We use this identifier to improve attribution and personalize relevant sponsored content.',
-              },
-            ],
-          ]
-        : []),
-    ],
+  ]);
+}
+
+const expoConfig = {
+  name: APP_NAME,
+  slug: APP_SLUG,
+  scheme: APP_SCHEME,
+  version: APP_VERSION,
+  orientation: 'portrait',
+  userInterfaceStyle: 'light',
+  newArchEnabled: ENABLE_NEW_ARCH,
+  experiments: {
+    typedRoutes: true,
   },
+  assetBundlePatterns: ['**/*'],
+  icon: './assets/images/icon.png',
+  splash: {
+    image: './assets/images/splash-icon.png',
+    resizeMode: 'contain',
+    backgroundColor: '#ffffff',
+  },
+  updates: {
+    fallbackToCacheTimeout: 0,
+  },
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
+  ios: {
+    bundleIdentifier: IOS_BUNDLE_IDENTIFIER,
+    supportsTablet: true,
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+      NSUserTrackingUsageDescription:
+        'We use this identifier to improve attribution and personalize relevant sponsored content.',
+    },
+  },
+  android: {
+    package: ANDROID_PACKAGE,
+    versionCode: ANDROID_VERSION_CODE,
+    adaptiveIcon: {
+      foregroundImage: './assets/images/android-icon-foreground.png',
+      backgroundImage: './assets/images/android-icon-background.png',
+      monochromeImage: './assets/images/android-icon-monochrome.png',
+    },
+    edgeToEdgeEnabled: true,
+  },
+  web: {
+    bundler: 'metro',
+    favicon: './assets/images/favicon.png',
+  },
+  plugins,
+  extra: {
+    appEnv: APP_ENV,
+    apiBaseUrl: API_BASE_URL,
+    apiHost: API_HOST,
+    apiPort: API_PORT,
+    apiScheme: API_SCHEME,
+    apiTimeoutMs: API_TIMEOUT_MS,
+    meta: {
+      appId: META_APP_ID,
+      adAccountId: META_AD_ACCOUNT_ID,
+      hasCredentials: HAS_META_CREDENTIALS,
+      adsEnabled: ENABLE_ADS && HAS_META_CREDENTIALS,
+    },
+    eas: {
+      projectId: EAS_PROJECT_ID || undefined,
+    },
+  },
+};
+
+if (EXPO_OWNER) {
+  expoConfig.owner = EXPO_OWNER;
+}
+
+if (EAS_PROJECT_ID) {
+  expoConfig.updates.url = `https://u.expo.dev/${EAS_PROJECT_ID}`;
+}
+
+module.exports = () => ({
+  expo: expoConfig,
 });
