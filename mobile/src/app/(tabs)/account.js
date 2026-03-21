@@ -1,5 +1,6 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -8,42 +9,45 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useGrabBasket } from '../../../App';
 
 const COLORS = {
-  bg: '#f5f5f7',
+  bg: '#f6f7fb',
   card: '#ffffff',
-  text: '#171717',
-  muted: '#6b7280',
-  subtle: '#9ca3af',
-  border: '#ececec',
-  green: '#16a34a',
-  greenSoft: '#ecfdf3',
-  purple: '#8b1e4f',
-  purpleDark: '#7a173f',
-  purpleSoft: '#fde8ef',
-  orangeSoft: '#fff3ec',
-  orangeText: '#f97316',
-  blueSoft: '#eaf2ff',
-  blueText: '#0b57d0',
-  yellowSoft: '#fff8db',
-  yellowText: '#a16207',
-  black: '#111827',
-};
+  text: '#111827',
+  muted: '#667085',
+  subtle: '#98a2b3',
+  border: '#e9edf5',
+  shadow: 'rgba(15, 23, 42, 0.08)',
 
-const DEMO_PROFILE = {
-  name: 'Hari',
-  phone: '+91 - 6238182925',
-  email: 'harisajahan@gmail.com',
+  hero: '#cf5d5c',
+  heroDark: '#a83d50',
+  heroSoft: 'rgba(255,255,255,0.08)',
+
+  green: '#119b56',
+  greenSoft: '#e8f8ee',
+  orange: '#ff6d00',
+  orangeSoft: '#fff1e7',
+  purple: '#4b0f35',
+  purpleSoft: '#f8e6ef',
+  blue: '#0b57d0',
+  blueSoft: '#eaf2ff',
+  yellow: '#a16207',
+  yellowSoft: '#fff8db',
+
+  black: '#050816',
+  blackSoft: '#111827',
+  pink: '#b33968',
 };
 
 const QUICK_ACTIONS = [
-  { key: 'address', icon: 'location-outline', label: 'Saved\nAddress' },
-  { key: 'payment', icon: 'wallet-outline', label: 'Payment\nModes' },
+  { key: 'saved-address', icon: 'location-outline', label: 'Saved\nAddress' },
+  { key: 'payment-modes', icon: 'wallet-outline', label: 'Payment\nModes' },
   { key: 'refunds', icon: 'reload-outline', label: 'My\nRefunds' },
-  { key: 'money', icon: 'card-outline', label: 'GrabBasket\nMoney' },
+  { key: 'wallet', icon: 'card-outline', label: 'GrabBasket\nMoney' },
 ];
 
 const ACCOUNT_ROWS = [
@@ -139,62 +143,143 @@ function getServiceLabel(service = '') {
   return 'Food';
 }
 
-function getServicePill(service = '') {
+function getServiceTone(service = '') {
   const normalized = normalizeService(service);
+
   if (normalized === 'warehouse') {
     return {
-      backgroundColor: COLORS.blueSoft,
-      color: COLORS.blueText,
+      pillBg: COLORS.blueSoft,
+      pillColor: COLORS.blue,
+      thumbBg: '#dfeaff',
+      actionBg: '#edf4ff',
+      actionColor: COLORS.blue,
     };
   }
+
   if (normalized === 'eatout') {
     return {
-      backgroundColor: COLORS.yellowSoft,
-      color: COLORS.yellowText,
+      pillBg: COLORS.yellowSoft,
+      pillColor: COLORS.yellow,
+      thumbBg: '#fff0d1',
+      actionBg: '#fff5e6',
+      actionColor: COLORS.yellow,
     };
   }
+
   return {
-    backgroundColor: '#f3e8ff',
-    color: '#6d28d9',
+    pillBg: COLORS.purpleSoft,
+    pillColor: COLORS.pink,
+    thumbBg: '#f8e8ef',
+    actionBg: COLORS.orangeSoft,
+    actionColor: COLORS.orange,
   };
 }
 
 function getStatusColor(status = '') {
   const normalized = String(status || '').toLowerCase();
   if (normalized === 'booked') return '#c2410c';
+  if (normalized === 'cancelled') return '#dc2626';
   return COLORS.green;
 }
 
-function getOrderThumbColor(service = '') {
-  const normalized = normalizeService(service);
-  if (normalized === 'warehouse') return COLORS.blueSoft;
-  if (normalized === 'eatout') return COLORS.yellowSoft;
-  return COLORS.purpleSoft;
+function buildItemLine(order) {
+  const firstItem = order?.items?.[0];
+  if (!firstItem) return 'Order';
+  const moreCount = Math.max(0, (order.items?.length || 0) - 1);
+  return `${firstItem.qty || 1} x ${firstItem.name}${moreCount > 0 ? ` +${moreCount} more` : ''}`;
 }
 
-function buildItemLine(order) {
-  const firstItem = order.items?.[0];
-  if (!firstItem) return 'Order';
-  const moreCount = Math.max(0, order.items.length - 1);
-  return `${firstItem.qty || 1} x ${firstItem.name}${moreCount > 0 ? ` +${moreCount} more` : ''}`;
+function resolveProfile(allOrders, recentSearches) {
+  const topOrder = allOrders?.[0];
+
+  return {
+    name: 'GrabBasket user',
+    phone: topOrder ? 'Fast checkout enabled' : 'Add phone number',
+    email:
+      recentSearches?.length > 0
+        ? `Recent interest: ${recentSearches[0]}`
+        : 'Add email to receive invoices',
+  };
+}
+
+function resolveOrderVendorId(order, vendors = []) {
+  if (order?.vendorId) return order.vendorId;
+
+  const match = vendors.find(
+    (vendor) =>
+      String(vendor?.name || '').trim().toLowerCase() ===
+      String(order?.vendorName || '').trim().toLowerCase()
+  );
+
+  return match?.id || null;
+}
+
+function SectionHeader({ title, actionLabel, onPressAction }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {actionLabel ? (
+        <TouchableOpacity activeOpacity={0.92} onPress={onPressAction}>
+          <Text style={styles.sectionAction}>{actionLabel}</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
+function ProfileHero({ profile, totalOrders, favouriteCount }) {
+  return (
+    <View style={styles.profileHero}>
+      <View style={styles.heroBlobOne} />
+      <View style={styles.heroBlobTwo} />
+      <View style={styles.heroBlobThree} />
+
+      <View style={styles.profileHeaderRow}>
+        <View style={styles.profileAvatar}>
+          <Text style={styles.profileAvatarText}>{initials(profile.name)}</Text>
+        </View>
+
+        <View style={styles.profileBadgeRow}>
+          <View style={styles.profileBadge}>
+            <Ionicons name="flash-outline" size={14} color="#ffffff" />
+            <Text style={styles.profileBadgeText}>one</Text>
+          </View>
+          <View style={styles.profileBadgeMuted}>
+            <Text style={styles.profileBadgeMutedText}>{totalOrders} orders</Text>
+          </View>
+          <View style={styles.profileBadgeMuted}>
+            <Text style={styles.profileBadgeMutedText}>{favouriteCount} favourites</Text>
+          </View>
+        </View>
+      </View>
+
+      <Text style={styles.profileName}>{profile.name}</Text>
+      <Text style={styles.profileSubText}>{profile.phone}</Text>
+      <Text style={styles.profileSubText}>{profile.email}</Text>
+    </View>
+  );
 }
 
 function MembershipCard({ savedEstimate, totalOrders }) {
   return (
     <TouchableOpacity activeOpacity={0.92} style={styles.membershipCard}>
-      <View style={styles.membershipRowTop}>
+      <View style={styles.membershipTopRow}>
         <View style={styles.membershipBrandRow}>
           <Text style={styles.membershipBrandOne}>one</Text>
-          <View style={styles.activePill}>
-            <Text style={styles.activePillText}>ACTIVE</Text>
+          <View style={styles.membershipActivePill}>
+            <Text style={styles.membershipActivePillText}>ACTIVE</Text>
           </View>
         </View>
         <Ionicons name="chevron-down" size={18} color={COLORS.muted} />
       </View>
 
-      <Text style={styles.membershipSavings}>{money(savedEstimate)} saved in 36 days</Text>
+      <Text style={styles.membershipSavings}>
+        {money(savedEstimate)} saved in 36 days
+      </Text>
       <Text style={styles.membershipCaption}>
-        {totalOrders > 0 ? 'Explore all GrabBasket One benefits' : 'Start ordering to unlock more member savings'}
+        {totalOrders > 0
+          ? 'Explore all GrabBasket One benefits'
+          : 'Start ordering to unlock member savings and faster support'}
       </Text>
     </TouchableOpacity>
   );
@@ -203,11 +288,15 @@ function MembershipCard({ savedEstimate, totalOrders }) {
 function PromoBanner() {
   return (
     <TouchableOpacity activeOpacity={0.92} style={styles.promoBanner}>
-      <View style={styles.promoDot} />
+      <View style={styles.promoSignal}>
+        <Ionicons name="sparkles-outline" size={16} color="#f6d8ff" />
+      </View>
+
       <View style={{ flex: 1 }}>
         <Text style={styles.promoTitle}>Your exclusive invite to upgrade is here!</Text>
         <Text style={styles.promoSubtitle}>Join One BLCK now</Text>
       </View>
+
       <Ionicons name="chevron-forward" size={18} color="#ffffff" />
     </TouchableOpacity>
   );
@@ -239,13 +328,52 @@ function AccountListRow({ icon, label, isLast = false, onPress }) {
   );
 }
 
+function MiniStoreCard({ vendor, onPress }) {
+  return (
+    <TouchableOpacity activeOpacity={0.92} style={styles.miniStoreCard} onPress={onPress}>
+      <View style={styles.miniStoreAvatar}>
+        <Text style={styles.miniStoreAvatarText}>{initials(vendor?.name)}</Text>
+      </View>
+      <Text style={styles.miniStoreName} numberOfLines={1}>
+        {vendor?.name}
+      </Text>
+      <Text style={styles.miniStoreMeta} numberOfLines={1}>
+        {vendor?.distance_km != null ? `${Number(vendor.distance_km).toFixed(1)} km away` : 'Popular near you'}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function SearchChip({ label }) {
+  return (
+    <View style={styles.searchChip}>
+      <Ionicons name="search-outline" size={14} color={COLORS.muted} />
+      <Text style={styles.searchChipText}>{label}</Text>
+    </View>
+  );
+}
+
+function RatingStars({ label }) {
+  return (
+    <View style={styles.ratingColumn}>
+      <Text style={styles.ratingLabel}>{label}</Text>
+      <View style={styles.ratingStarsRow}>
+        {[0, 1, 2, 3, 4].map((value) => (
+          <Ionicons key={value} name="star-outline" size={15} color="#d1d5db" />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function PastOrderCard({ order, onPressPrimary }) {
-  const pill = getServicePill(order.service);
+  const tone = getServiceTone(order.service);
+  const isEatout = normalizeService(order.service) === 'eatout';
 
   return (
     <View style={styles.orderCard}>
-      <View style={styles.orderHeaderRow}>
-        <View style={[styles.orderThumb, { backgroundColor: getOrderThumbColor(order.service) }]}>
+      <View style={styles.orderTopRow}>
+        <View style={[styles.orderThumb, { backgroundColor: tone.thumbBg }]}>
           <Text style={styles.orderThumbText}>{initials(order.vendorName)}</Text>
         </View>
 
@@ -258,23 +386,48 @@ function PastOrderCard({ order, onPressPrimary }) {
           </Text>
         </View>
 
-        <Text style={[styles.orderStatus, { color: getStatusColor(order.status) }]}>{order.status}</Text>
+        <Text style={[styles.orderStatus, { color: getStatusColor(order.status) }]}>
+          {order.status}
+        </Text>
       </View>
 
-      <View style={styles.orderPillRow}>
-        <View style={[styles.serviceTag, { backgroundColor: pill.backgroundColor }]}>
-          <Text style={[styles.serviceTagText, { color: pill.color }]}>{getServiceLabel(order.service)}</Text>
+      <View style={styles.orderTagRow}>
+        <View style={[styles.serviceTag, { backgroundColor: tone.pillBg }]}>
+          <Text style={[styles.serviceTagText, { color: tone.pillColor }]}>
+            {getServiceLabel(order.service)}
+          </Text>
         </View>
       </View>
 
-      <Text style={styles.orderItemText}>{buildItemLine(order)}</Text>
-      <Text style={styles.orderFooterText}>
+      <Text style={styles.orderItemLine}>{buildItemLine(order)}</Text>
+
+      <Text style={styles.orderMetaLine}>
         Ordered: {order.orderedAt} · Bill Total: {money(order.total)}
       </Text>
 
-      <TouchableOpacity activeOpacity={0.92} style={styles.reorderButton} onPress={onPressPrimary}>
-        <Text style={styles.reorderButtonText}>{normalizeService(order.service) === 'eatout' ? 'VIEW BOOKING' : 'REORDER'}</Text>
-        <Ionicons name="chevron-forward" size={16} color={COLORS.orangeText} />
+      {!isEatout ? (
+        <View style={styles.ratingPanel}>
+          <RatingStars label="Your Food Rating" />
+          <View style={styles.ratingDivider} />
+          <RatingStars label="Delivery Rating" />
+        </View>
+      ) : (
+        <View style={styles.bookingInfoCard}>
+          <Ionicons name="calendar-outline" size={18} color={tone.actionColor} />
+          <Text style={[styles.bookingInfoText, { color: tone.actionColor }]}>
+            Your table booking is saved in history
+          </Text>
+        </View>
+      )}
+
+      <TouchableOpacity
+        activeOpacity={0.92}
+        style={[styles.orderPrimaryButton, { backgroundColor: tone.actionBg }]}
+        onPress={onPressPrimary}>
+        <Text style={[styles.orderPrimaryButtonText, { color: tone.actionColor }]}>
+          {isEatout ? 'VIEW BOOKING' : 'REORDER'}
+        </Text>
+        <Ionicons name="chevron-forward" size={16} color={tone.actionColor} />
       </TouchableOpacity>
     </View>
   );
@@ -283,19 +436,47 @@ function PastOrderCard({ order, onPressPrimary }) {
 function EmptyOrdersState({ activeFilter }) {
   return (
     <View style={styles.emptyOrdersCard}>
-      <Text style={styles.emptyOrdersTitle}>No {getServiceLabel(activeFilter).toLowerCase()} orders yet</Text>
-      <Text style={styles.emptyOrdersText}>Orders placed from your cart will appear here.</Text>
+      <Text style={styles.emptyOrdersTitle}>
+        No {getServiceLabel(activeFilter).toLowerCase()} orders yet
+      </Text>
+      <Text style={styles.emptyOrdersText}>
+        Orders placed from your basket will appear here.
+      </Text>
     </View>
   );
 }
 
 export default function AccountScreen() {
   const router = useRouter();
+  const tabBarHeight = useBottomTabBarHeight();
   const scrollRef = useRef(null);
-  const [pastOrdersY, setPastOrdersY] = useState(0);
+
+  const [ordersY, setOrdersY] = useState(0);
+  const [favouritesY, setFavouritesY] = useState(0);
   const [activeFilter, setActiveFilter] = useState('food');
 
-  const { orderHistory, favorites, cartCount, cartTotal } = useGrabBasket();
+  const {
+    activeService,
+    vendors,
+    favorites,
+    recentVendors,
+    recentSearches,
+    orderHistory,
+    cartCount,
+    cartTotal,
+    rememberStore,
+  } = useGrabBasket();
+
+  useEffect(() => {
+    const nextFilter =
+      activeService === 'warehouse'
+        ? 'warehouse'
+        : activeService === 'eatout'
+          ? 'eatout'
+          : 'food';
+
+    setActiveFilter(nextFilter);
+  }, [activeService]);
 
   const allOrders = useMemo(() => {
     const source = orderHistory?.length > 0 ? orderHistory : FALLBACK_ORDERS;
@@ -310,10 +491,17 @@ export default function AccountScreen() {
     [activeFilter, allOrders]
   );
 
+  const favouriteVendors = useMemo(() => {
+    return (vendors || []).filter((vendor) => Boolean(favorites?.[vendor.id])).slice(0, 8);
+  }, [vendors, favorites]);
+
   const stats = useMemo(() => {
     const totalOrders = allOrders.length;
     const favouriteCount = Object.values(favorites || {}).filter(Boolean).length;
-    const savedEstimate = allOrders.reduce((sum, order) => sum + Math.round(Number(order.total || 0) * 0.04), 0);
+    const savedEstimate = allOrders.reduce(
+      (sum, order) => sum + Math.round(Number(order.total || 0) * 0.04),
+      0
+    );
 
     return {
       totalOrders,
@@ -321,6 +509,11 @@ export default function AccountScreen() {
       savedEstimate,
     };
   }, [allOrders, favorites]);
+
+  const profile = useMemo(
+    () => resolveProfile(allOrders, recentSearches),
+    [allOrders, recentSearches]
+  );
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -330,11 +523,115 @@ export default function AccountScreen() {
     router.replace('/');
   };
 
-  const scrollToPastOrders = () => {
+  const openVendor = (vendor) => {
+    rememberStore(vendor.id);
+    router.push({
+      pathname: '/store/[vendorId]',
+      params: { vendorId: String(vendor.id) },
+    });
+  };
+
+  const scrollToY = (yValue) => {
     scrollRef.current?.scrollTo({
-      y: Math.max(0, pastOrdersY - 12),
+      y: Math.max(0, yValue - 12),
       animated: true,
     });
+  };
+
+  const handleHelp = () => {
+    Alert.alert(
+      'Support',
+      'Wire this to your help center, live chat, FAQs, and order issue flows.'
+    );
+  };
+
+  const handleQuickAction = (key) => {
+    if (key === 'refunds') {
+      scrollToY(ordersY);
+      return;
+    }
+
+    if (key === 'saved-address') {
+      Alert.alert(
+        'Saved Address',
+        'Create an address management screen and connect it to your backend profile.'
+      );
+      return;
+    }
+
+    if (key === 'payment-modes') {
+      Alert.alert(
+        'Payment Modes',
+        'Add saved cards, UPI, wallet, and preferred payment selection here.'
+      );
+      return;
+    }
+
+    Alert.alert(
+      'GrabBasket Money',
+      cartCount > 0
+        ? 'An active basket is available. You can also show wallet balance, cashback, and credits here.'
+        : 'Add wallet balance, cashback, and credits here.'
+    );
+  };
+
+  const handleAccountRowPress = (rowKey) => {
+    if (rowKey === 'favourites') {
+      scrollToY(favouritesY);
+      return;
+    }
+
+    if (rowKey === 'wishlist') {
+      Alert.alert(
+        'Instamart Wishlist',
+        'Create a wishlist collection screen for saved grocery products.'
+      );
+      return;
+    }
+
+    if (rowKey === 'statements') {
+      Alert.alert(
+        'Account Statements',
+        'Use this entry for invoices, GST bills, and downloadable statements.'
+      );
+      return;
+    }
+
+    if (rowKey === 'contact') {
+      Alert.alert(
+        'Restaurant Contact Preferences',
+        'Add a privacy toggle here and sync it with your user profile.'
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Coming soon',
+      'This row is styled and ready. Connect it to the real flow when that feature is built.'
+    );
+  };
+
+  const handleOrderPrimary = (order) => {
+    const matchedVendorId = resolveOrderVendorId(order, vendors);
+
+    if (matchedVendorId) {
+      const matchedVendor = (vendors || []).find(
+        (vendor) => String(vendor.id) === String(matchedVendorId)
+      );
+
+      if (matchedVendor) {
+        openVendor(matchedVendor);
+        return;
+      }
+
+      router.push({
+        pathname: '/store/[vendorId]',
+        params: { vendorId: String(matchedVendorId) },
+      });
+      return;
+    }
+
+    router.push('/reorder');
   };
 
   return (
@@ -349,10 +646,19 @@ export default function AccountScreen() {
         <Text style={styles.topBarTitle}>MY ACCOUNT</Text>
 
         <View style={styles.topBarRight}>
-          <TouchableOpacity style={styles.helpPill} activeOpacity={0.92}>
+          <TouchableOpacity activeOpacity={0.92} style={styles.helpPill} onPress={handleHelp}>
             <Text style={styles.helpPillText}>Help</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.topIconButton} activeOpacity={0.92}>
+
+          <TouchableOpacity
+            activeOpacity={0.92}
+            style={styles.topIconButton}
+            onPress={() =>
+              Alert.alert(
+                'More actions',
+                'Use this menu for logout, account settings, notifications, and privacy controls.'
+              )
+            }>
             <Ionicons name="ellipsis-vertical" size={20} color={COLORS.text} />
           </TouchableOpacity>
         </View>
@@ -361,18 +667,18 @@ export default function AccountScreen() {
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
-        <View style={styles.profileHero}>
-          <View style={styles.heroBlobOne} />
-          <View style={styles.heroBlobTwo} />
-          <View style={styles.heroBlobThree} />
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarHeight + 28 }]}>
+        <ProfileHero
+          profile={profile}
+          totalOrders={stats.totalOrders}
+          favouriteCount={stats.favouriteCount}
+        />
 
-          <Text style={styles.profileName}>{DEMO_PROFILE.name}</Text>
-          <Text style={styles.profileSubText}>{DEMO_PROFILE.phone}</Text>
-          <Text style={styles.profileSubText}>{DEMO_PROFILE.email}</Text>
-        </View>
+        <MembershipCard
+          savedEstimate={stats.savedEstimate}
+          totalOrders={stats.totalOrders}
+        />
 
-        <MembershipCard savedEstimate={stats.savedEstimate} totalOrders={stats.totalOrders} />
         <PromoBanner />
 
         <View style={styles.quickActionsRow}>
@@ -381,12 +687,7 @@ export default function AccountScreen() {
               key={action.key}
               icon={action.icon}
               label={action.label}
-              onPress={() => {
-                if (action.key === 'payment') return;
-                if (action.key === 'refunds') return;
-                if (action.key === 'money') return;
-                scrollToPastOrders();
-              }}
+              onPress={() => handleQuickAction(action.key)}
             />
           ))}
         </View>
@@ -398,30 +699,69 @@ export default function AccountScreen() {
               icon={row.icon}
               label={row.label}
               isLast={index === ACCOUNT_ROWS.length - 1}
-              onPress={() => {}}
+              onPress={() => handleAccountRowPress(row.key)}
             />
           ))}
         </View>
 
         {cartCount > 0 ? (
-          <TouchableOpacity activeOpacity={0.92} style={styles.liveBasketCard} onPress={() => router.push('/cart')}>
+          <TouchableOpacity
+            activeOpacity={0.92}
+            style={styles.liveBasketCard}
+            onPress={() => router.push('/cart')}>
             <View style={styles.liveBasketIcon}>
               <Ionicons name="bag-handle-outline" size={20} color={COLORS.green} />
             </View>
+
             <View style={{ flex: 1 }}>
               <Text style={styles.liveBasketTitle}>Active basket</Text>
-              <Text style={styles.liveBasketSubtitle}>{cartCount} items · {money(cartTotal)}</Text>
+              <Text style={styles.liveBasketSubtitle}>
+                {cartCount} items · {money(cartTotal)}
+              </Text>
             </View>
+
             <Ionicons name="chevron-forward" size={18} color={COLORS.green} />
           </TouchableOpacity>
         ) : null}
 
-        <TouchableOpacity activeOpacity={0.92} style={styles.browsePastOrdersButton} onPress={scrollToPastOrders}>
+        <TouchableOpacity
+          activeOpacity={0.92}
+          style={styles.browsePastOrdersButton}
+          onPress={() => scrollToY(ordersY)}>
           <Text style={styles.browsePastOrdersText}>BROWSE PAST ORDERS</Text>
         </TouchableOpacity>
 
-        <View onLayout={(event) => setPastOrdersY(event.nativeEvent.layout.y)}>
-          <Text style={styles.sectionTitle}>PAST ORDERS</Text>
+        {favouriteVendors.length > 0 ? (
+          <View onLayout={(event) => setFavouritesY(event.nativeEvent.layout.y)}>
+            <SectionHeader title="YOUR FAVOURITES" actionLabel="View all" onPressAction={() => {}} />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalRail}>
+              {favouriteVendors.map((vendor) => (
+                <MiniStoreCard
+                  key={vendor.id}
+                  vendor={vendor}
+                  onPress={() => openVendor(vendor)}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {recentSearches?.length > 0 ? (
+          <View>
+            <SectionHeader title="RECENT SEARCHES" />
+            <View style={styles.searchChipWrap}>
+              {recentSearches.slice(0, 6).map((item) => (
+                <SearchChip key={item} label={item} />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        <View onLayout={(event) => setOrdersY(event.nativeEvent.layout.y)}>
+          <SectionHeader title="PAST ORDERS" />
 
           <View style={styles.segmentWrap}>
             {ORDER_FILTERS.map((item) => {
@@ -432,7 +772,13 @@ export default function AccountScreen() {
                   activeOpacity={0.92}
                   style={[styles.segmentButton, active && styles.segmentButtonActive]}
                   onPress={() => setActiveFilter(item.key)}>
-                  <Text style={[styles.segmentButtonText, active && styles.segmentButtonTextActive]}>{item.label}</Text>
+                  <Text
+                    style={[
+                      styles.segmentButtonText,
+                      active && styles.segmentButtonTextActive,
+                    ]}>
+                    {item.label}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -443,7 +789,7 @@ export default function AccountScreen() {
               <PastOrderCard
                 key={order.id}
                 order={order}
-                onPressPrimary={() => router.push('/reorder')}
+                onPressPrimary={() => handleOrderPrimary(order)}
               />
             ))
           ) : (
@@ -456,6 +802,7 @@ export default function AccountScreen() {
             <Text style={styles.footerStatValue}>{stats.totalOrders}</Text>
             <Text style={styles.footerStatLabel}>Orders</Text>
           </View>
+
           <View style={[styles.footerStatCard, { backgroundColor: COLORS.blueSoft }]}>
             <Text style={styles.footerStatValue}>{stats.favouriteCount}</Text>
             <Text style={styles.footerStatLabel}>Favourites</Text>
@@ -471,6 +818,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bg,
   },
+
   topBar: {
     height: 62,
     paddingHorizontal: 16,
@@ -505,57 +853,109 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.orangeSoft,
   },
   helpPillText: {
-    color: COLORS.orangeText,
+    color: COLORS.orange,
     fontSize: 14,
     fontWeight: '800',
   },
+
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 44,
   },
+
   profileHero: {
-    minHeight: 190,
+    minHeight: 200,
     borderRadius: 30,
     overflow: 'hidden',
-    backgroundColor: '#d25959',
+    backgroundColor: COLORS.hero,
     paddingHorizontal: 20,
-    paddingTop: 28,
+    paddingTop: 20,
     paddingBottom: 22,
     justifyContent: 'flex-end',
   },
   heroBlobOne: {
     position: 'absolute',
-    right: -28,
-    top: 26,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(109, 20, 49, 0.16)',
+    right: -30,
+    top: 24,
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    backgroundColor: 'rgba(109, 20, 49, 0.14)',
   },
   heroBlobTwo: {
     position: 'absolute',
-    right: 44,
-    top: 48,
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(109, 20, 49, 0.14)',
+    right: 40,
+    top: 52,
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: 'rgba(109, 20, 49, 0.12)',
   },
   heroBlobThree: {
     position: 'absolute',
-    left: -40,
-    bottom: -54,
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    left: -44,
+    bottom: -58,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: COLORS.heroSoft,
   },
-  profileName: {
+  profileHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  profileAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileAvatarText: {
     color: '#ffffff',
     fontSize: 24,
     fontWeight: '900',
-    marginBottom: 8,
+  },
+  profileBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'flex-end',
+  },
+  profileBadge: {
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  profileBadgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  profileBadgeMuted: {
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  profileBadgeMutedText: {
+    color: 'rgba(255,255,255,0.94)',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  profileName: {
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '900',
+    marginBottom: 6,
   },
   profileSubText: {
     color: 'rgba(255,255,255,0.92)',
@@ -563,6 +963,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '500',
   },
+
   membershipCard: {
     marginTop: 14,
     borderRadius: 24,
@@ -572,7 +973,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 16,
   },
-  membershipRowTop: {
+  membershipTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -583,17 +984,17 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   membershipBrandOne: {
-    color: '#f97316',
+    color: COLORS.orange,
     fontSize: 22,
     fontWeight: '900',
   },
-  activePill: {
+  membershipActivePill: {
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
     backgroundColor: COLORS.greenSoft,
   },
-  activePillText: {
+  membershipActivePillText: {
     color: COLORS.green,
     fontSize: 11,
     fontWeight: '900',
@@ -610,33 +1011,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+
   promoBanner: {
     marginTop: 12,
     borderRadius: 18,
-    backgroundColor: '#2d0125',
+    backgroundColor: COLORS.purple,
     paddingHorizontal: 16,
     paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  promoDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#c084fc',
+  promoSignal: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   promoTitle: {
-    color: '#f8d8ff',
+    color: '#f3d8e8',
     fontSize: 13,
     fontWeight: '700',
   },
   promoSubtitle: {
     color: '#ffffff',
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '900',
     marginTop: 2,
   },
+
   quickActionsRow: {
     marginTop: 14,
     flexDirection: 'row',
@@ -658,7 +1063,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 16,
-    backgroundColor: '#f4f4f5',
+    backgroundColor: '#f4f5f7',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -668,6 +1073,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontWeight: '700',
   },
+
   accountListCard: {
     marginTop: 14,
     borderRadius: 24,
@@ -699,6 +1105,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+
   liveBasketCard: {
     marginTop: 14,
     borderRadius: 22,
@@ -730,11 +1137,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+
   browsePastOrdersButton: {
     marginTop: 16,
     alignSelf: 'center',
     borderRadius: 999,
-    backgroundColor: '#050816',
+    backgroundColor: COLORS.black,
     paddingHorizontal: 24,
     paddingVertical: 14,
   },
@@ -744,14 +1152,87 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.3,
   },
-  sectionTitle: {
+
+  sectionHeader: {
     marginTop: 24,
     marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  sectionTitle: {
     color: COLORS.text,
     fontSize: 24,
     fontWeight: '900',
     letterSpacing: 0.3,
   },
+  sectionAction: {
+    color: COLORS.orange,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  horizontalRail: {
+    gap: 12,
+    paddingBottom: 2,
+  },
+  miniStoreCard: {
+    width: 144,
+    borderRadius: 22,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 14,
+  },
+  miniStoreAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#f4ecff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniStoreAvatarText: {
+    color: '#6d28d9',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  miniStoreName: {
+    marginTop: 12,
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  miniStoreMeta: {
+    marginTop: 4,
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  searchChipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  searchChip: {
+    borderRadius: 999,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchChipText: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
   segmentWrap: {
     flexDirection: 'row',
     borderRadius: 18,
@@ -767,7 +1248,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   segmentButtonActive: {
-    backgroundColor: '#050816',
+    backgroundColor: COLORS.black,
   },
   segmentButtonText: {
     color: COLORS.muted,
@@ -777,6 +1258,7 @@ const styles = StyleSheet.create({
   segmentButtonTextActive: {
     color: '#ffffff',
   },
+
   orderCard: {
     marginBottom: 14,
     borderRadius: 24,
@@ -785,15 +1267,15 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     padding: 16,
   },
-  orderHeaderRow: {
+  orderTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
   orderThumb: {
-    width: 54,
-    height: 54,
-    borderRadius: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -818,10 +1300,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   orderStatus: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '900',
   },
-  orderPillRow: {
+  orderTagRow: {
     marginTop: 14,
     marginBottom: 8,
   },
@@ -835,32 +1317,82 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
   },
-  orderItemText: {
+  orderItemLine: {
     color: COLORS.text,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  orderFooterText: {
+  orderMetaLine: {
     marginTop: 12,
     color: COLORS.muted,
     fontSize: 14,
     fontWeight: '500',
   },
-  reorderButton: {
+
+  ratingPanel: {
+    marginTop: 16,
+    borderRadius: 18,
+    backgroundColor: '#fbfbfd',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ratingColumn: {
+    flex: 1,
+  },
+  ratingLabel: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  ratingStarsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  ratingDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: COLORS.border,
+    marginHorizontal: 12,
+  },
+
+  bookingInfoCard: {
+    marginTop: 16,
+    borderRadius: 16,
+    backgroundColor: '#fffaf2',
+    borderWidth: 1,
+    borderColor: '#fde8c2',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bookingInfoText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  orderPrimaryButton: {
     marginTop: 16,
     minHeight: 48,
     borderRadius: 16,
-    backgroundColor: COLORS.orangeSoft,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 8,
   },
-  reorderButtonText: {
-    color: COLORS.orangeText,
+  orderPrimaryButtonText: {
     fontSize: 15,
     fontWeight: '900',
   },
+
   emptyOrdersCard: {
     borderRadius: 20,
     backgroundColor: COLORS.card,
@@ -879,6 +1411,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+
   footerStatsRow: {
     marginTop: 8,
     flexDirection: 'row',
