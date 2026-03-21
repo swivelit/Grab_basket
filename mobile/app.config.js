@@ -2,10 +2,10 @@ const pkg = require('./package.json');
 
 function readEnv(key, fallback = '') {
   const value = process.env[key];
-  if (value === undefined || value === null || String(value).trim() === '') {
-    return fallback;
-  }
-  return String(value).trim();
+  if (value === undefined || value === null) return fallback;
+
+  const text = String(value).trim();
+  return text === '' ? fallback : text;
 }
 
 function readBool(key, fallback = false) {
@@ -14,9 +14,15 @@ function readBool(key, fallback = false) {
   return ['1', 'true', 'yes', 'on', 'enabled'].includes(value.toLowerCase());
 }
 
-function readInt(key, fallback) {
-  const value = Number(readEnv(key, ''));
-  return Number.isFinite(value) ? value : fallback;
+function readInt(key, fallback, { min = Number.NEGATIVE_INFINITY } = {}) {
+  const raw = readEnv(key, '');
+  if (!raw) return fallback;
+
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value)) return fallback;
+  if (value < min) return fallback;
+
+  return value;
 }
 
 const APP_NAME = readEnv('EXPO_PUBLIC_APP_NAME', 'Grab Basket');
@@ -38,7 +44,13 @@ const ANDROID_PACKAGE = readEnv(
   'com.grabbasket.mobile'
 );
 
-const ANDROID_VERSION_CODE = readInt('EXPO_PUBLIC_ANDROID_VERSION_CODE', 1);
+// Android requires versionCode > 0.
+const ANDROID_VERSION_CODE = readInt(
+  'EXPO_PUBLIC_ANDROID_VERSION_CODE',
+  1,
+  { min: 1 }
+);
+
 const EAS_PROJECT_ID = readEnv('EXPO_PUBLIC_EAS_PROJECT_ID', '');
 const EXPO_OWNER = readEnv('EXPO_PUBLIC_EXPO_OWNER', '');
 
@@ -51,7 +63,11 @@ const API_BASE_URL = readEnv('EXPO_PUBLIC_API_BASE_URL', '');
 const API_HOST = readEnv('EXPO_PUBLIC_API_HOST', '');
 const API_PORT = readEnv('EXPO_PUBLIC_API_PORT', '8000');
 const API_SCHEME = readEnv('EXPO_PUBLIC_API_SCHEME', 'http');
-const API_TIMEOUT_MS = readInt('EXPO_PUBLIC_API_TIMEOUT_MS', 15000);
+const API_TIMEOUT_MS = readInt(
+  'EXPO_PUBLIC_API_TIMEOUT_MS',
+  15000,
+  { min: 1000 }
+);
 
 const ENABLE_ADS = readBool('EXPO_PUBLIC_ENABLE_ADS', false);
 const ENABLE_NEW_ARCH = readBool('EXPO_PUBLIC_ENABLE_NEW_ARCH', true);
@@ -125,7 +141,6 @@ const expoConfig = {
       backgroundImage: './assets/images/android-icon-background.png',
       monochromeImage: './assets/images/android-icon-monochrome.png',
     },
-    edgeToEdgeEnabled: true,
   },
   web: {
     bundler: 'metro',
