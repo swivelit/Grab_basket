@@ -23,23 +23,38 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { API_CONFIG_ERROR, API_TIMEOUT_MS, buildApiUrl } from './src/config';
+import { getAppShellConfig, getAppVariant } from './src/constants/app-shell';
 
 const STORAGE_CART = '@grab_basket/cart_v11';
 const STORAGE_FAVORITES = '@grab_basket/favorites_v8';
 const STORAGE_RECENT_STORES = '@grab_basket/recent_stores_v9';
 const STORAGE_RECENT_SEARCHES = '@grab_basket/recent_searches_v8';
 const STORAGE_ORDER_HISTORY = '@grab_basket/order_history_v6';
-const STORAGE_AUTH_TOKEN = '@grab_basket/auth_token_v1';
-const STORAGE_AUTH_REFRESH_TOKEN = '@grab_basket/auth_refresh_token_v1';
-const STORAGE_AUTH_EMAIL = '@grab_basket/auth_email_v1';
-const STORAGE_AUTH_ROLE = '@grab_basket/auth_role_v1';
-const STORAGE_AUTH_TOKEN_EXPIRES_AT = '@grab_basket/auth_token_expires_at_v1';
-const STORAGE_AUTH_REFRESH_EXPIRES_AT = '@grab_basket/auth_refresh_expires_at_v1';
-const STORAGE_SELECTED_ADDRESS_ID = '@grab_basket/selected_address_id_v1';
 
-const APP_VARIANT = 'consumer';
-const APP_VARIANT_NAME = 'Grab Basket';
-const APP_ALLOWED_ROLES = ['CUSTOMER'];
+const LEGACY_STORAGE_AUTH_TOKEN = '@grab_basket/auth_token_v1';
+const LEGACY_STORAGE_AUTH_REFRESH_TOKEN = '@grab_basket/auth_refresh_token_v1';
+const LEGACY_STORAGE_AUTH_EMAIL = '@grab_basket/auth_email_v1';
+const LEGACY_STORAGE_AUTH_ROLE = '@grab_basket/auth_role_v1';
+const LEGACY_STORAGE_AUTH_TOKEN_EXPIRES_AT = '@grab_basket/auth_token_expires_at_v1';
+const LEGACY_STORAGE_AUTH_REFRESH_EXPIRES_AT = '@grab_basket/auth_refresh_expires_at_v1';
+
+const APP_VARIANT = getAppVariant();
+const APP_SHELL = getAppShellConfig(APP_VARIANT);
+const APP_VARIANT_NAME = APP_SHELL.appName || 'Grab Basket';
+const APP_ALLOWED_ROLES = [String(APP_SHELL.role || 'CUSTOMER').trim().toUpperCase()];
+const APP_PRIMARY_ROLE = APP_ALLOWED_ROLES[0];
+
+function buildScopedAuthStorageKey(key) {
+  return `@grab_basket/${APP_VARIANT}/${key}`;
+}
+
+const STORAGE_AUTH_TOKEN = buildScopedAuthStorageKey('auth_token_v1');
+const STORAGE_AUTH_REFRESH_TOKEN = buildScopedAuthStorageKey('auth_refresh_token_v1');
+const STORAGE_AUTH_EMAIL = buildScopedAuthStorageKey('auth_email_v1');
+const STORAGE_AUTH_ROLE = buildScopedAuthStorageKey('auth_role_v1');
+const STORAGE_AUTH_TOKEN_EXPIRES_AT = buildScopedAuthStorageKey('auth_token_expires_at_v1');
+const STORAGE_AUTH_REFRESH_EXPIRES_AT = buildScopedAuthStorageKey('auth_refresh_expires_at_v1');
+const STORAGE_SELECTED_ADDRESS_ID = buildScopedAuthStorageKey('selected_address_id_v1');
 const DEFAULT_ACCESS_TOKEN_TTL_MS = 55 * 60 * 1000;
 const DEFAULT_REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TOKEN_REFRESH_SKEW_MS = 60 * 1000;
@@ -134,21 +149,51 @@ function normalizeUserRole(value = '') {
   return String(value || '').trim().toUpperCase();
 }
 
+function getRoleLabel(role = '') {
+  const normalized = normalizeUserRole(role);
+
+  if (normalized === 'CUSTOMER') return 'customer';
+  if (normalized === 'PARTNER') return 'delivery partner';
+  if (normalized === 'SELLER') return 'seller';
+  if (normalized === 'ADMIN') return 'admin';
+  return normalized ? normalized.toLowerCase() : 'account';
+}
+
+function getRoleDestinationAppName(role = '') {
+  const normalized = normalizeUserRole(role);
+
+  if (normalized === 'CUSTOMER') return 'Grab Basket';
+  if (normalized === 'PARTNER') return 'Grab Basket Delivery';
+  if (normalized === 'SELLER') return 'Grab Basket Partner';
+  return '';
+}
+
+function formatSupportedRoleList(roles = []) {
+  return roles.map((role) => getRoleLabel(role)).filter(Boolean).join(' or ');
+}
+
 function isRoleSupportedByApp(role = '') {
   return APP_ALLOWED_ROLES.includes(normalizeUserRole(role));
 }
 
 function getUnsupportedRoleMessage(role = '') {
   const normalized = normalizeUserRole(role);
-  const supported = APP_ALLOWED_ROLES.join(', ');
+  const supported = formatSupportedRoleList(APP_ALLOWED_ROLES) || 'supported';
+  const destinationApp = getRoleDestinationAppName(normalized);
 
-  if (APP_VARIANT === 'consumer') {
-    return `This ${APP_VARIANT_NAME} app currently supports ${supported.toLowerCase()} accounts only. Delivery and partner accounts will use separate apps.`;
+  if (!normalized) {
+    return `This ${APP_VARIANT_NAME} build supports ${supported} accounts only.`;
   }
 
-  return normalized
-    ? `${normalized} accounts are not supported in this ${APP_VARIANT_NAME} build.`
-    : `This ${APP_VARIANT_NAME} build supports ${supported.toLowerCase()} accounts only.`;
+  if (isRoleSupportedByApp(normalized)) {
+    return '';
+  }
+
+  if (destinationApp && destinationApp !== APP_VARIANT_NAME) {
+    return `This ${APP_VARIANT_NAME} build only supports ${supported} accounts. Please use ${destinationApp} for ${getRoleLabel(normalized)} accounts.`;
+  }
+
+  return `This ${APP_VARIANT_NAME} build only supports ${supported} accounts. ${getRoleLabel(normalized)} accounts are not allowed here.`;
 }
 
 function resolveExpiryAt(expiresInSeconds, fallbackMs) {
@@ -167,7 +212,7 @@ function buildSessionFromAuthResponse(data, { email = '', fallbackRole = '' } = 
     accessToken,
     refreshToken,
     email: String(email || '').trim().toLowerCase(),
-    role: normalizeUserRole(data?.role || fallbackRole || APP_ALLOWED_ROLES[0]),
+    role: normalizeUserRole(data?.role || fallbackRole || APP_PRIMARY_ROLE),
     accessTokenExpiresAt: accessToken
       ? resolveExpiryAt(data?.access_token_expires_in, DEFAULT_ACCESS_TOKEN_TTL_MS)
       : 0,
@@ -242,12 +287,12 @@ async function clearLegacyAsyncAuthStorage() {
   if (!authStorage.isSecure()) return;
 
   await AsyncStorage.multiRemove([
-    STORAGE_AUTH_TOKEN,
-    STORAGE_AUTH_EMAIL,
-    STORAGE_AUTH_ROLE,
-    STORAGE_AUTH_REFRESH_TOKEN,
-    STORAGE_AUTH_TOKEN_EXPIRES_AT,
-    STORAGE_AUTH_REFRESH_EXPIRES_AT,
+    LEGACY_STORAGE_AUTH_TOKEN,
+    LEGACY_STORAGE_AUTH_EMAIL,
+    LEGACY_STORAGE_AUTH_ROLE,
+    LEGACY_STORAGE_AUTH_REFRESH_TOKEN,
+    LEGACY_STORAGE_AUTH_TOKEN_EXPIRES_AT,
+    LEGACY_STORAGE_AUTH_REFRESH_EXPIRES_AT,
   ]);
 }
 
@@ -630,7 +675,7 @@ export function GrabBasketProvider({ children }) {
   const refreshTokenExpiresAtRef = useRef(0);
   const refreshSessionPromiseRef = useRef(null);
 
-  const isAuthenticated = Boolean(authToken || refreshToken) && isRoleSupportedByApp(authRole || APP_ALLOWED_ROLES[0]);
+  const isAuthenticated = Boolean(authToken || refreshToken) && isRoleSupportedByApp(authRole || APP_PRIMARY_ROLE);
 
   useEffect(() => {
     if (!API_CONFIG_ERROR || configAlertShownRef.current) return;
@@ -666,7 +711,7 @@ export function GrabBasketProvider({ children }) {
     const nextAccessToken = String(nextSession.accessToken || '');
     const nextRefreshToken = String(nextSession.refreshToken || '');
     const nextEmail = String(nextSession.email || '').trim().toLowerCase();
-    const nextRole = normalizeUserRole(nextSession.role || APP_ALLOWED_ROLES[0]);
+    const nextRole = normalizeUserRole(nextSession.role || APP_PRIMARY_ROLE);
     const nextAccessExpiresAt = Number(nextSession.accessTokenExpiresAt || 0);
     const nextRefreshExpiresAt = Number(nextSession.refreshTokenExpiresAt || 0);
 
@@ -690,7 +735,7 @@ export function GrabBasketProvider({ children }) {
       [STORAGE_AUTH_TOKEN, String(nextSession.accessToken || '')],
       [STORAGE_AUTH_REFRESH_TOKEN, String(nextSession.refreshToken || '')],
       [STORAGE_AUTH_EMAIL, String(nextSession.email || '').trim().toLowerCase()],
-      [STORAGE_AUTH_ROLE, normalizeUserRole(nextSession.role || APP_ALLOWED_ROLES[0])],
+      [STORAGE_AUTH_ROLE, normalizeUserRole(nextSession.role || APP_PRIMARY_ROLE)],
       [STORAGE_AUTH_TOKEN_EXPIRES_AT, String(Number(nextSession.accessTokenExpiresAt || 0))],
       [STORAGE_AUTH_REFRESH_EXPIRES_AT, String(Number(nextSession.refreshTokenExpiresAt || 0))],
     ]);
@@ -773,10 +818,10 @@ export function GrabBasketProvider({ children }) {
 
         if ((!nextAuthToken && !nextRefreshToken) && authStorage.isSecure()) {
           const legacyValues = await AsyncStorage.multiGet([
-            STORAGE_AUTH_TOKEN,
-            STORAGE_AUTH_EMAIL,
-            STORAGE_AUTH_ROLE,
-            STORAGE_AUTH_TOKEN_EXPIRES_AT,
+            LEGACY_STORAGE_AUTH_TOKEN,
+            LEGACY_STORAGE_AUTH_EMAIL,
+            LEGACY_STORAGE_AUTH_ROLE,
+            LEGACY_STORAGE_AUTH_TOKEN_EXPIRES_AT,
           ]);
 
           nextAuthToken = legacyValues[0]?.[1] || '';
@@ -789,7 +834,7 @@ export function GrabBasketProvider({ children }) {
               accessToken: nextAuthToken,
               refreshToken: '',
               email: nextAuthEmail,
-              role: normalizeUserRole(nextAuthRole || APP_ALLOWED_ROLES[0]),
+              role: normalizeUserRole(nextAuthRole || APP_PRIMARY_ROLE),
               accessTokenExpiresAt: Number(nextAuthTokenExpiresAt || 0),
               refreshTokenExpiresAt: Number(nextRefreshTokenExpiresAt || 0),
             }).catch(() => {});
@@ -841,7 +886,7 @@ export function GrabBasketProvider({ children }) {
 
         if (nextSelectedAddressId) setSelectedAddressId(String(nextSelectedAddressId));
 
-        const restoredRole = normalizeUserRole(nextAuthRole || APP_ALLOWED_ROLES[0]);
+        const restoredRole = normalizeUserRole(nextAuthRole || APP_PRIMARY_ROLE);
         if ((nextAuthToken || nextRefreshToken) && !isRoleSupportedByApp(restoredRole)) {
           await clearStoredAuthSession().catch(() => {});
           if (mounted) {
@@ -905,7 +950,7 @@ export function GrabBasketProvider({ children }) {
         accessToken: authToken,
         refreshToken,
         email: authEmail,
-        role: authRole || APP_ALLOWED_ROLES[0],
+        role: authRole || APP_PRIMARY_ROLE,
         accessTokenExpiresAt: authTokenExpiresAt,
         refreshTokenExpiresAt,
       }).catch(() => {});
@@ -976,7 +1021,7 @@ export function GrabBasketProvider({ children }) {
 
         const nextSession = buildSessionFromAuthResponse(data, {
           email: authEmailRef.current,
-          fallbackRole: authRoleRef.current || APP_ALLOWED_ROLES[0],
+          fallbackRole: authRoleRef.current || APP_PRIMARY_ROLE,
         });
 
         if (!isRoleSupportedByApp(nextSession.role)) {
@@ -1205,6 +1250,11 @@ export function GrabBasketProvider({ children }) {
 
   const loadAddresses = useCallback(
     async ({ silent = false } = {}) => {
+      if (!APP_ALLOWED_ROLES.includes('CUSTOMER')) {
+        setAddresses([]);
+        return [];
+      }
+
       if (!authTokenRef.current && !refreshTokenRef.current) {
         setAddresses([]);
         return [];
@@ -1452,7 +1502,7 @@ export function GrabBasketProvider({ children }) {
 
         const nextSession = buildSessionFromAuthResponse(data, {
           email: payload.email,
-          fallbackRole: APP_ALLOWED_ROLES[0],
+          fallbackRole: APP_PRIMARY_ROLE,
         });
 
         if (!isRoleSupportedByApp(nextSession.role)) {
@@ -1466,7 +1516,7 @@ export function GrabBasketProvider({ children }) {
         applyAuthSession(nextSession);
         return true;
       } catch (error) {
-        Alert.alert('Could not sign in', normalizeErrorMessage(error));
+        Alert.alert(`Could not sign in to ${APP_VARIANT_NAME}`, normalizeErrorMessage(error));
         return false;
       } finally {
         setAuthLoading(false);
@@ -1482,7 +1532,7 @@ export function GrabBasketProvider({ children }) {
         const payload = {
           email: String(email || '').trim().toLowerCase(),
           password: String(password || ''),
-          role: APP_ALLOWED_ROLES[0],
+          role: APP_PRIMARY_ROLE,
         };
 
         const data = await apiRequest('/auth/register', {
@@ -1492,7 +1542,7 @@ export function GrabBasketProvider({ children }) {
 
         const nextSession = buildSessionFromAuthResponse(data, {
           email: payload.email,
-          fallbackRole: APP_ALLOWED_ROLES[0],
+          fallbackRole: APP_PRIMARY_ROLE,
         });
 
         if (!isRoleSupportedByApp(nextSession.role)) {
@@ -1506,7 +1556,7 @@ export function GrabBasketProvider({ children }) {
         applyAuthSession(nextSession);
         return true;
       } catch (error) {
-        Alert.alert('Could not create account', normalizeErrorMessage(error));
+        Alert.alert(`Could not create account in ${APP_VARIANT_NAME}`, normalizeErrorMessage(error));
         return false;
       } finally {
         setAuthLoading(false);
@@ -1521,8 +1571,13 @@ export function GrabBasketProvider({ children }) {
 
   const createAddress = useCallback(
     async (payload) => {
+      if (!APP_ALLOWED_ROLES.includes('CUSTOMER')) {
+        Alert.alert('Unavailable in this app', `${APP_VARIANT_NAME} does not support customer delivery addresses.`);
+        return null;
+      }
+
       if (!authTokenRef.current && !refreshTokenRef.current) {
-        Alert.alert('Sign in required', 'Sign in before adding a delivery address.');
+        Alert.alert('Sign in required', `Sign in to ${APP_VARIANT_NAME} before adding a delivery address.`);
         return null;
       }
 
@@ -1572,6 +1627,11 @@ export function GrabBasketProvider({ children }) {
 
   const setDefaultAddress = useCallback(
     async (addressId) => {
+      if (!APP_ALLOWED_ROLES.includes('CUSTOMER')) {
+        Alert.alert('Unavailable in this app', `${APP_VARIANT_NAME} does not support customer delivery addresses.`);
+        return false;
+      }
+
       if (!authTokenRef.current && !refreshTokenRef.current) return false;
 
       try {
@@ -1596,13 +1656,18 @@ export function GrabBasketProvider({ children }) {
 
   const placeOrder = useCallback(
     async ({ paymentMethod = 'COD' } = {}) => {
+      if (!APP_ALLOWED_ROLES.includes('CUSTOMER')) {
+        Alert.alert('Unavailable in this app', `${APP_VARIANT_NAME} does not support customer checkout flows.`);
+        return false;
+      }
+
       if (cartItems.length === 0) {
         Alert.alert('Basket is empty', 'Add some items first.');
         return false;
       }
 
       if (!authTokenRef.current && !refreshTokenRef.current) {
-        Alert.alert('Sign in required', 'Sign in from the Account tab before placing an order.');
+        Alert.alert('Sign in required', `Sign in to ${APP_VARIANT_NAME} before placing an order.`);
         return false;
       }
 
@@ -1613,7 +1678,7 @@ export function GrabBasketProvider({ children }) {
       if (needsDeliveryAddress && !deliveryAddressId) {
         Alert.alert(
           'Add delivery address',
-          'Add a delivery address from the Account tab before placing this order.'
+          `Add a delivery address in ${APP_VARIANT_NAME} before placing this order.`
         );
         return false;
       }
@@ -1690,6 +1755,9 @@ export function GrabBasketProvider({ children }) {
   }, [orderHistory, pastOrderFilter]);
 
   const value = {
+    appVariant: APP_VARIANT,
+    appVariantName: APP_VARIANT_NAME,
+    appAllowedRoles: APP_ALLOWED_ROLES,
     activeService,
     setActiveService,
     activeShortcut,
