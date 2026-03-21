@@ -16,213 +16,181 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useGrabBasket } from '../../../App';
 
-const COLORS = {
-  page: '#f5f6fa',
-  white: '#ffffff',
-  text: '#0f172a',
-  muted: '#667085',
-  subtle: '#98a2b3',
-  border: '#e8ebf1',
-  success: '#119b56',
-  successSoft: '#e8f8ee',
-  warning: '#ff9f0a',
-  orange: '#ff6d00',
-  danger: '#ef4444',
-  black: '#020617',
-  shadow: 'rgba(2, 6, 23, 0.08)',
-  foodHero: '#5b18cf',
-  foodHeroAlt: '#7b36f1',
-  martHero: '#0a2f75',
-  martHeroAlt: '#1548a0',
-  dineHero: '#5d21b5',
-  dineHeroAlt: '#7f46e7',
-  scenesHero: '#050816',
-  scenesHeroAlt: '#182038',
-  scenesSurface: '#0d1426',
-  scenesBorder: '#1c2740',
-  scenesMuted: '#b7c3db',
-  yellow: '#ffd639',
-  yellowDeep: '#ffcf1b',
-  pink: '#ff4ca2',
-  green: '#0f6b44',
-  gold: '#f3c14a',
-  chip: '#f2f4f7',
-  chipDark: 'rgba(255,255,255,0.08)',
+const PALETTE = {
+  page: '#FFF9F3',
+  surface: '#FFFFFF',
+  surfaceAlt: '#FFF6EC',
+  peach50: '#FFF7EE',
+  peach100: '#FFF0DE',
+  peach200: '#FFE5B4',
+  peach300: '#FFD8AA',
+  peach400: '#F4BC92',
+  peach500: '#E8956E',
+  peach600: '#D97651',
+  text: '#2F241C',
+  muted: '#756354',
+  subtle: '#A18C7B',
+  border: '#F2DDC7',
+  line: '#F4E6D7',
+  success: '#2E8B57',
+  successSoft: '#EAF7EF',
+  danger: '#D45454',
+  dangerSoft: '#FCE9E9',
+  brown: '#5A4333',
+  brownDark: '#3A2A20',
+  sceneBg: '#16110D',
+  sceneSurface: '#231B14',
+  sceneBorder: '#413226',
+  sceneText: '#FFF7F0',
+  sceneMuted: '#DCC5AF',
 };
 
-const TOP_SERVICES = [
-  { key: 'food', label: 'Food', icon: 'fast-food-outline' },
-  { key: 'warehouse', label: 'Instamart', icon: 'basket-outline', badge: '5 mins' },
-  { key: 'eatout', label: 'Dineout', icon: 'restaurant-outline' },
-  { key: 'scenes', label: 'Scenes', icon: 'sparkles-outline' },
+const SERVICE_TABS = [
+  { key: 'food', label: 'Food', icon: 'fast-food-outline', hint: 'Everyday meals' },
+  { key: 'warehouse', label: 'Instamart', icon: 'basket-outline', hint: 'Quick grocery' },
+  { key: 'eatout', label: 'Dineout', icon: 'restaurant-outline', hint: 'Tables & offers' },
+  { key: 'scenes', label: 'Scenes', icon: 'sparkles-outline', hint: 'Events & plans' },
 ];
 
-const SERVICE_THEME = {
+const THEMES = {
   food: {
-    bg: COLORS.page,
-    hero: COLORS.foodHero,
-    heroAlt: COLORS.foodHeroAlt,
-    headerTitle: 'Valliachans Place',
-    headerSub: '12b, Great Orchard / Tower 1, Vidya Nagar',
-    searchPlaceholder: "Search for 'EatRight'",
-    bannerTitle: 'CRAVE',
-    bannerSub: 'UP TO 60% OFF & MORE',
-    bannerCaption: 'Fresh offers from restaurants near you',
-    showVegButton: true,
-    statusBar: 'light-content',
+    page: PALETTE.page,
+    hero: PALETTE.peach100,
+    heroSoft: PALETTE.peach50,
+    heroAccent: PALETTE.peach300,
+    heroText: PALETTE.text,
+    heroSub: PALETTE.muted,
+    searchPlaceholder: 'Search biryani, cake, dosa...',
+    bannerEyebrow: 'Freshly picked for today',
+    bannerTitle: 'Made for hungry moments',
+    bannerCopy: 'Better hierarchy, warmer visuals and stronger restaurant cards.',
+    statusBar: 'dark-content',
   },
   warehouse: {
-    bg: '#f7fbff',
-    hero: COLORS.martHero,
-    heroAlt: COLORS.martHeroAlt,
-    headerTitle: '5 mins',
-    headerSub: 'To Valliachans Place · 12b, Great Orchard / Tower 1',
-    searchPlaceholder: 'Search for Dryfruits',
-    bannerTitle: 'RAMZAN MUBARAK',
-    bannerSub: 'Groceries in minutes',
-    bannerCaption: 'Festival specials, essentials and quick adds',
-    showVegButton: false,
-    statusBar: 'light-content',
+    page: '#FFFBF7',
+    hero: '#FFF0E0',
+    heroSoft: '#FFF8F1',
+    heroAccent: '#F7D1B0',
+    heroText: PALETTE.text,
+    heroSub: PALETTE.muted,
+    searchPlaceholder: 'Search fruits, dry fruits, dairy...',
+    bannerEyebrow: 'Essentials in minutes',
+    bannerTitle: 'Fast baskets, cleaner browsing',
+    bannerCopy: 'Promos, categories and quick add cards feel more premium now.',
+    statusBar: 'dark-content',
   },
   eatout: {
-    bg: '#fbfbfd',
-    hero: COLORS.dineHero,
-    heroAlt: COLORS.dineHeroAlt,
-    headerTitle: 'Valliachans Place',
-    headerSub: '12b, Great Orchard / Tower 1, Vidya Nagar',
-    searchPlaceholder: 'Search for restaurant, area, vibe...',
-    bannerTitle: 'PARTY FULL',
-    bannerSub: 'Flat 50% OFF',
-    bannerCaption: 'Book tables, unlock bill offers and cashback',
-    showVegButton: false,
-    topStrip: 'Earn flat 10% Dinecash on every bill payment',
-    statusBar: 'light-content',
+    page: '#FFF8F4',
+    hero: '#FFEBDC',
+    heroSoft: '#FFF7F1',
+    heroAccent: '#F4C4A4',
+    heroText: PALETTE.text,
+    heroSub: PALETTE.muted,
+    searchPlaceholder: 'Search restaurant, area or vibe...',
+    bannerEyebrow: 'Plans made easier',
+    bannerTitle: 'Book tables without the clutter',
+    bannerCopy: 'Offer-led tiles and softer surfaces make dineout feel more polished.',
+    statusBar: 'dark-content',
   },
   scenes: {
-    bg: COLORS.scenesHero,
-    hero: COLORS.scenesHero,
-    heroAlt: COLORS.scenesHeroAlt,
-    headerTitle: '12b, Great Orchard / Tower 1, Vidya Nagar',
-    headerSub: 'Experiences around you',
-    searchPlaceholder: 'Search',
-    bannerTitle: 'CRAZZY DEAL',
-    bannerSub: 'UP TO 20% OFF',
-    bannerCaption: 'on select events',
-    showVegButton: false,
+    page: PALETTE.sceneBg,
+    hero: PALETTE.sceneSurface,
+    heroSoft: '#2D2219',
+    heroAccent: '#5B4030',
+    heroText: PALETTE.sceneText,
+    heroSub: PALETTE.sceneMuted,
+    searchPlaceholder: 'Search events, creators, experiences...',
+    bannerEyebrow: 'Weekend energy',
+    bannerTitle: 'Plans worth stepping out for',
+    bannerCopy: 'Peach accents keep the brand cohesive even on dark surfaces.',
     statusBar: 'light-content',
   },
 };
 
-const FOOD_TILES = [
-  { key: 'deals', title: 'Binge worthy\ndeals', tag: 'UP TO 60% OFF & MORE' },
-  { key: 'eatright', title: 'EatRight', tag: 'WIN UP TO ₹300 FREE CASH' },
-  { key: 'awards', title: 'Restaurant\nAwards', tag: 'Best rated around you' },
-];
-
-const MART_FILTERS = [
-  { key: 'all', label: 'All', icon: 'apps-outline' },
-  { key: 'fresh', label: 'Fresh', icon: 'leaf-outline' },
-  { key: 'maxxsaver', label: 'Maxxsaver', icon: 'pricetag-outline' },
-  { key: 'festival', label: 'Ramzan', icon: 'moon-outline' },
-  { key: 'ready', label: 'Exam Ready', icon: 'flash-outline' },
+const FOOD_COLLECTIONS = [
+  { key: 'top-rated', label: 'Top rated', icon: 'star-outline' },
+  { key: 'budget', label: 'Budget meals', icon: 'cash-outline' },
+  { key: 'desserts', label: 'Desserts', icon: 'ice-cream-outline' },
+  { key: 'healthy', label: 'Healthy', icon: 'leaf-outline' },
 ];
 
 const MART_COLLECTIONS = [
-  { key: 'iftar', title: 'Iftar snacks\n& drinks', emoji: '🥤' },
-  { key: 'biryani', title: 'Biryani &\nfeasting corner', emoji: '🍛' },
-  { key: 'dates', title: 'Dates, dry\nfruits & desserts', emoji: '🌰' },
-  { key: 'gifts', title: 'Gift-ready\npicks', emoji: '🎁' },
+  { key: 'all', label: 'All', icon: 'apps-outline' },
+  { key: 'fresh', label: 'Fresh', icon: 'leaf-outline' },
+  { key: 'snacks', label: 'Snacks', icon: 'nutrition-outline' },
+  { key: 'value', label: 'Value', icon: 'pricetag-outline' },
+  { key: 'essentials', label: 'Essentials', icon: 'home-outline' },
 ];
 
-const DINE_TILES = [
-  { key: 'big', title: 'FLAT\n50% OFF', large: true },
-  { key: 'hall', title: 'GIRF Hall\nOf Fame' },
-  { key: 'family', title: 'Family-Friendly\nSpots' },
-  { key: 'cafe', title: 'Cafes &\nQuick Bites' },
-  { key: 'freebies', title: 'Exciting\nFreebies' },
-];
-
-const DINE_SPOTLIGHT = [
-  { key: 'awards', title: 'Restaurant Awards', subtitle: 'Vote, share & win up to ₹600!', action: 'Vote Now', color: '#611018' },
-  { key: 'flavours', title: 'Flavours by Kochi', subtitle: 'Fresh tables and chef specials', action: 'Preview', color: '#24431c' },
-  { key: 'prebook', title: 'Pre-Book Offers', subtitle: 'Reserve early and save more', action: 'Explore', color: '#51257d' },
-];
-
-const DINE_PROMPTS = ['Restaurants near me', 'Pre-Book Offers'];
-
-const SCENE_MOODS = [
-  { key: 'today', label: "TODAY'S\nVIBE" },
-  { key: 'weekend', label: 'WEEKEND\nMOOD' },
-  { key: 'week', label: "THIS WEEK'S\nDROPS" },
-  { key: 'next', label: 'NEXT WEEKEND\nTEA' },
+const DINE_SHORTCUTS = [
+  { key: 'offers', title: 'Flat 50% OFF', subtitle: 'Bill offers', icon: 'pricetag-outline', large: true },
+  { key: 'family', title: 'Family-friendly', subtitle: 'Comfort tables', icon: 'people-outline' },
+  { key: 'cafe', title: 'Cafe picks', subtitle: 'Desserts & coffee', icon: 'cafe-outline' },
+  { key: 'prebook', title: 'Pre-book', subtitle: 'Better savings', icon: 'bookmark-outline' },
+  { key: 'hot', title: 'New & Hot', subtitle: 'Popular this week', icon: 'flame-outline' },
 ];
 
 const SCENE_FILTERS = [
   { key: 'all', label: 'All scenes' },
   { key: 'today', label: 'Today' },
-  { key: 'week', label: 'This Week' },
-  { key: 'weekend', label: 'This Weekend' },
-  { key: 'next', label: 'Next Weekend' },
+  { key: 'week', label: 'This week' },
+  { key: 'weekend', label: 'Weekend' },
+  { key: 'next', label: 'Next weekend' },
 ];
 
 const SCENE_EVENTS = [
   {
     id: 'scene-1',
-    title: 'Rage Room At Break N Chill',
-    subtitle: 'Break n Chill | Rage Room | Chittethukara',
+    title: 'Break Room Experience',
+    subtitle: 'Stress-busting activity · Chittethukara',
+    bucket: 'today',
     date: '20\nMAR',
     price: 299,
-    accent: '#2a0c10',
-    bucket: 'today',
     icon: 'hammer-outline',
   },
   {
     id: 'scene-2',
-    title: 'Pottery Wheel Throwing Workshop',
-    subtitle: 'Soil to Soul Ceramics\nKadavanthra',
+    title: 'Pottery Workshop',
+    subtitle: 'Maker session · Kadavanthra',
+    bucket: 'week',
     date: '20\nMAR',
     price: 1000,
-    accent: '#6c4a34',
-    bucket: 'week',
     icon: 'color-palette-outline',
   },
   {
     id: 'scene-3',
-    title: 'Kimchi Culture',
-    subtitle: 'SKEI Presents\nThe first Korean culture pop-up',
+    title: 'Comedy Night',
+    subtitle: 'Weekend laughs · Kakkanad',
+    bucket: 'weekend',
     date: '22\nMAR',
-    price: 699,
-    accent: '#7b1f28',
-    bucket: 'weekend',
-    icon: 'restaurant-outline',
-  },
-  {
-    id: 'scene-4',
-    title: 'Stand-up Comedy Night',
-    subtitle: 'Kakkanad\nTop comics this weekend',
-    date: '23\nMAR',
     price: 499,
-    accent: '#213a66',
-    bucket: 'weekend',
     icon: 'mic-outline',
   },
   {
+    id: 'scene-4',
+    title: 'K-Culture Pop-up',
+    subtitle: 'Food + music + community',
+    bucket: 'weekend',
+    date: '23\nMAR',
+    price: 699,
+    icon: 'restaurant-outline',
+  },
+  {
     id: 'scene-5',
-    title: 'Kids Creative Lab',
-    subtitle: 'Panampilly Nagar\nFamily-friendly maker session',
+    title: 'Creative Lab',
+    subtitle: 'Family activity · Panampilly Nagar',
+    bucket: 'next',
     date: '29\nMAR',
     price: 399,
-    accent: '#5a2f80',
-    bucket: 'next',
     icon: 'happy-outline',
   },
 ];
 
 const FALLBACK_DEALS = [
-  { id: 'deal-1', vendor_id: 'demo-mart', vendorName: 'Instamart Daily', name: 'Amul Curd', price: 35, brand: 'Daily essential' },
-  { id: 'deal-2', vendor_id: 'demo-mart', vendorName: 'Instamart Daily', name: 'Cadbury Dairy Milk', price: 20, brand: 'Quick sweet bite' },
-  { id: 'deal-3', vendor_id: 'demo-mart', vendorName: 'Instamart Daily', name: 'Kissan Jam', price: 49, brand: 'Breakfast saver' },
-  { id: 'deal-4', vendor_id: 'demo-mart', vendorName: 'Instamart Daily', name: 'Classic Chips', price: 20, brand: 'Impulse add-on' },
+  { id: 'deal-1', vendor_id: 'demo-mart', vendorName: 'Daily Basket', name: 'Fresh Curd', price: 35, brand: 'Everyday essential' },
+  { id: 'deal-2', vendor_id: 'demo-mart', vendorName: 'Daily Basket', name: 'Milk Chocolate', price: 20, brand: 'Quick sweet bite' },
+  { id: 'deal-3', vendor_id: 'demo-mart', vendorName: 'Daily Basket', name: 'Fruit Jam', price: 49, brand: 'Breakfast saver' },
+  { id: 'deal-4', vendor_id: 'demo-mart', vendorName: 'Daily Basket', name: 'Classic Chips', price: 20, brand: 'Impulse add-on' },
 ];
 
 function money(value) {
@@ -240,8 +208,8 @@ function initials(name = '') {
 }
 
 function estimateEta(vendor, service = 'food') {
-  if (service === 'eatout') return 'Table in 10-15 mins';
   if (service === 'warehouse') return '5-15 mins';
+  if (service === 'eatout') return 'Table in 10-15 mins';
   if (vendor?.distance_km != null) {
     if (vendor.distance_km <= 2) return '15-20 mins';
     if (vendor.distance_km <= 5) return '20-30 mins';
@@ -251,57 +219,56 @@ function estimateEta(vendor, service = 'food') {
 
 function getVendorRating(vendor) {
   const seed = Number(vendor?.id || 0) || String(vendor?.name || '').length || 1;
-  return (4.1 + (seed % 7) * 0.1).toFixed(1);
+  return (4.1 + (seed % 8) * 0.1).toFixed(1);
 }
 
 function getOfferLabel(vendor, service = 'food') {
-  const foodOffers = ['40% OFF', 'UPTO ₹80', 'ITEMS AT ₹79', 'FREE DELIVERY'];
-  const martOffers = ['₹9 DEAL', 'BEST BRANDS', 'DAILY SAVER', 'VALUE PICK'];
-  const dineOffers = ['Flat 50% OFF', '10% Cashback', 'Pre-book', 'Bank Offer'];
-  const source = service === 'warehouse' ? martOffers : service === 'eatout' ? dineOffers : foodOffers;
+  const food = ['40% OFF', 'FREE DELIVERY', 'UPTO ₹100', 'BESTSELLER'];
+  const mart = ['₹9 DEAL', 'VALUE PICK', 'FAST ADD', 'DAILY SAVER'];
+  const dine = ['FLAT 50% OFF', 'BANK OFFER', 'PRE-BOOK', 'EXTRA CASHBACK'];
+  const set = service === 'warehouse' ? mart : service === 'eatout' ? dine : food;
   const seed = Number(vendor?.id || 0) || String(vendor?.name || '').length || 0;
-  return source[seed % source.length];
+  return set[seed % set.length];
 }
 
-function getVendorSubtitle(vendor, service = 'food') {
+function getVendorNote(vendor, service = 'food') {
   if (service === 'warehouse') {
-    return vendor?.description || 'Fruits, daily essentials, snacks and home needs';
+    return vendor?.description || 'Essentials, snacks and quick home needs';
   }
   if (service === 'eatout') {
-    return vendor?.description || 'Bill offers, table booking and dine-in deals';
+    return vendor?.description || 'Reserve tables, unlock bill offers and skip decision fatigue';
   }
-  return vendor?.description || vendor?.address || 'Fast delivery • Great value • Popular near you';
+  return vendor?.description || vendor?.address || 'Comfort food, premium presentation and reliable delivery';
 }
 
-function getDeliveryMeta(vendor, service = 'food') {
-  if (service === 'eatout') return 'Extra bank offers';
+function getDeliveryLine(vendor, service = 'food') {
   if (service === 'warehouse') return 'Free delivery above ₹199';
+  if (service === 'eatout') return 'Bill offer available';
   if (vendor?.distance_km != null && vendor.distance_km <= 2) return 'Free delivery';
   return '₹29 delivery';
 }
 
-function getCardTint(name = '') {
-  const seed = String(name || '').length % 5;
-  const palette = ['#22113f', '#163b73', '#0f5b44', '#7a1f24', '#69471f'];
-  return palette[seed];
+function getCardTone(seedInput = '', dark = false) {
+  const lightTones = [
+    { bg: '#FFF1E1', accent: '#E48D67' },
+    { bg: '#FBE7D8', accent: '#C77752' },
+    { bg: '#FFF5E8', accent: '#C79667' },
+    { bg: '#FEEADB', accent: '#D97C54' },
+  ];
+
+  const darkTones = [
+    { bg: '#2B2119', accent: '#F3B58B' },
+    { bg: '#31261D', accent: '#F6C09B' },
+    { bg: '#35281D', accent: '#EFA577' },
+    { bg: '#292018', accent: '#FFD0AE' },
+  ];
+
+  const source = dark ? darkTones : lightTones;
+  const seed = String(seedInput || '').length % source.length;
+  return source[seed];
 }
 
-function pickDealEmoji(name = '') {
-  const value = String(name || '').toLowerCase();
-  if (/(milk|curd|dairy|paneer)/.test(value)) return '🥛';
-  if (/(jam|fruit|berry)/.test(value)) return '🍓';
-  if (/(chip|snack)/.test(value)) return '🥔';
-  if (/(chocolate|candy)/.test(value)) return '🍫';
-  return '🛍️';
-}
-
-function chunk(items = [], size = 2) {
-  const rows = [];
-  for (let i = 0; i < items.length; i += size) rows.push(items.slice(i, i + size));
-  return rows;
-}
-
-function SectionHeader({ title, actionLabel, onPressAction, light = false, subtitle }) {
+function SectionHeader({ title, subtitle, actionLabel, onPressAction, light = false }) {
   return (
     <View style={styles.sectionHeader}>
       <View style={{ flex: 1 }}>
@@ -310,8 +277,9 @@ function SectionHeader({ title, actionLabel, onPressAction, light = false, subti
           <Text style={[styles.sectionSubtitle, light && styles.sectionSubtitleLight]}>{subtitle}</Text>
         ) : null}
       </View>
+
       {actionLabel ? (
-        <TouchableOpacity activeOpacity={0.9} onPress={onPressAction}>
+        <TouchableOpacity activeOpacity={0.92} onPress={onPressAction}>
           <Text style={[styles.sectionAction, light && styles.sectionActionLight]}>{actionLabel}</Text>
         </TouchableOpacity>
       ) : null}
@@ -319,28 +287,10 @@ function SectionHeader({ title, actionLabel, onPressAction, light = false, subti
   );
 }
 
-function LoadingState({ light = false, label = 'Loading...' }) {
+function ServiceSwitcher({ activeService, onChange, dark = false }) {
   return (
-    <View style={[styles.feedbackCard, light && styles.feedbackCardDark]}>
-      <ActivityIndicator color={light ? '#ffffff' : COLORS.success} />
-      <Text style={[styles.feedbackTitle, light && styles.feedbackTitleDark]}>{label}</Text>
-    </View>
-  );
-}
-
-function EmptyState({ title, subtitle, light = false }) {
-  return (
-    <View style={[styles.feedbackCard, light && styles.feedbackCardDark]}>
-      <Text style={[styles.feedbackTitle, light && styles.feedbackTitleDark]}>{title}</Text>
-      <Text style={[styles.feedbackSubtitle, light && styles.feedbackSubtitleDark]}>{subtitle}</Text>
-    </View>
-  );
-}
-
-function ServiceTabs({ activeService, onChange, dark = false }) {
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.serviceTabsRow}>
-      {TOP_SERVICES.map((item) => {
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.serviceSwitcherRow}>
+      {SERVICE_TABS.map((item) => {
         const active = item.key === activeService;
         return (
           <TouchableOpacity
@@ -348,17 +298,35 @@ function ServiceTabs({ activeService, onChange, dark = false }) {
             activeOpacity={0.92}
             onPress={() => onChange(item.key)}
             style={[
-              styles.serviceTab,
-              dark && styles.serviceTabDark,
-              active && styles.serviceTabActive,
-              dark && active && styles.serviceTabDarkActive,
+              styles.serviceChip,
+              dark && styles.serviceChipDark,
+              active && styles.serviceChipActive,
+              dark && active && styles.serviceChipActiveDark,
             ]}>
-            <View style={[styles.serviceTabIconWrap, active && styles.serviceTabIconWrapActive]}>
-              <Ionicons name={item.icon} size={20} color={active ? '#ffffff' : dark ? '#dbe4ff' : COLORS.text} />
+            <View style={[styles.serviceChipIcon, active && styles.serviceChipIconActive]}>
+              <Ionicons
+                name={item.icon}
+                size={18}
+                color={active ? '#ffffff' : dark ? PALETTE.sceneText : PALETTE.brown}
+              />
             </View>
             <View style={{ flex: 1 }}>
-              {item.badge && active ? <Text style={styles.serviceTabBadge}>{item.badge}</Text> : null}
-              <Text style={[styles.serviceTabLabel, active && styles.serviceTabLabelActive, dark && !active && styles.serviceTabLabelDark]}>{item.label}</Text>
+              <Text
+                style={[
+                  styles.serviceChipLabel,
+                  dark && styles.serviceChipLabelDark,
+                  active && styles.serviceChipLabelActive,
+                ]}>
+                {item.label}
+              </Text>
+              <Text
+                style={[
+                  styles.serviceChipHint,
+                  dark && styles.serviceChipHintDark,
+                  active && styles.serviceChipHintActive,
+                ]}>
+                {item.hint}
+              </Text>
             </View>
           </TouchableOpacity>
         );
@@ -367,301 +335,277 @@ function ServiceTabs({ activeService, onChange, dark = false }) {
   );
 }
 
-function SearchBar({ placeholder, value, onChangeText, onSubmit, showVegButton = false, dark = false }) {
+function SearchBar({ value, onChangeText, onSubmit, placeholder, dark = false }) {
   return (
     <View style={styles.searchWrap}>
       <View style={[styles.searchBar, dark && styles.searchBarDark]}>
-        <Ionicons name="search-outline" size={22} color={dark ? '#b8c4dc' : COLORS.muted} />
+        <Ionicons name="search-outline" size={20} color={dark ? PALETTE.sceneMuted : PALETTE.subtle} />
         <TextInput
           style={[styles.searchInput, dark && styles.searchInputDark]}
-          placeholder={placeholder}
-          placeholderTextColor={dark ? '#8ea0bf' : COLORS.subtle}
           value={value}
           onChangeText={onChangeText}
           onSubmitEditing={onSubmit}
+          placeholder={placeholder}
+          placeholderTextColor={dark ? '#B89E87' : PALETTE.subtle}
           returnKeyType="search"
         />
-        <Ionicons name="mic-outline" size={20} color={dark ? '#d6def1' : COLORS.orange} />
+        <Ionicons name="mic-outline" size={18} color={dark ? PALETTE.peach300 : PALETTE.peach600} />
       </View>
-
-      <TouchableOpacity activeOpacity={0.92} style={[styles.searchAction, dark && styles.searchActionDark]}>
-        {showVegButton ? (
-          <>
-            <Text style={styles.searchActionText}>VEG</Text>
-            <View style={styles.vegDot} />
-          </>
-        ) : (
-          <Ionicons name="bookmark-outline" size={20} color={dark ? '#ffffff' : COLORS.muted} />
-        )}
+      <TouchableOpacity activeOpacity={0.92} style={[styles.searchSideAction, dark && styles.searchSideActionDark]}>
+        <Ionicons name="options-outline" size={18} color={dark ? PALETTE.sceneText : PALETTE.brown} />
       </TouchableOpacity>
+    </View>
+  );
+}
+
+function HeroBanner({ theme, activeService }) {
+  return (
+    <View
+      style={[
+        styles.heroBanner,
+        activeService === 'scenes' ? styles.heroBannerDark : styles.heroBannerLight,
+      ]}>
+      <View style={[styles.heroBannerGlow, { backgroundColor: theme.heroAccent }]} />
+      <Text style={[styles.heroEyebrow, activeService === 'scenes' && styles.heroEyebrowDark]}>
+        {theme.bannerEyebrow}
+      </Text>
+      <Text style={[styles.heroTitle, activeService === 'scenes' && styles.heroTitleDark]}>{theme.bannerTitle}</Text>
+      <Text style={[styles.heroCopy, activeService === 'scenes' && styles.heroCopyDark]}>{theme.bannerCopy}</Text>
+
+      <View style={styles.heroStatRow}>
+        <View style={[styles.heroStat, activeService === 'scenes' && styles.heroStatDark]}>
+          <Text style={[styles.heroStatLabel, activeService === 'scenes' && styles.heroStatLabelDark]}>Avg ETA</Text>
+          <Text style={[styles.heroStatValue, activeService === 'scenes' && styles.heroStatValueDark]}>
+            {activeService === 'warehouse' ? '8 min' : activeService === 'eatout' ? '12 min' : activeService === 'scenes' ? '5 picks' : '24 min'}
+          </Text>
+        </View>
+        <View style={[styles.heroStat, activeService === 'scenes' && styles.heroStatDark]}>
+          <Text style={[styles.heroStatLabel, activeService === 'scenes' && styles.heroStatLabelDark]}>Experience</Text>
+          <Text style={[styles.heroStatValue, activeService === 'scenes' && styles.heroStatValueDark]}>
+            {activeService === 'food' ? 'Warmer cards' : activeService === 'warehouse' ? 'Quick add' : activeService === 'eatout' ? 'Offer first' : 'Curated'}
+          </Text>
+        </View>
+      </View>
     </View>
   );
 }
 
 function BasketBanner({ cartCount, cartTotal, onPress, dark = false }) {
   if (!cartCount) return null;
+
   return (
     <TouchableOpacity
       activeOpacity={0.92}
-      style={[styles.basketBanner, dark && styles.basketBannerDark]}
-      onPress={onPress}>
-      <View style={[styles.basketIcon, dark && styles.basketIconDark]}>
-        <Ionicons name="bag-handle-outline" size={18} color={dark ? '#ffffff' : COLORS.success} />
+      onPress={onPress}
+      style={[styles.basketBanner, dark && styles.basketBannerDark]}>
+      <View style={[styles.basketIconWrap, dark && styles.basketIconWrapDark]}>
+        <Ionicons name="bag-handle-outline" size={18} color={dark ? '#ffffff' : PALETTE.peach600} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[styles.basketTitle, dark && styles.basketTitleDark]}>Active basket</Text>
-        <Text style={[styles.basketSubtitle, dark && styles.basketSubtitleDark]}>
+        <Text style={[styles.basketCopy, dark && styles.basketCopyDark]}>
           {cartCount} items · {money(cartTotal)}
         </Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={dark ? '#ffffff' : COLORS.success} />
+      <Ionicons name="chevron-forward" size={18} color={dark ? '#ffffff' : PALETTE.peach600} />
     </TouchableOpacity>
   );
 }
 
-function PromoBanner({ activeService, theme }) {
-  if (activeService === 'warehouse') {
-    return (
-      <View style={[styles.heroBanner, styles.heroBannerMart]}>
-        <View style={styles.bestBrandPill}>
-          <Text style={styles.bestBrandText}>BEST BRANDS</Text>
-        </View>
-        <Text style={styles.heroBannerTitleMart}>{theme.bannerTitle}</Text>
-        <Text style={styles.heroBannerSubMart}>{theme.bannerSub}</Text>
-        <Text style={styles.heroBannerCaptionMart}>{theme.bannerCaption}</Text>
-      </View>
-    );
-  }
-
-  if (activeService === 'eatout') {
-    return (
-      <View style={[styles.heroBanner, styles.heroBannerDine]}>
-        <Text style={styles.heroBannerTitleLight}>{theme.bannerTitle}</Text>
-        <Text style={styles.heroBannerSubLight}>{theme.bannerSub}</Text>
-        <Text style={styles.heroBannerCaptionLight}>{theme.bannerCaption}</Text>
-      </View>
-    );
-  }
-
-  if (activeService === 'scenes') {
-    return (
-      <View style={[styles.heroBanner, styles.heroBannerScenes]}>
-        <Text style={styles.heroBannerTagScenes}>{theme.bannerTitle}</Text>
-        <Text style={styles.heroBannerSubScenes}>{theme.bannerSub}</Text>
-        <Text style={styles.heroBannerCaptionScenes}>{theme.bannerCaption}</Text>
-      </View>
-    );
-  }
-
+function FilterChip({ label, icon, active, onPress, dark = false }) {
   return (
-    <View style={styles.heroBanner}>
-      <Text style={styles.heroBannerTitle}>{theme.bannerTitle}</Text>
-      <Text style={styles.heroBannerSub}>{theme.bannerSub}</Text>
-      <Text style={styles.heroBannerCaption}>{theme.bannerCaption}</Text>
-    </View>
-  );
-}
-
-function FoodTile({ item }) {
-  return (
-    <TouchableOpacity activeOpacity={0.92} style={styles.foodTile}>
-      <Text style={styles.foodTileTitle}>{item.title}</Text>
-      <Text style={styles.foodTileTag}>{item.tag}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function VendorRailCard({ vendor, service = 'food', favorite, onToggleFavorite, onPress }) {
-  return (
-    <TouchableOpacity activeOpacity={0.94} style={styles.vendorRailCard} onPress={onPress}>
-      <View style={[styles.vendorRailVisual, { backgroundColor: getCardTint(vendor?.name) }]}>
-        <View style={styles.offerBadge}>
-          <Text style={styles.offerBadgeText}>{getOfferLabel(vendor, service)}</Text>
-        </View>
-        <TouchableOpacity activeOpacity={0.9} style={styles.favoriteButton} onPress={onToggleFavorite}>
-          <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={16} color={favorite ? COLORS.danger : '#ffffff'} />
-        </TouchableOpacity>
-        <View style={styles.monogramBubble}>
-          <Text style={styles.monogramText}>{initials(vendor?.name)}</Text>
-        </View>
-      </View>
-      <Text style={styles.vendorRailName} numberOfLines={1}>{vendor?.name}</Text>
-      <Text style={styles.vendorRailMeta} numberOfLines={1}>
-        ⭐ {getVendorRating(vendor)} · {estimateEta(vendor, service)}
+    <TouchableOpacity
+      activeOpacity={0.92}
+      onPress={onPress}
+      style={[
+        styles.filterChip,
+        dark && styles.filterChipDark,
+        active && styles.filterChipActive,
+        dark && active && styles.filterChipActiveDark,
+      ]}>
+      {icon ? (
+        <Ionicons
+          name={icon}
+          size={14}
+          color={active ? '#ffffff' : dark ? PALETTE.sceneMuted : PALETTE.muted}
+        />
+      ) : null}
+      <Text
+        style={[
+          styles.filterChipLabel,
+          dark && styles.filterChipLabelDark,
+          active && styles.filterChipLabelActive,
+        ]}>
+        {label}
       </Text>
-      <Text style={styles.vendorRailFee} numberOfLines={1}>{getDeliveryMeta(vendor, service)}</Text>
     </TouchableOpacity>
   );
 }
 
-function VendorListCard({ vendor, service = 'food', favorite, onToggleFavorite, onPress }) {
+function QuickTile({ title, subtitle, icon, large = false }) {
   return (
-    <TouchableOpacity activeOpacity={0.94} style={styles.vendorListCard} onPress={onPress}>
-      <View style={[styles.vendorListVisual, { backgroundColor: getCardTint(vendor?.name) }]}>
-        <View style={styles.offerBadgeLarge}>
-          <Text style={styles.offerBadgeLargeText}>{getOfferLabel(vendor, service)}</Text>
+    <TouchableOpacity activeOpacity={0.94} style={[styles.quickTile, large && styles.quickTileLarge]}>
+      <View style={styles.quickTileIconWrap}>
+        <Ionicons name={icon} size={18} color={PALETTE.peach600} />
+      </View>
+      <Text style={[styles.quickTileTitle, large && styles.quickTileTitleLarge]}>{title}</Text>
+      <Text style={styles.quickTileSubtitle}>{subtitle}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function VendorRailCard({ vendor, service, favorite, onToggleFavorite, onPress, dark = false }) {
+  const tone = getCardTone(vendor?.name, dark);
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.94}
+      onPress={onPress}
+      style={[styles.vendorRailCard, dark && styles.vendorRailCardDark]}>
+      <View style={[styles.vendorRailVisual, { backgroundColor: tone.bg }]}>
+        <View style={[styles.vendorOfferBadge, { backgroundColor: tone.accent }]}>
+          <Text style={styles.vendorOfferBadgeText}>{getOfferLabel(vendor, service)}</Text>
         </View>
-        <TouchableOpacity activeOpacity={0.9} style={styles.favoriteButton} onPress={onToggleFavorite}>
-          <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={18} color={favorite ? COLORS.danger : '#ffffff'} />
+
+        <TouchableOpacity activeOpacity={0.9} onPress={onToggleFavorite} style={styles.favoriteButton}>
+          <Ionicons
+            name={favorite ? 'heart' : 'heart-outline'}
+            size={16}
+            color={favorite ? PALETTE.danger : dark ? '#ffffff' : PALETTE.brown}
+          />
         </TouchableOpacity>
-        <Text style={styles.visualStoreMark}>{initials(vendor?.name)}</Text>
+
+        <View style={[styles.vendorMonogram, { borderColor: tone.accent }]}>
+          <Text style={[styles.vendorMonogramText, dark && styles.vendorMonogramTextDark]}>{initials(vendor?.name)}</Text>
+        </View>
       </View>
 
-      <View style={styles.vendorListBody}>
-        <Text style={styles.vendorListTitle} numberOfLines={1}>{vendor?.name}</Text>
+      <Text style={[styles.vendorName, dark && styles.vendorNameDark]} numberOfLines={1}>
+        {vendor?.name}
+      </Text>
+      <Text style={[styles.vendorMeta, dark && styles.vendorMetaDark]} numberOfLines={1}>
+        ★ {getVendorRating(vendor)} · {estimateEta(vendor, service)}
+      </Text>
+      <Text style={[styles.vendorSubline, dark && styles.vendorSublineDark]} numberOfLines={2}>
+        {getVendorNote(vendor, service)}
+      </Text>
+      <Text style={[styles.vendorDeliveryLine, dark && styles.vendorDeliveryLineDark]}>
+        {getDeliveryLine(vendor, service)}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function VendorListCard({ vendor, service, favorite, onToggleFavorite, onPress }) {
+  const tone = getCardTone(vendor?.name);
+
+  return (
+    <TouchableOpacity activeOpacity={0.94} onPress={onPress} style={styles.vendorListCard}>
+      <View style={[styles.vendorListThumb, { backgroundColor: tone.bg }]}>
+        <Text style={styles.vendorListThumbText}>{initials(vendor?.name)}</Text>
+      </View>
+
+      <View style={{ flex: 1 }}>
+        <View style={styles.vendorListTopRow}>
+          <Text style={styles.vendorListName} numberOfLines={1}>{vendor?.name}</Text>
+          <TouchableOpacity activeOpacity={0.9} onPress={onToggleFavorite} style={styles.vendorListFavorite}>
+            <Ionicons
+              name={favorite ? 'heart' : 'heart-outline'}
+              size={16}
+              color={favorite ? PALETTE.danger : PALETTE.subtle}
+            />
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.vendorListMeta} numberOfLines={1}>
-          ⭐ {getVendorRating(vendor)} · {estimateEta(vendor, service)} · {getDeliveryMeta(vendor, service)}
+          ★ {getVendorRating(vendor)} · {estimateEta(vendor, service)} · {getDeliveryLine(vendor, service)}
         </Text>
-        <Text style={styles.vendorListSubtitle} numberOfLines={2}>{getVendorSubtitle(vendor, service)}</Text>
+        <Text style={styles.vendorListCopy} numberOfLines={2}>{getVendorNote(vendor, service)}</Text>
+
+        <View style={styles.vendorListBottomRow}>
+          <View style={styles.vendorTagPill}>
+            <Text style={styles.vendorTagPillText}>{getOfferLabel(vendor, service)}</Text>
+          </View>
+          <Text style={styles.vendorListAction}>Open</Text>
+        </View>
       </View>
-    </TouchableOpacity>
-  );
-}
-
-function MartFilter({ item, active, onPress }) {
-  return (
-    <TouchableOpacity activeOpacity={0.92} style={[styles.martFilter, active && styles.martFilterActive]} onPress={onPress}>
-      <Ionicons name={item.icon} size={18} color={active ? '#ffffff' : COLORS.martHero} />
-      <Text style={[styles.martFilterText, active && styles.martFilterTextActive]}>{item.label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function MartCollection({ item }) {
-  return (
-    <TouchableOpacity activeOpacity={0.92} style={styles.martCollection}>
-      <Text style={styles.martCollectionEmoji}>{item.emoji}</Text>
-      <Text style={styles.martCollectionTitle}>{item.title}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function QtyButton({ qty, onAdd, onRemove }) {
-  if (qty > 0) {
-    return (
-      <View style={styles.qtyWrap}>
-        <TouchableOpacity activeOpacity={0.92} style={styles.qtyAction} onPress={onRemove}>
-          <Ionicons name="remove" size={16} color={COLORS.white} />
-        </TouchableOpacity>
-        <Text style={styles.qtyText}>{qty}</Text>
-        <TouchableOpacity activeOpacity={0.92} style={styles.qtyAction} onPress={onAdd}>
-          <Ionicons name="add" size={16} color={COLORS.white} />
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <TouchableOpacity activeOpacity={0.92} style={styles.addButton} onPress={onAdd}>
-      <Text style={styles.addButtonText}>ADD</Text>
     </TouchableOpacity>
   );
 }
 
 function DealCard({ item, qty, onAdd, onRemove }) {
+  const tone = getCardTone(item?.name);
+
   return (
     <View style={styles.dealCard}>
-      <View style={styles.dealVisual}>
-        <Text style={styles.dealEmoji}>{pickDealEmoji(item?.name)}</Text>
+      <View style={[styles.dealVisual, { backgroundColor: tone.bg }]}>
+        <Text style={styles.dealVisualEmoji}>🧺</Text>
+        <View style={[styles.dealPricePill, { backgroundColor: tone.accent }]}>
+          <Text style={styles.dealPricePillText}>{money(item?.price)}</Text>
+        </View>
       </View>
-      <Text style={styles.dealName} numberOfLines={2}>{item?.name}</Text>
+
       <Text style={styles.dealBrand} numberOfLines={1}>{item?.brand || item?.vendorName}</Text>
-      <Text style={styles.dealPrice}>{money(item?.price)}</Text>
-      <QtyButton qty={qty} onAdd={onAdd} onRemove={onRemove} />
+      <Text style={styles.dealName} numberOfLines={1}>{item?.name}</Text>
+
+      {qty > 0 ? (
+        <View style={styles.qtyRow}>
+          <TouchableOpacity activeOpacity={0.92} onPress={onRemove} style={styles.qtyButton}>
+            <Ionicons name="remove" size={16} color={PALETTE.peach600} />
+          </TouchableOpacity>
+          <Text style={styles.qtyText}>{qty}</Text>
+          <TouchableOpacity activeOpacity={0.92} onPress={onAdd} style={styles.qtyButton}>
+            <Ionicons name="add" size={16} color={PALETTE.peach600} />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <TouchableOpacity activeOpacity={0.92} onPress={onAdd} style={styles.addButton}>
+          <Text style={styles.addButtonText}>ADD</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
-function DineTile({ item }) {
-  return (
-    <TouchableOpacity
-      activeOpacity={0.92}
-      style={[styles.dineTile, item.large && styles.dineTileLarge]}>
-      <Text style={[styles.dineTileText, item.large && styles.dineTileTextLarge]}>{item.title}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function SpotlightCard({ item }) {
-  return (
-    <TouchableOpacity activeOpacity={0.92} style={[styles.spotlightCard, { backgroundColor: item.color }]}>
-      <Text style={styles.spotlightTitle}>{item.title}</Text>
-      <Text style={styles.spotlightSubtitle}>{item.subtitle}</Text>
-      <View style={styles.spotlightPill}>
-        <Text style={styles.spotlightPillText}>{item.action}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function PromptChip({ label }) {
-  return (
-    <TouchableOpacity activeOpacity={0.92} style={styles.promptChip}>
-      <Text style={styles.promptChipText}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function SceneMood({ item, active, onPress }) {
-  return (
-    <TouchableOpacity activeOpacity={0.92} style={[styles.sceneMood, active && styles.sceneMoodActive]} onPress={onPress}>
-      <Text style={[styles.sceneMoodText, active && styles.sceneMoodTextActive]}>{item.label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function SceneFilter({ item, active, onPress }) {
-  return (
-    <TouchableOpacity activeOpacity={0.92} style={[styles.sceneFilter, active && styles.sceneFilterActive]} onPress={onPress}>
-      <Text style={[styles.sceneFilterText, active && styles.sceneFilterTextActive]}>{item.label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function SceneCard({ item, compact = false }) {
-  if (compact) {
-    return (
-      <TouchableOpacity activeOpacity={0.92} style={styles.sceneCardCompact}>
-        <View style={[styles.sceneVisualCompact, { backgroundColor: item.accent }]}>
-          <Ionicons name={item.icon} size={28} color="#ffffff" />
-          <Text style={styles.scenePricePill}>Starts at {money(item.price)}</Text>
-        </View>
-        <View style={styles.sceneCardInfoCompact}>
-          <View style={styles.sceneDateBox}>
-            <Text style={styles.sceneDateText}>{item.date}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.sceneTitle} numberOfLines={2}>{item.title}</Text>
-            <Text style={styles.sceneSubtitle} numberOfLines={2}>{item.subtitle}</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  }
+function SceneEventCard({ item }) {
+  const tone = getCardTone(item?.title, true);
 
   return (
-    <TouchableOpacity activeOpacity={0.92} style={styles.sceneCardRail}>
-      <View style={[styles.sceneVisualRail, { backgroundColor: item.accent }]}>
-        <Ionicons name={item.icon} size={34} color="#ffffff" />
-        <Text style={styles.scenePricePill}>Starts at {money(item.price)}</Text>
-      </View>
-      <View style={styles.sceneCardInfoRail}>
-        <View style={styles.sceneDateBox}>
+    <TouchableOpacity activeOpacity={0.94} style={styles.sceneCard}>
+      <View style={[styles.scenePoster, { backgroundColor: tone.bg }]}>
+        <View style={styles.sceneDatePill}>
           <Text style={styles.sceneDateText}>{item.date}</Text>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.sceneTitle} numberOfLines={2}>{item.title}</Text>
-          <Text style={styles.sceneSubtitle} numberOfLines={2}>{item.subtitle}</Text>
-        </View>
+        <Ionicons name={item.icon} size={24} color={tone.accent} />
       </View>
+      <Text style={styles.sceneTitle} numberOfLines={2}>{item.title}</Text>
+      <Text style={styles.sceneSub} numberOfLines={2}>{item.subtitle}</Text>
+      <Text style={styles.scenePrice}>Starts at {money(item.price)}</Text>
     </TouchableOpacity>
+  );
+}
+
+function LoadingState({ label, dark = false }) {
+  return (
+    <View style={[styles.feedbackCard, dark && styles.feedbackCardDark]}>
+      <ActivityIndicator color={dark ? PALETTE.peach300 : PALETTE.peach600} />
+      <Text style={[styles.feedbackTitle, dark && styles.feedbackTitleDark]}>{label}</Text>
+    </View>
+  );
+}
+
+function EmptyState({ title, subtitle, dark = false }) {
+  return (
+    <View style={[styles.feedbackCard, dark && styles.feedbackCardDark]}>
+      <Text style={[styles.feedbackTitle, dark && styles.feedbackTitleDark]}>{title}</Text>
+      <Text style={[styles.feedbackSubtitle, dark && styles.feedbackSubtitleDark]}>{subtitle}</Text>
+    </View>
   );
 }
 
 export default function HomeScreen() {
   const router = useRouter();
   const tabBarHeight = useBottomTabBarHeight();
-  const [sceneMood, setSceneMood] = useState('week');
   const [sceneFilter, setSceneFilter] = useState('all');
 
   const {
@@ -677,61 +621,62 @@ export default function HomeScreen() {
     loadVendors,
     homeDeals,
     homeDealsLoading,
+    featuredVendors,
     favorites,
     toggleFavorite,
-    featuredVendors,
+    rememberSearch,
+    rememberStore,
+    addToCart,
+    updateQty,
     cart,
     cartCount,
     cartTotal,
-    addToCart,
-    updateQty,
-    rememberSearch,
-    rememberStore,
   } = useGrabBasket();
 
-  const theme = SERVICE_THEME[activeService] || SERVICE_THEME.food;
+  const theme = THEMES[activeService] || THEMES.food;
+  const isDark = activeService === 'scenes';
 
   const displayVendors = useMemo(() => {
     const source = featuredVendors?.length ? featuredVendors : vendors;
     return source.slice(0, 8);
   }, [featuredVendors, vendors]);
 
-  const displayDeals = useMemo(() => (homeDeals?.length ? homeDeals : FALLBACK_DEALS), [homeDeals]);
+  const displayDeals = useMemo(() => {
+    return homeDeals?.length ? homeDeals : FALLBACK_DEALS;
+  }, [homeDeals]);
 
-  const featuredScenes = useMemo(() => {
-    if (sceneMood === 'today') return SCENE_EVENTS.filter((item) => item.bucket === 'today');
-    if (sceneMood === 'weekend') return SCENE_EVENTS.filter((item) => item.bucket === 'weekend');
-    if (sceneMood === 'next') return SCENE_EVENTS.filter((item) => item.bucket === 'next');
-    return SCENE_EVENTS.filter((item) => item.bucket === 'week' || item.bucket === 'weekend');
-  }, [sceneMood]);
-
-  const sceneGridItems = useMemo(() => {
+  const sceneItems = useMemo(() => {
     if (sceneFilter === 'all') return SCENE_EVENTS;
     return SCENE_EVENTS.filter((item) => item.bucket === sceneFilter);
   }, [sceneFilter]);
 
-  const sceneRows = useMemo(() => chunk(sceneGridItems, 2), [sceneGridItems]);
-
-  const handleOpenVendor = (vendor) => {
-    rememberStore(vendor.id);
-    router.push({ pathname: '/store/[vendorId]', params: { vendorId: String(vendor.id) } });
-  };
-
-  const handleRefresh = () => loadVendors({ pullToRefresh: true });
   const handleSearch = () => {
     rememberSearch(homeSearch);
     loadVendors();
   };
 
-  const handleChangeService = (serviceKey) => {
+  const handleRefresh = () => {
+    loadVendors({ pullToRefresh: true });
+  };
+
+  const handleOpenVendor = (vendor) => {
+    if (!vendor?.id) return;
+    rememberStore(vendor.id);
+    router.push({ pathname: '/store/[vendorId]', params: { vendorId: String(vendor.id) } });
+  };
+
+  const handleServiceChange = (serviceKey) => {
     setActiveService(serviceKey);
-    if (serviceKey !== 'warehouse' && activeShortcut !== 'all') {
+    if (serviceKey !== 'warehouse') {
       setActiveShortcut('all');
+    }
+    if (serviceKey !== 'scenes') {
+      setSceneFilter('all');
     }
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.bg }]} edges={['top']}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.page }]} edges={['top']}>
       <StatusBar barStyle={theme.statusBar} backgroundColor={theme.hero} />
 
       <ScrollView
@@ -740,78 +685,95 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={activeService === 'scenes' ? '#ffffff' : COLORS.success}
+            tintColor={isDark ? PALETTE.peach300 : PALETTE.peach600}
           />
         }
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 26 }}>
-        {activeService === 'eatout' && theme.topStrip ? (
-          <View style={styles.topStrip}>
-            <Ionicons name="cash-outline" size={18} color="#ffffff" />
-            <Text style={styles.topStripText}>{theme.topStrip}</Text>
-          </View>
-        ) : null}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 28 }}>
+        <View style={[styles.heroWrap, { backgroundColor: theme.hero }]}>
+          <View style={[styles.heroOrbLarge, { backgroundColor: theme.heroAccent }]} />
+          <View style={[styles.heroOrbSmall, { backgroundColor: theme.heroSoft }]} />
 
-        <View style={[styles.hero, { backgroundColor: theme.hero }]}>
-          <View style={[styles.heroOrbOne, { backgroundColor: theme.heroAlt }]} />
-          <View style={[styles.heroOrbTwo, { backgroundColor: theme.heroAlt }]} />
-
-          <View style={styles.heroHeader}>
-            <View style={{ flex: 1, paddingRight: 10 }}>
+          <View style={styles.topRow}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
               <View style={styles.locationRow}>
-                <Ionicons name={activeService === 'warehouse' ? 'time-outline' : 'navigate'} size={18} color="#ffffff" />
-                <Text style={styles.locationTitle} numberOfLines={1}>{theme.headerTitle}</Text>
-                <Ionicons name="chevron-down" size={16} color="#ffffff" />
+                <Ionicons
+                  name={activeService === 'warehouse' ? 'time-outline' : 'location-outline'}
+                  size={17}
+                  color={theme.heroText}
+                />
+                <Text style={[styles.locationTitle, { color: theme.heroText }]} numberOfLines={1}>
+                  Delivering to your area
+                </Text>
+                <Ionicons name="chevron-down" size={16} color={theme.heroText} />
               </View>
-              <Text style={styles.locationSub} numberOfLines={1}>{theme.headerSub}</Text>
+              <Text style={[styles.locationSub, { color: theme.heroSub }]} numberOfLines={1}>
+                GrabBasket demo flow · privacy-safe preview mode
+              </Text>
             </View>
 
-            <View style={styles.heroActions}>
-              {activeService === 'food' ? (
-                <TouchableOpacity activeOpacity={0.92} style={styles.onePill}>
-                  <Text style={styles.onePillText}>UPGRADE one</Text>
-                </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity activeOpacity={0.92} style={styles.profileBtn} onPress={() => router.push('/account')}>
-                <Ionicons name="person" size={20} color={COLORS.text} />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity activeOpacity={0.92} onPress={() => router.push('/account')} style={styles.profileGhostBtn}>
+              <Ionicons name="person-outline" size={20} color={theme.heroText} />
+            </TouchableOpacity>
           </View>
 
-          <ServiceTabs activeService={activeService} onChange={handleChangeService} dark />
+          <ServiceSwitcher activeService={activeService} onChange={handleServiceChange} dark={isDark} />
 
           <SearchBar
-            placeholder={theme.searchPlaceholder}
             value={homeSearch}
             onChangeText={setHomeSearch}
             onSubmit={handleSearch}
-            showVegButton={theme.showVegButton}
-            dark={activeService === 'scenes'}
+            placeholder={theme.searchPlaceholder}
+            dark={isDark}
           />
 
-          <PromoBanner activeService={activeService} theme={theme} />
+          <HeroBanner theme={theme} activeService={activeService} />
         </View>
 
-        <View style={[styles.body, activeService === 'scenes' && styles.bodyScenes]}>
-          <BasketBanner cartCount={cartCount} cartTotal={cartTotal} onPress={() => router.push('/cart')} dark={activeService === 'scenes'} />
+        <View style={[styles.body, isDark && styles.bodyDark]}>
+          <BasketBanner
+            cartCount={cartCount}
+            cartTotal={cartTotal}
+            onPress={() => router.push('/cart')}
+            dark={isDark}
+          />
 
           {activeService === 'food' ? (
             <>
-              <View style={styles.foodTilesRow}>
-                {FOOD_TILES.map((item) => <FoodTile key={item.key} item={item} />)}
-              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                {FOOD_COLLECTIONS.map((item) => (
+                  <FilterChip
+                    key={item.key}
+                    label={item.label}
+                    icon={item.icon}
+                    active={homeSearch.toLowerCase() === item.label.toLowerCase()}
+                    onPress={() => {
+                      setHomeSearch(item.label);
+                      rememberSearch(item.label);
+                      loadVendors();
+                    }}
+                  />
+                ))}
+              </ScrollView>
 
-              <SectionHeader title="Top rated near you" />
+              <SectionHeader
+                title="Popular around you"
+                subtitle="A warmer, less cluttered first fold with better restaurant emphasis."
+              />
 
               {vendorsLoading ? (
                 <LoadingState label="Loading restaurants..." />
               ) : displayVendors.length === 0 ? (
-                <EmptyState title="No restaurants yet" subtitle="Connect your vendors feed to populate this rail." />
+                <EmptyState
+                  title="No restaurants available"
+                  subtitle="Once your vendor feed is connected, this section will feel much more alive."
+                />
               ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railRow}>
                   {displayVendors.map((vendor) => (
                     <VendorRailCard
                       key={vendor.id}
                       vendor={vendor}
+                      service="food"
                       favorite={Boolean(favorites[vendor.id])}
                       onToggleFavorite={() => toggleFavorite(vendor.id)}
                       onPress={() => handleOpenVendor(vendor)}
@@ -823,9 +785,9 @@ export default function HomeScreen() {
               <SectionHeader title="Restaurants to order from" actionLabel="View all" />
 
               {vendorsLoading ? (
-                <LoadingState label="Refreshing restaurants..." />
+                <LoadingState label="Refreshing list..." />
               ) : displayVendors.length === 0 ? (
-                <EmptyState title="No restaurants available" subtitle="Seed more stores to make this feed feel alive." />
+                <EmptyState title="Your restaurant list is empty" subtitle="Seed more vendors to make discovery feel premium." />
               ) : (
                 displayVendors.slice(0, 6).map((vendor) => (
                   <VendorListCard
@@ -843,53 +805,45 @@ export default function HomeScreen() {
 
           {activeService === 'warehouse' ? (
             <>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
-                {MART_FILTERS.map((item) => (
-                  <MartFilter
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                {MART_COLLECTIONS.map((item) => (
+                  <FilterChip
                     key={item.key}
-                    item={item}
+                    label={item.label}
+                    icon={item.icon}
                     active={activeShortcut === item.key}
                     onPress={() => setActiveShortcut(item.key)}
                   />
                 ))}
               </ScrollView>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
-                {MART_COLLECTIONS.map((item) => <MartCollection key={item.key} item={item} />)}
-              </ScrollView>
+              <SectionHeader
+                title="Quick add deals"
+                subtitle="Swiggy-like speed comes from making decision-making effortless."
+              />
 
-              <TouchableOpacity activeOpacity={0.92} style={styles.martInfoStrip}>
-                <Text style={styles.martInfoText}>Explore 28 varieties of dates sourced from 12 countries!</Text>
-                <Ionicons name="chevron-forward" size={18} color="#ffffff" />
-              </TouchableOpacity>
-
-              <View style={styles.dealsPanel}>
-                <Text style={styles.dealsPanelTitle}>₹9 everyday</Text>
-                <Text style={styles.dealsPanelSubtitle}>Shop for ₹199 to get one item at ₹9</Text>
-
-                {homeDealsLoading && homeDeals.length === 0 ? (
-                  <LoadingState label="Loading quick deals..." />
-                ) : (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
-                    {displayDeals.map((item) => (
-                      <DealCard
-                        key={item.id}
-                        item={item}
-                        qty={cart.items[item.id]?.qty || 0}
-                        onAdd={() => addToCart(item)}
-                        onRemove={() => updateQty(item, -1)}
-                      />
-                    ))}
-                  </ScrollView>
-                )}
-              </View>
+              {homeDealsLoading && homeDeals.length === 0 ? (
+                <LoadingState label="Loading quick deals..." />
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railRow}>
+                  {displayDeals.map((item) => (
+                    <DealCard
+                      key={item.id}
+                      item={item}
+                      qty={cart.items[item.id]?.qty || 0}
+                      onAdd={() => addToCart(item)}
+                      onRemove={() => updateQty(item, -1)}
+                    />
+                  ))}
+                </ScrollView>
+              )}
 
               <SectionHeader title="Quick grocery stores" />
 
               {vendorsLoading ? (
                 <LoadingState label="Loading nearby stores..." />
               ) : displayVendors.length === 0 ? (
-                <EmptyState title="No stores available" subtitle="Add grocery-ready vendors to complete this tab." />
+                <EmptyState title="No stores available" subtitle="Add grocery-ready vendors to complete this flow." />
               ) : (
                 displayVendors.slice(0, 6).map((vendor) => (
                   <VendorListCard
@@ -907,52 +861,28 @@ export default function HomeScreen() {
 
           {activeService === 'eatout' ? (
             <>
+              <SectionHeader
+                title="Tonight's shortcuts"
+                subtitle="Offer-first storytelling makes dineout feel closer to a real consumer app."
+              />
+
               <View style={styles.dineGrid}>
-                <View style={styles.dineGridLeft}>
-                  <DineTile item={DINE_TILES[0]} />
+                <View style={styles.dineColumnLarge}>
+                  <QuickTile {...DINE_SHORTCUTS[0]} />
                 </View>
-                <View style={styles.dineGridRight}>
-                  {DINE_TILES.slice(1).map((item) => <DineTile key={item.key} item={item} />)}
-                </View>
-              </View>
-
-              <SectionHeader title="In the spotlight" />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
-                {DINE_SPOTLIGHT.map((item) => <SpotlightCard key={item.key} item={item} />)}
-              </ScrollView>
-
-              <Text style={styles.personalText}>Hari, what's on your mind?</Text>
-              <View style={styles.promptRow}>
-                {DINE_PROMPTS.map((label) => <PromptChip key={label} label={label} />)}
-              </View>
-
-              <SectionHeader title="Popular picks" actionLabel="View all" />
-
-              {vendorsLoading ? (
-                <LoadingState label="Loading dineout venues..." />
-              ) : displayVendors.length === 0 ? (
-                <EmptyState title="No venues available" subtitle="Add more dineout venues and bill-offer data." />
-              ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
-                  {displayVendors.map((vendor) => (
-                    <VendorRailCard
-                      key={vendor.id}
-                      vendor={vendor}
-                      service="eatout"
-                      favorite={Boolean(favorites[vendor.id])}
-                      onToggleFavorite={() => toggleFavorite(vendor.id)}
-                      onPress={() => handleOpenVendor(vendor)}
-                    />
+                <View style={styles.dineColumnRight}>
+                  {DINE_SHORTCUTS.slice(1).map((item) => (
+                    <QuickTile key={item.key} {...item} />
                   ))}
-                </ScrollView>
-              )}
+                </View>
+              </View>
 
-              <SectionHeader title="Places with bill offers" />
+              <SectionHeader title="Places worth booking" actionLabel="See all" />
 
               {vendorsLoading ? (
-                <LoadingState label="Refreshing dineout feed..." />
+                <LoadingState label="Loading restaurants..." />
               ) : displayVendors.length === 0 ? (
-                <EmptyState title="No venues yet" subtitle="Connect dining partners to build this list." />
+                <EmptyState title="No dineout partners yet" subtitle="Add vendors with dine-in value props to complete this surface." />
               ) : (
                 displayVendors.slice(0, 6).map((vendor) => (
                   <VendorListCard
@@ -970,46 +900,34 @@ export default function HomeScreen() {
 
           {activeService === 'scenes' ? (
             <>
-              <SectionHeader title="Featured tonight" light />
-              {featuredScenes.length > 0 ? (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
-                  {featuredScenes.map((item) => <SceneCard key={item.id} item={item} />)}
-                </ScrollView>
-              ) : (
-                <EmptyState light title="No events yet" subtitle="Seed more experiences for this mood." />
-              )}
+              <SectionHeader
+                title="When is the plan?"
+                subtitle="Keep the layout editorial, not marketplace-heavy."
+                light
+              />
 
-              <SectionHeader title="When is the plan?" light />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
-                {SCENE_MOODS.map((item) => (
-                  <SceneMood key={item.key} item={item} active={sceneMood === item.key} onPress={() => setSceneMood(item.key)} />
-                ))}
-              </ScrollView>
-
-              <SectionHeader title="All scenes" subtitle={`${sceneGridItems.length} events`} light />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
                 {SCENE_FILTERS.map((item) => (
-                  <SceneFilter key={item.key} item={item} active={sceneFilter === item.key} onPress={() => setSceneFilter(item.key)} />
+                  <FilterChip
+                    key={item.key}
+                    label={item.label}
+                    active={sceneFilter === item.key}
+                    onPress={() => setSceneFilter(item.key)}
+                    dark
+                  />
                 ))}
               </ScrollView>
 
-              <View style={styles.sceneFilterFab}>
-                <Ionicons name="options-outline" size={22} color={COLORS.scenesHero} />
-              </View>
+              <SectionHeader title="All scenes" subtitle="Curated drops around you" light />
 
-              {sceneGridItems.length === 0 ? (
-                <EmptyState light title="No events found" subtitle="Try another time bucket." />
+              {sceneItems.length === 0 ? (
+                <EmptyState dark title="No events in this bucket" subtitle="Adjust the time filter or seed more experience cards." />
               ) : (
-                sceneRows.map((row, index) => (
-                  <View key={`scene-row-${index}`} style={styles.sceneGridRow}>
-                    {row.map((item) => (
-                      <View key={item.id} style={styles.sceneGridCell}>
-                        <SceneCard item={item} compact />
-                      </View>
-                    ))}
-                    {row.length === 1 ? <View style={styles.sceneGridCell} /> : null}
-                  </View>
-                ))
+                <View style={styles.sceneGrid}>
+                  {sceneItems.map((item) => (
+                    <SceneEventCard key={item.id} item={item} />
+                  ))}
+                </View>
               )}
             </>
           ) : null}
@@ -1020,491 +938,757 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  topStrip: {
-    minHeight: 42,
-    backgroundColor: '#0e6b40',
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  safeArea: {
+    flex: 1,
   },
-  topStripText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },
-
-  hero: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
+  heroWrap: {
+    paddingHorizontal: 18,
+    paddingTop: 10,
     paddingBottom: 22,
     overflow: 'hidden',
   },
-  heroOrbOne: {
+  heroOrbLarge: {
     position: 'absolute',
-    right: -46,
-    top: -18,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    opacity: 0.22,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    top: -40,
+    right: -50,
+    opacity: 0.7,
   },
-  heroOrbTwo: {
+  heroOrbSmall: {
     position: 'absolute',
-    left: -36,
-    top: 108,
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    opacity: 0.16,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    left: -35,
+    bottom: 12,
+    opacity: 0.55,
   },
-  heroHeader: { flexDirection: 'row', alignItems: 'center' },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  locationTitle: { flex: 1, color: '#ffffff', fontSize: 17, fontWeight: '900' },
-  locationSub: { marginTop: 4, color: 'rgba(255,255,255,0.84)', fontSize: 13, fontWeight: '500' },
-  heroActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  onePill: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
   },
-  onePillText: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
-  profileBtn: {
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  locationTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  locationSub: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  profileGhostBtn: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(255,255,255,0.42)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  serviceTabsRow: { paddingTop: 18, paddingBottom: 16, gap: 10 },
-  serviceTab: {
-    minWidth: 118,
-    borderRadius: 24,
-    paddingHorizontal: 14,
+  serviceSwitcherRow: {
+    paddingBottom: 8,
+    gap: 10,
+  },
+  serviceChip: {
+    width: 152,
+    borderRadius: 22,
+    paddingHorizontal: 12,
     paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.65)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
   },
-  serviceTabDark: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderColor: 'rgba(255,255,255,0.08)',
+  serviceChipDark: {
+    borderColor: PALETTE.sceneBorder,
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
-  serviceTabActive: {
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderColor: 'rgba(255,255,255,0.4)',
+  serviceChipActive: {
+    backgroundColor: PALETTE.peach600,
+    borderColor: PALETTE.peach600,
   },
-  serviceTabDarkActive: { backgroundColor: 'rgba(255,255,255,0.14)' },
-  serviceTabIconWrap: {
+  serviceChipActiveDark: {
+    backgroundColor: '#F0AA81',
+    borderColor: '#F0AA81',
+  },
+  serviceChipIcon: {
     width: 34,
     height: 34,
     borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
   },
-  serviceTabIconWrapActive: { backgroundColor: 'rgba(255,255,255,0.18)' },
-  serviceTabBadge: { color: '#9ad8ff', fontSize: 10, fontWeight: '900', marginBottom: 2 },
-  serviceTabLabel: { color: COLORS.text, fontSize: 14, fontWeight: '900' },
-  serviceTabLabelDark: { color: '#ffffff' },
-  serviceTabLabelActive: { color: '#ffffff' },
-
-  searchWrap: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  searchBar: {
-    flex: 1,
-    minHeight: 58,
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
+  serviceChipIconActive: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  serviceChipLabel: {
+    color: PALETTE.text,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  serviceChipLabelDark: {
+    color: PALETTE.sceneText,
+  },
+  serviceChipLabelActive: {
+    color: '#ffffff',
+  },
+  serviceChipHint: {
+    marginTop: 2,
+    color: PALETTE.muted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  serviceChipHintDark: {
+    color: PALETTE.sceneMuted,
+  },
+  serviceChipHintActive: {
+    color: 'rgba(255,255,255,0.75)',
+  },
+  searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    marginTop: 10,
   },
-  searchBarDark: { backgroundColor: 'rgba(255,255,255,0.1)' },
-  searchInput: { flex: 1, color: COLORS.text, fontSize: 16, fontWeight: '600' },
-  searchInputDark: { color: '#ffffff' },
-  searchAction: {
-    minWidth: 58,
-    minHeight: 58,
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.04)',
+  },
+  searchBarDark: {
+    backgroundColor: '#1D1712',
+    borderColor: PALETTE.sceneBorder,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: PALETTE.text,
+  },
+  searchInputDark: {
+    color: PALETTE.sceneText,
+  },
+  searchSideAction: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.04)',
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 6,
-    paddingHorizontal: 10,
   },
-  searchActionDark: { backgroundColor: 'rgba(255,255,255,0.12)' },
-  searchActionText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
-  vegDot: { width: 10, height: 10, borderRadius: 3, backgroundColor: '#22c55e' },
-
+  searchSideActionDark: {
+    backgroundColor: '#1D1712',
+    borderColor: PALETTE.sceneBorder,
+  },
   heroBanner: {
     marginTop: 16,
-    minHeight: 126,
     borderRadius: 24,
-    backgroundColor: COLORS.yellow,
-    padding: 18,
-    justifyContent: 'flex-end',
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 16,
+    overflow: 'hidden',
   },
-  heroBannerMart: { backgroundColor: '#123d90' },
-  heroBannerDine: { backgroundColor: COLORS.yellowDeep },
-  heroBannerScenes: {
-    backgroundColor: '#0d0f18',
+  heroBannerLight: {
+    backgroundColor: 'rgba(255,255,255,0.72)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(0,0,0,0.04)',
   },
-  heroBannerTitle: { color: '#6d1a7a', fontSize: 34, fontWeight: '900', lineHeight: 34 },
-  heroBannerSub: { marginTop: 4, color: COLORS.text, fontSize: 24, fontWeight: '900', lineHeight: 26 },
-  heroBannerCaption: { marginTop: 6, color: '#4b5565', fontSize: 14, fontWeight: '700' },
-  heroBannerTitleLight: { color: COLORS.text, fontSize: 36, fontWeight: '900', lineHeight: 36 },
-  heroBannerSubLight: { marginTop: 4, color: COLORS.text, fontSize: 24, fontWeight: '900' },
-  heroBannerCaptionLight: { marginTop: 6, color: '#4b5565', fontSize: 14, fontWeight: '700' },
-  bestBrandPill: {
+  heroBannerDark: {
+    backgroundColor: '#1D1712',
+    borderWidth: 1,
+    borderColor: PALETTE.sceneBorder,
+  },
+  heroBannerGlow: {
     position: 'absolute',
-    right: 14,
-    top: 14,
-    borderRadius: 999,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    right: -30,
+    top: -20,
+    opacity: 0.28,
   },
-  bestBrandText: { color: '#10377d', fontSize: 10, fontWeight: '900' },
-  heroBannerTitleMart: { color: '#ffffff', fontSize: 30, fontWeight: '900' },
-  heroBannerSubMart: { marginTop: 4, color: '#ffffff', fontSize: 22, fontWeight: '900' },
-  heroBannerCaptionMart: { marginTop: 6, color: '#d4e2ff', fontSize: 14, fontWeight: '700' },
-  heroBannerTagScenes: { color: '#ff7cab', fontSize: 34, fontWeight: '900', lineHeight: 34 },
-  heroBannerSubScenes: { marginTop: 4, color: '#ffffff', fontSize: 26, fontWeight: '900' },
-  heroBannerCaptionScenes: { marginTop: 6, color: '#d1d8e8', fontSize: 14, fontWeight: '700' },
-
-  body: { paddingHorizontal: 16, paddingTop: 14 },
-  bodyScenes: { backgroundColor: COLORS.scenesHero },
-  horizontalRail: { gap: 12, paddingBottom: 4 },
-
+  heroEyebrow: {
+    color: PALETTE.peach600,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    marginBottom: 8,
+  },
+  heroEyebrowDark: {
+    color: PALETTE.peach300,
+  },
+  heroTitle: {
+    color: PALETTE.brownDark,
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '900',
+    marginBottom: 8,
+  },
+  heroTitleDark: {
+    color: PALETTE.sceneText,
+  },
+  heroCopy: {
+    color: PALETTE.muted,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '600',
+  },
+  heroCopyDark: {
+    color: PALETTE.sceneMuted,
+  },
+  heroStatRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  heroStat: {
+    flex: 1,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  heroStatDark: {
+    backgroundColor: '#2A2018',
+  },
+  heroStatLabel: {
+    color: PALETTE.subtle,
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  heroStatLabelDark: {
+    color: '#C9AC92',
+  },
+  heroStatValue: {
+    color: PALETTE.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  heroStatValueDark: {
+    color: PALETTE.sceneText,
+  },
+  body: {
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    gap: 18,
+  },
+  bodyDark: {
+    backgroundColor: PALETTE.sceneBg,
+    paddingBottom: 10,
+  },
   basketBanner: {
-    marginBottom: 16,
-    borderRadius: 18,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    padding: 14,
+    borderRadius: 20,
+    backgroundColor: PALETTE.surface,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
   },
-  basketBannerDark: { backgroundColor: COLORS.scenesSurface, borderColor: COLORS.scenesBorder },
-  basketIcon: {
+  basketBannerDark: {
+    backgroundColor: '#1D1712',
+    borderColor: PALETTE.sceneBorder,
+  },
+  basketIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: PALETTE.peach50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  basketIconWrapDark: {
+    backgroundColor: '#2D2219',
+  },
+  basketTitle: {
+    color: PALETTE.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  basketTitleDark: {
+    color: PALETTE.sceneText,
+  },
+  basketCopy: {
+    marginTop: 2,
+    color: PALETTE.muted,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  basketCopyDark: {
+    color: PALETTE.sceneMuted,
+  },
+  chipRow: {
+    gap: 10,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: PALETTE.surface,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  filterChipDark: {
+    backgroundColor: '#1D1712',
+    borderColor: PALETTE.sceneBorder,
+  },
+  filterChipActive: {
+    backgroundColor: PALETTE.peach600,
+    borderColor: PALETTE.peach600,
+  },
+  filterChipActiveDark: {
+    backgroundColor: '#F0AA81',
+    borderColor: '#F0AA81',
+  },
+  filterChipLabel: {
+    color: PALETTE.muted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  filterChipLabelDark: {
+    color: PALETTE.sceneMuted,
+  },
+  filterChipLabelActive: {
+    color: '#ffffff',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  sectionTitle: {
+    color: PALETTE.text,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  sectionTitleLight: {
+    color: PALETTE.sceneText,
+  },
+  sectionSubtitle: {
+    marginTop: 4,
+    color: PALETTE.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  sectionSubtitleLight: {
+    color: PALETTE.sceneMuted,
+  },
+  sectionAction: {
+    color: PALETTE.peach600,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  sectionActionLight: {
+    color: PALETTE.peach300,
+  },
+  railRow: {
+    gap: 14,
+    paddingRight: 8,
+  },
+  vendorRailCard: {
+    width: 220,
+  },
+  vendorRailCardDark: {
+    width: 220,
+  },
+  vendorRailVisual: {
+    height: 140,
+    borderRadius: 24,
+    padding: 14,
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  vendorOfferBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  vendorOfferBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  favoriteButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vendorMonogram: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 2,
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vendorMonogramText: {
+    color: PALETTE.brownDark,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  vendorMonogramTextDark: {
+    color: PALETTE.sceneText,
+  },
+  vendorName: {
+    color: PALETTE.text,
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  vendorNameDark: {
+    color: PALETTE.sceneText,
+  },
+  vendorMeta: {
+    color: PALETTE.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  vendorMetaDark: {
+    color: PALETTE.sceneMuted,
+  },
+  vendorSubline: {
+    color: PALETTE.subtle,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  vendorSublineDark: {
+    color: '#C9AC92',
+  },
+  vendorDeliveryLine: {
+    color: PALETTE.peach600,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  vendorDeliveryLineDark: {
+    color: PALETTE.peach300,
+  },
+  vendorListCard: {
+    flexDirection: 'row',
+    gap: 14,
+    padding: 14,
+    borderRadius: 22,
+    backgroundColor: PALETTE.surface,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
+  vendorListThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vendorListThumbText: {
+    color: PALETTE.brownDark,
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  vendorListTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  vendorListName: {
+    flex: 1,
+    color: PALETTE.text,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  vendorListFavorite: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vendorListMeta: {
+    color: PALETTE.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  vendorListCopy: {
+    color: PALETTE.subtle,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+  vendorListBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  vendorTagPill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: PALETTE.peach50,
+  },
+  vendorTagPillText: {
+    color: PALETTE.peach600,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  vendorListAction: {
+    color: PALETTE.peach600,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  quickTile: {
+    borderRadius: 22,
+    padding: 14,
+    backgroundColor: PALETTE.surface,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    minHeight: 108,
+    justifyContent: 'space-between',
+  },
+  quickTileLarge: {
+    minHeight: 228,
+  },
+  quickTileIconWrap: {
     width: 36,
     height: 36,
     borderRadius: 18,
+    backgroundColor: PALETTE.peach50,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.successSoft,
+    marginBottom: 12,
   },
-  basketIconDark: { backgroundColor: 'rgba(255,255,255,0.08)' },
-  basketTitle: { color: COLORS.text, fontSize: 15, fontWeight: '900' },
-  basketTitleDark: { color: '#ffffff' },
-  basketSubtitle: { marginTop: 2, color: COLORS.muted, fontSize: 13, fontWeight: '600' },
-  basketSubtitleDark: { color: '#cad3e6' },
-
-  sectionHeader: { marginBottom: 12, flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
-  sectionTitle: { color: COLORS.text, fontSize: 26, fontWeight: '900' },
-  sectionTitleLight: { color: '#ffffff' },
-  sectionSubtitle: { marginTop: 4, color: COLORS.muted, fontSize: 13, fontWeight: '600' },
-  sectionSubtitleLight: { color: COLORS.scenesMuted },
-  sectionAction: { color: COLORS.orange, fontSize: 16, fontWeight: '900' },
-  sectionActionLight: { color: '#ffffff' },
-
-  feedbackCard: {
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: 26,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 16,
+  quickTileTitle: {
+    color: PALETTE.text,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '900',
   },
-  feedbackCardDark: { backgroundColor: COLORS.scenesSurface, borderColor: COLORS.scenesBorder },
-  feedbackTitle: { color: COLORS.text, fontSize: 16, fontWeight: '800' },
-  feedbackTitleDark: { color: '#ffffff' },
-  feedbackSubtitle: { color: COLORS.muted, fontSize: 14, fontWeight: '500', textAlign: 'center' },
-  feedbackSubtitleDark: { color: COLORS.scenesMuted },
-
-  foodTilesRow: { flexDirection: 'row', gap: 10, marginBottom: 22 },
-  foodTile: {
-    flex: 1,
-    borderRadius: 22,
-    backgroundColor: COLORS.yellow,
-    paddingHorizontal: 14,
-    paddingVertical: 18,
-    minHeight: 136,
-    justifyContent: 'space-between',
+  quickTileTitleLarge: {
+    fontSize: 24,
+    lineHeight: 28,
   },
-  foodTileTitle: { color: '#6d1f7f', fontSize: 20, fontWeight: '900', lineHeight: 24 },
-  foodTileTag: { color: COLORS.text, fontSize: 12, fontWeight: '800' },
-
-  vendorRailCard: { width: 176, marginBottom: 18 },
-  vendorRailVisual: {
-    height: 154,
-    borderRadius: 22,
-    overflow: 'hidden',
-    padding: 12,
-    justifyContent: 'space-between',
+  quickTileSubtitle: {
+    color: PALETTE.muted,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '700',
+    marginTop: 6,
   },
-  offerBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  offerBadgeText: { color: '#ffffff', fontSize: 11, fontWeight: '900' },
-  favoriteButton: {
-    position: 'absolute',
-    right: 12,
-    top: 12,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.22)',
-  },
-  monogramBubble: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-  monogramText: { color: '#ffffff', fontSize: 22, fontWeight: '900' },
-  vendorRailName: { marginTop: 10, color: COLORS.text, fontSize: 16, fontWeight: '900' },
-  vendorRailMeta: { marginTop: 4, color: COLORS.text, fontSize: 13, fontWeight: '700' },
-  vendorRailFee: { marginTop: 3, color: COLORS.muted, fontSize: 12, fontWeight: '700' },
-
-  vendorListCard: {
-    marginBottom: 14,
-    borderRadius: 22,
-    overflow: 'hidden',
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  vendorListVisual: { height: 186, padding: 14, justifyContent: 'space-between' },
-  offerBadgeLarge: {
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  offerBadgeLargeText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
-  visualStoreMark: { color: '#ffffff', fontSize: 42, fontWeight: '900', opacity: 0.9 },
-  vendorListBody: { paddingHorizontal: 14, paddingVertical: 14 },
-  vendorListTitle: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
-  vendorListMeta: { marginTop: 5, color: COLORS.text, fontSize: 13, fontWeight: '700' },
-  vendorListSubtitle: { marginTop: 6, color: COLORS.muted, fontSize: 13, fontWeight: '600', lineHeight: 18 },
-
-  martFilter: {
-    minWidth: 94,
-    borderRadius: 18,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#d8e4f7',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  martFilterActive: { backgroundColor: COLORS.martHero, borderColor: COLORS.martHero },
-  martFilterText: { color: COLORS.martHero, fontSize: 12, fontWeight: '800' },
-  martFilterTextActive: { color: '#ffffff' },
-  martCollection: {
-    width: 136,
-    borderRadius: 20,
-    backgroundColor: '#1a4ba7',
-    paddingHorizontal: 14,
-    paddingVertical: 16,
-    minHeight: 118,
-    justifyContent: 'space-between',
-  },
-  martCollectionEmoji: { fontSize: 30 },
-  martCollectionTitle: { color: '#ffffff', fontSize: 16, fontWeight: '800', lineHeight: 20 },
-  martInfoStrip: {
-    marginTop: 10,
-    marginBottom: 18,
-    borderRadius: 16,
-    backgroundColor: '#0f3b8d',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+  dineGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
-  martInfoText: { flex: 1, color: '#ffffff', fontSize: 14, fontWeight: '800' },
-  dealsPanel: {
-    borderRadius: 24,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#dde7f7',
-    paddingTop: 18,
-    paddingBottom: 14,
-    marginBottom: 22,
+  dineColumnLarge: {
+    flex: 1,
   },
-  dealsPanelTitle: { paddingHorizontal: 16, color: COLORS.martHero, fontSize: 26, fontWeight: '900' },
-  dealsPanelSubtitle: { paddingHorizontal: 16, marginTop: 4, color: COLORS.muted, fontSize: 13, fontWeight: '600', marginBottom: 14 },
+  dineColumnRight: {
+    flex: 1,
+    gap: 12,
+  },
   dealCard: {
     width: 160,
-    borderRadius: 20,
-    backgroundColor: '#f7fbff',
-    borderWidth: 1,
-    borderColor: '#e3edf9',
+    borderRadius: 22,
     padding: 12,
+    backgroundColor: PALETTE.surface,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
   },
   dealVisual: {
-    height: 100,
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  dealEmoji: { fontSize: 42 },
-  dealName: { color: COLORS.text, fontSize: 14, fontWeight: '800', lineHeight: 18, minHeight: 36 },
-  dealBrand: { marginTop: 4, color: COLORS.muted, fontSize: 12, fontWeight: '600' },
-  dealPrice: { marginTop: 8, color: COLORS.text, fontSize: 16, fontWeight: '900' },
-  addButton: {
-    marginTop: 10,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: COLORS.martHero,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addButtonText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
-  qtyWrap: {
-    marginTop: 10,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: COLORS.martHero,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 6,
-  },
-  qtyAction: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  qtyText: { color: '#ffffff', fontSize: 13, fontWeight: '900' },
-
-  dineGrid: { flexDirection: 'row', gap: 10, marginBottom: 22 },
-  dineGridLeft: { width: '38%' },
-  dineGridRight: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  dineTile: {
-    width: '47%',
-    minHeight: 90,
+    height: 110,
     borderRadius: 20,
-    backgroundColor: COLORS.yellow,
-    padding: 14,
-    justifyContent: 'flex-end',
-  },
-  dineTileLarge: { width: '100%', minHeight: 190 },
-  dineTileText: { color: COLORS.text, fontSize: 17, fontWeight: '900', lineHeight: 20 },
-  dineTileTextLarge: { fontSize: 34, lineHeight: 36 },
-  spotlightCard: { width: 260, borderRadius: 24, padding: 18, minHeight: 160, justifyContent: 'space-between', marginBottom: 16 },
-  spotlightTitle: { color: '#ffffff', fontSize: 28, fontWeight: '900', lineHeight: 30 },
-  spotlightSubtitle: { marginTop: 8, color: 'rgba(255,255,255,0.92)', fontSize: 15, fontWeight: '700', lineHeight: 20 },
-  spotlightPill: {
-    alignSelf: 'flex-start',
-    borderRadius: 14,
-    backgroundColor: '#fff5e9',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-  spotlightPillText: { color: COLORS.text, fontSize: 13, fontWeight: '900' },
-  personalText: { marginBottom: 12, color: COLORS.text, fontSize: 20, fontWeight: '900' },
-  promptRow: { flexDirection: 'row', gap: 10, marginBottom: 22 },
-  promptChip: {
-    flex: 1,
-    borderRadius: 18,
-    backgroundColor: '#f8ece4',
-    paddingHorizontal: 14,
-    paddingVertical: 15,
-  },
-  promptChipText: { color: COLORS.text, fontSize: 15, fontWeight: '800' },
-
-  sceneMood: {
-    width: 118,
-    minHeight: 112,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    justifyContent: 'center',
-  },
-  sceneMoodActive: { backgroundColor: 'rgba(255,255,255,0.14)', borderColor: 'rgba(255,255,255,0.18)' },
-  sceneMoodText: { color: '#ffffff', fontSize: 22, fontWeight: '900', lineHeight: 24 },
-  sceneMoodTextActive: { color: '#ffffff' },
-  sceneFilter: {
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  sceneFilterActive: { backgroundColor: '#ffffff' },
-  sceneFilterText: { color: '#ffffff', fontSize: 13, fontWeight: '800' },
-  sceneFilterTextActive: { color: COLORS.scenesHero },
-  sceneFilterFab: {
-    alignSelf: 'center',
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#ffffff',
+    marginBottom: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 8,
-  },
-
-  sceneCardRail: { width: 276, borderRadius: 24, overflow: 'hidden', backgroundColor: COLORS.scenesSurface, borderWidth: 1, borderColor: COLORS.scenesBorder, marginBottom: 12 },
-  sceneVisualRail: { height: 186, padding: 16, justifyContent: 'space-between' },
-  sceneCardInfoRail: { flexDirection: 'row', gap: 12, padding: 14 },
-  sceneCardCompact: { borderRadius: 24, overflow: 'hidden', backgroundColor: COLORS.scenesSurface, borderWidth: 1, borderColor: COLORS.scenesBorder },
-  sceneVisualCompact: { height: 176, padding: 14, justifyContent: 'space-between' },
-  sceneCardInfoCompact: { flexDirection: 'row', gap: 10, padding: 12 },
-  sceneDateBox: {
-    width: 52,
-    borderRadius: 14,
-    backgroundColor: '#121c31',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    alignSelf: 'flex-start',
-  },
-  sceneDateText: { color: '#ffffff', fontSize: 15, fontWeight: '900', textAlign: 'center' },
-  sceneTitle: { color: '#ffffff', fontSize: 18, fontWeight: '900', lineHeight: 22 },
-  sceneSubtitle: { marginTop: 4, color: COLORS.scenesMuted, fontSize: 13, fontWeight: '600', lineHeight: 18 },
-  scenePricePill: {
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    backgroundColor: COLORS.pink,
-    color: '#ffffff',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
     overflow: 'hidden',
+  },
+  dealVisualEmoji: {
+    fontSize: 34,
+  },
+  dealPricePill: {
+    position: 'absolute',
+    bottom: 10,
+    left: 10,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  dealPricePillText: {
+    color: '#ffffff',
     fontSize: 12,
     fontWeight: '900',
   },
-  sceneGridRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  sceneGridCell: { flex: 1 },
+  dealBrand: {
+    color: PALETTE.subtle,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  dealName: {
+    color: PALETTE.text,
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  addButton: {
+    height: 36,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: PALETTE.peach50,
+  },
+  addButtonText: {
+    color: PALETTE.peach600,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  qtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: PALETTE.peach50,
+  },
+  qtyButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  qtyText: {
+    color: PALETTE.text,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  sceneGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 14,
+  },
+  sceneCard: {
+    width: '48.2%',
+    borderRadius: 22,
+    padding: 12,
+    backgroundColor: '#1D1712',
+    borderWidth: 1,
+    borderColor: PALETTE.sceneBorder,
+  },
+  scenePoster: {
+    height: 118,
+    borderRadius: 18,
+    marginBottom: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sceneDatePill: {
+    position: 'absolute',
+    left: 10,
+    top: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  sceneDateText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  sceneTitle: {
+    color: PALETTE.sceneText,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '900',
+    marginBottom: 5,
+  },
+  sceneSub: {
+    color: PALETTE.sceneMuted,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  scenePrice: {
+    color: PALETTE.peach300,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  feedbackCard: {
+    borderRadius: 22,
+    padding: 16,
+    backgroundColor: PALETTE.surface,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  feedbackCardDark: {
+    backgroundColor: '#1D1712',
+    borderColor: PALETTE.sceneBorder,
+  },
+  feedbackTitle: {
+    color: PALETTE.text,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  feedbackTitleDark: {
+    color: PALETTE.sceneText,
+  },
+  feedbackSubtitle: {
+    color: PALETTE.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  feedbackSubtitleDark: {
+    color: PALETTE.sceneMuted,
+  },
 });

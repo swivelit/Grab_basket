@@ -1,23 +1,46 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useGrabBasket } from '../../../App';
 
+const PALETTE = {
+  peach50: '#FFF8EF',
+  peach100: '#FFF2DE',
+  peach200: '#FFE5B4',
+  peach300: '#FFD7A1',
+  peach400: '#F3C38F',
+  peach500: '#E6A777',
+  peach600: '#D9895E',
+  text: '#2F241C',
+  muted: '#7B6858',
+  subtle: '#A18B79',
+  line: '#F0DDCA',
+  white: '#FFFFFF',
+
+  darkBg: '#15100C',
+  darkSurface: '#1F1813',
+  darkSurfaceAlt: '#2A211A',
+  darkBorder: '#413226',
+  darkText: '#FFF6ED',
+  darkMuted: '#D7C2B0',
+};
+
 const TAB_THEMES = {
   food: {
-    activeTint: '#ff6d00',
-    inactiveTint: '#7f8798',
-    background: '#ffffff',
-    border: '#eceff5',
-    shadowOpacity: 0.08,
-    focusedSurface: '#fff1e7',
-    focusedBorder: '#ffd9bf',
+    activeTint: PALETTE.peach600,
+    inactiveTint: PALETTE.subtle,
+    barBackground: 'rgba(255,255,255,0.98)',
+    barBorder: PALETTE.line,
+    shadowColor: '#9A6A48',
+    focusedSurface: PALETTE.peach50,
+    focusedBorder: '#F4D4B6',
+    iconSurface: '#FFF4E7',
     titleMap: {
       index: 'Food',
       explore: 'Gourmet',
       reorder: 'Reorder',
-      account: 'Account',
+      account: 'Profile',
     },
     iconMap: {
       index: 'fast-food-outline',
@@ -27,18 +50,19 @@ const TAB_THEMES = {
     },
   },
   warehouse: {
-    activeTint: '#0b57d0',
-    inactiveTint: '#7f8798',
-    background: '#ffffff',
-    border: '#e4ecf9',
-    shadowOpacity: 0.08,
-    focusedSurface: '#edf4ff',
-    focusedBorder: '#cfe0ff',
+    activeTint: PALETTE.peach600,
+    inactiveTint: PALETTE.subtle,
+    barBackground: 'rgba(255,255,255,0.98)',
+    barBorder: PALETTE.line,
+    shadowColor: '#9A6A48',
+    focusedSurface: '#FFF6EA',
+    focusedBorder: '#F2D7BE',
+    iconSurface: '#FFF1E1',
     titleMap: {
       index: 'Instamart',
       explore: 'Categories',
       reorder: 'Reorder',
-      account: 'Account',
+      account: 'Profile',
     },
     iconMap: {
       index: 'basket-outline',
@@ -48,18 +72,19 @@ const TAB_THEMES = {
     },
   },
   eatout: {
-    activeTint: '#ff7a00',
-    inactiveTint: '#7f8798',
-    background: '#ffffff',
-    border: '#efe7fb',
-    shadowOpacity: 0.08,
-    focusedSurface: '#fff3e8',
-    focusedBorder: '#ffd6b3',
+    activeTint: PALETTE.peach600,
+    inactiveTint: PALETTE.subtle,
+    barBackground: 'rgba(255,255,255,0.98)',
+    barBorder: PALETTE.line,
+    shadowColor: '#9A6A48',
+    focusedSurface: '#FFF5EA',
+    focusedBorder: '#F2D8C0',
+    iconSurface: '#FFF1E5',
     titleMap: {
       index: 'Dineout',
       explore: 'My corner',
       reorder: 'New & Hot',
-      account: 'Account',
+      account: 'Profile',
     },
     iconMap: {
       index: 'restaurant-outline',
@@ -69,18 +94,19 @@ const TAB_THEMES = {
     },
   },
   scenes: {
-    activeTint: '#ffffff',
-    inactiveTint: '#7f8aa3',
-    background: '#050816',
-    border: '#10182b',
-    shadowOpacity: 0.2,
-    focusedSurface: 'rgba(255,255,255,0.10)',
-    focusedBorder: 'rgba(255,255,255,0.14)',
+    activeTint: PALETTE.darkText,
+    inactiveTint: '#A79383',
+    barBackground: 'rgba(22,17,13,0.98)',
+    barBorder: PALETTE.darkBorder,
+    shadowColor: '#000000',
+    focusedSurface: PALETTE.darkSurfaceAlt,
+    focusedBorder: '#5B4738',
+    iconSurface: '#2A211A',
     titleMap: {
       index: 'Scenes',
       explore: 'Explore',
       reorder: 'Saved',
-      account: 'Account',
+      account: 'Profile',
     },
     iconMap: {
       index: 'sparkles-outline',
@@ -95,30 +121,56 @@ function getOrderCount(orderHistory = []) {
   return Array.isArray(orderHistory) ? orderHistory.length : 0;
 }
 
-function TabPill({
+function getBadgeForRoute(routeName, activeService, cartCount, orderCount) {
+  if (routeName !== 'reorder') return null;
+
+  if (cartCount > 0) {
+    return cartCount > 9 ? '9+' : String(cartCount);
+  }
+
+  if (activeService === 'scenes' && orderCount > 0) {
+    return '•';
+  }
+
+  return null;
+}
+
+function TabItem({
+  focused,
+  color,
   icon,
   label,
-  color,
-  focused,
   badge,
+  dark,
   focusedSurface,
   focusedBorder,
-  dark,
+  iconSurface,
 }) {
   return (
     <View
       style={[
-        styles.tabPill,
+        styles.tabItem,
         focused && {
           backgroundColor: focusedSurface,
           borderColor: focusedBorder,
         },
       ]}>
-      <View style={styles.iconWrap}>
-        <Ionicons name={icon} size={20} color={color} />
+      <View
+        style={[
+          styles.iconBubble,
+          {
+            backgroundColor: focused
+              ? dark
+                ? '#31261D'
+                : iconSurface
+              : 'transparent',
+          },
+        ]}>
+        <Ionicons name={icon} size={19} color={color} />
+
         {badge ? (
           <View style={[styles.badge, dark && styles.badgeDark]}>
-            <Text style={styles.badgeText} numberOfLines={1}>
+            <Text style={[styles.badgeText, dark && styles.badgeTextDark]} numberOfLines={1}>
               {badge}
             </Text>
           </View>
@@ -146,30 +198,24 @@ export default function TabsLayout() {
     [activeService]
   );
 
-  const orderCount = getOrderCount(orderHistory);
   const isDark = activeService === 'scenes';
-
-  const getBadgeForRoute = (routeName) => {
-    if (routeName === 'reorder') {
-      if (cartCount > 0) return String(Math.min(cartCount, 9));
-      if (orderCount > 0 && activeService === 'scenes') return '•';
-    }
-    return null;
-  };
+  const orderCount = getOrderCount(orderHistory);
 
   const makeOptions = (routeName) => ({
     title: theme.titleMap[routeName],
+    headerShown: false,
     tabBarLabel: () => null,
     tabBarIcon: ({ focused, color }) => (
-      <TabPill
+      <TabItem
         focused={focused}
         color={color}
         icon={theme.iconMap[routeName]}
         label={theme.titleMap[routeName]}
-        badge={getBadgeForRoute(routeName)}
+        badge={getBadgeForRoute(routeName, activeService, cartCount, orderCount)}
+        dark={isDark}
         focusedSurface={theme.focusedSurface}
         focusedBorder={theme.focusedBorder}
-        dark={isDark}
+        iconSurface={theme.iconSurface}
       />
     ),
   });
@@ -178,21 +224,32 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        lazy: true,
         tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: theme.activeTint,
         tabBarInactiveTintColor: theme.inactiveTint,
+        sceneStyle: {
+          backgroundColor: isDark ? PALETTE.darkBg : PALETTE.peach50,
+        },
         tabBarStyle: {
-          height: 82,
-          backgroundColor: theme.background,
-          borderTopColor: theme.border,
-          borderTopWidth: 1,
+          height: 88,
           paddingTop: 10,
-          paddingBottom: 12,
-          shadowColor: '#0f172a',
-          shadowOpacity: theme.shadowOpacity,
-          shadowRadius: 18,
-          shadowOffset: { width: 0, height: -6 },
-          elevation: 16,
+          paddingBottom: 14,
+          backgroundColor: theme.barBackground,
+          borderTopWidth: 1,
+          borderTopColor: theme.barBorder,
+          ...Platform.select({
+            ios: {
+              shadowColor: theme.shadowColor,
+              shadowOpacity: isDark ? 0.28 : 0.12,
+              shadowRadius: 18,
+              shadowOffset: { width: 0, height: -6 },
+            },
+            android: {
+              elevation: 18,
+            },
+            default: {},
+          }),
         },
         tabBarItemStyle: {
           paddingHorizontal: 2,
@@ -207,23 +264,26 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabPill: {
-    minWidth: 82,
-    maxWidth: 92,
-    minHeight: 54,
-    borderRadius: 18,
+  tabItem: {
+    minWidth: 80,
+    maxWidth: 94,
+    minHeight: 58,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
   },
-  iconWrap: {
-    position: 'relative',
-    minHeight: 22,
-    justifyContent: 'center',
+  iconBubble: {
+    minWidth: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    paddingHorizontal: 8,
   },
   tabLabel: {
     marginTop: 5,
@@ -236,23 +296,26 @@ const styles = StyleSheet.create({
   },
   badge: {
     position: 'absolute',
-    top: -8,
-    right: -14,
+    top: -5,
+    right: -8,
     minWidth: 16,
     height: 16,
-    paddingHorizontal: 4,
     borderRadius: 8,
-    backgroundColor: '#ff4d4f',
+    paddingHorizontal: 4,
+    backgroundColor: PALETTE.peach600,
     alignItems: 'center',
     justifyContent: 'center',
   },
   badgeDark: {
-    backgroundColor: '#ffffff',
+    backgroundColor: PALETTE.peach300,
   },
   badgeText: {
-    color: '#ffffff',
-    fontSize: 9,
+    color: PALETTE.white,
+    fontSize: 8,
     fontWeight: '900',
     lineHeight: 10,
+  },
+  badgeTextDark: {
+    color: PALETTE.text,
   },
 });
