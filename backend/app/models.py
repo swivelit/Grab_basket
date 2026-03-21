@@ -33,9 +33,22 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     vendor = relationship("Vendor", back_populates="seller", uselist=False)
-    customer_addresses = relationship("CustomerAddress", back_populates="customer", cascade="all, delete-orphan")
-    partner_locations = relationship("PartnerLocation", back_populates="partner", cascade="all, delete-orphan")
+    customer_addresses = relationship(
+        "CustomerAddress",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+    )
+    partner_locations = relationship(
+        "PartnerLocation",
+        back_populates="partner",
+        cascade="all, delete-orphan",
+    )
     fcm_tokens = relationship("FcmToken", back_populates="user", cascade="all, delete-orphan")
+    refresh_tokens = relationship(
+        "RefreshToken",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 class FcmToken(Base):
@@ -47,6 +60,22 @@ class FcmToken(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="fcm_tokens")
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String(128), nullable=False, unique=True, index=True)
+    token_family = Column(String(64), nullable=False, index=True)
+    user_agent = Column(String(512), default="", nullable=False)
+    ip_address = Column(String(64), default="", nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    last_used_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="refresh_tokens")
 
 
 class Vendor(Base):
@@ -204,3 +233,4 @@ Index("ix_order_events_order_created", OrderEvent.order_id, OrderEvent.created_a
 Index("ix_orders_status_created", Order.status, Order.created_at)
 Index("ix_orders_vendor_created", Order.vendor_id, Order.created_at)
 Index("ix_orders_customer_created", Order.customer_id, Order.created_at)
+Index("ix_refresh_tokens_user_created", RefreshToken.user_id, RefreshToken.created_at)

@@ -20,7 +20,19 @@ class LoginIn(BaseModel):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: Optional[str] = None
+    token_type: str = "bearer"
+    access_token_expires_in: int
+    refresh_token_expires_in: Optional[int] = None
     role: str
+
+
+class RefreshTokenIn(BaseModel):
+    refresh_token: str = Field(min_length=20, max_length=4096)
+
+
+class LogoutIn(BaseModel):
+    refresh_token: str = Field(min_length=20, max_length=4096)
 
 
 # ---------- FCM ----------
