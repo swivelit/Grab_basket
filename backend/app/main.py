@@ -7,6 +7,7 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
@@ -25,15 +26,15 @@ logger = logging.getLogger("grabbasket")
 
 app = FastAPI(
     title="Grabbasket API",
-    version="1.0.0",
+    version="1.1.0",
 )
 
 
 @app.on_event("startup")
 def _startup() -> None:
-    # MVP: auto-create tables
-    # Production: use Alembic migrations
-    Base.metadata.create_all(bind=engine)
+    if settings.RUN_DB_CREATE_ON_STARTUP:
+        Base.metadata.create_all(bind=engine)
+        logger.warning("Database tables auto-created at startup. Use Alembic migrations outside development.")
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -96,9 +97,27 @@ async def request_context(request: Request, call_next):
     finally:
         dur_ms = int((time.time() - start) * 1000)
         status = getattr(response, "status_code", "?")
-        logger.info("%s %s -> %s (%sms)", request.method, request.url.path, status, dur_ms, extra={"request_id": req_id})
+        logger.info(
+            "%s %s -> %s (%sms)",
+            request.method,
+            request.url.path,
+            status,
+            dur_ms,
+            extra={"request_id": req_id},
+        )
 
     response.headers["x-request-id"] = req_id
+    response.headers["x-response-time-ms"] = str(dur_ms)
+
+    if settings.SECURITY_HEADERS_ENABLED:
+        response.headers.setdefault("x-content-type-options", "nosniff")
+        response.headers.setdefault("x-frame-options", "DENY")
+        response.headers.setdefault("referrer-policy", "same-origin")
+        response.headers.setdefault("permissions-policy", "camera=(), microphone=(), geolocation=()")
+        response.headers.setdefault("cache-control", "no-store")
+        if settings.is_prod:
+            response.headers.setdefault("strict-transport-security", "max-age=31536000; includeSubDomains")
+
     return response
 
 
@@ -116,6 +135,25 @@ def root():
 
 @app.get("/health")
 def health():
+    db_ok = False
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        logger.exception("Health check failed")
+
+    return {
+        "ok": db_ok,
+        "env": settings.APP_ENV,
+        "database": "ok" if db_ok else "error",
+    }
+
+
+@app.get("/ready")
+def ready():
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
     return {"ok": True, "env": settings.APP_ENV}
 
 
