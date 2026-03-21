@@ -22,23 +22,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  API_CONFIG_ERROR,
-  API_TIMEOUT_MS,
-  APP_CONFIG,
-  buildApiUrl,
-} from './src/config';
+import { API_CONFIG_ERROR, API_TIMEOUT_MS, buildApiUrl } from './src/config';
 
-const STORAGE_CART = '@grab_basket/cart_v10';
-const STORAGE_FAVORITES = '@grab_basket/favorites_v7';
-const STORAGE_RECENT_STORES = '@grab_basket/recent_stores_v8';
-const STORAGE_RECENT_SEARCHES = '@grab_basket/recent_searches_v7';
-const STORAGE_ORDER_HISTORY = '@grab_basket/order_history_v5';
+const STORAGE_CART = '@grab_basket/cart_v11';
+const STORAGE_FAVORITES = '@grab_basket/favorites_v8';
+const STORAGE_RECENT_STORES = '@grab_basket/recent_stores_v9';
+const STORAGE_RECENT_SEARCHES = '@grab_basket/recent_searches_v8';
+const STORAGE_ORDER_HISTORY = '@grab_basket/order_history_v6';
+const STORAGE_AUTH_TOKEN = '@grab_basket/auth_token_v1';
+const STORAGE_AUTH_EMAIL = '@grab_basket/auth_email_v1';
+const STORAGE_AUTH_ROLE = '@grab_basket/auth_role_v1';
+const STORAGE_SELECTED_ADDRESS_ID = '@grab_basket/selected_address_id_v1';
 
 const FREE_DELIVERY_THRESHOLD = 199;
-const PLATFORM_FEE = 6;
+const PLATFORM_FEE = 0;
 const MAX_RECENT = 8;
-const MAX_ORDERS = 16;
+const MAX_ORDERS = 50;
 const NETWORK_TIMEOUT_MS =
   Number.isFinite(Number(API_TIMEOUT_MS)) && Number(API_TIMEOUT_MS) > 0
     ? Number(API_TIMEOUT_MS)
@@ -72,6 +71,7 @@ const COLORS = {
   purpleSoft: '#F3EEFF',
   yellowSoft: '#FFF6DB',
   danger: '#D45454',
+  dangerSoft: '#FCE9E9',
 
   black: '#2B211A',
   darkSurface: '#16110D',
@@ -95,58 +95,6 @@ const REORDER_FILTERS = [
   { key: 'eatout', label: 'Dineout' },
   { key: 'scenes', label: 'Scenes' },
 ];
-
-const FALLBACK_HOME_DEALS = [
-  { id: 'deal-1', vendor_id: 'demo-mart', vendorName: 'Daily Basket', name: 'Fresh Curd', price: 35, brand: 'Everyday essential' },
-  { id: 'deal-2', vendor_id: 'demo-mart', vendorName: 'Daily Basket', name: 'Milk Chocolate', price: 20, brand: 'Quick sweet bite' },
-  { id: 'deal-3', vendor_id: 'demo-mart', vendorName: 'Daily Basket', name: 'Fruit Jam', price: 49, brand: 'Breakfast saver' },
-  { id: 'deal-4', vendor_id: 'demo-mart', vendorName: 'Daily Basket', name: 'Classic Chips', price: 20, brand: 'Impulse add-on' },
-];
-
-const FALLBACK_ORDER_HISTORY = [
-  {
-    id: 'fallback-food-1',
-    service: 'food',
-    vendorName: 'Bakeryt',
-    location: 'Manali Rd',
-    items: [{ name: 'Chocolate Truffle', qty: 1 }],
-    orderedAt: 'February 11, 5:18 PM',
-    total: 511,
-    status: 'Delivered',
-  },
-  {
-    id: 'fallback-food-2',
-    service: 'food',
-    vendorName: 'Sweet Truth - Cake and Desserts',
-    location: 'Manali Rd',
-    items: [{ name: 'Red Velvet Jar', qty: 2 }],
-    orderedAt: 'February 9, 7:10 PM',
-    total: 298,
-    status: 'Delivered',
-  },
-  {
-    id: 'fallback-warehouse-1',
-    service: 'warehouse',
-    vendorName: 'Daily Basket',
-    location: 'Great Orchard',
-    items: [{ name: 'Curd', qty: 1 }, { name: 'Milk Chocolate', qty: 1 }],
-    orderedAt: 'March 18, 2:40 PM',
-    total: 109,
-    status: 'Delivered',
-  },
-  {
-    id: 'fallback-eatout-1',
-    service: 'eatout',
-    vendorName: 'Cafe Papaya',
-    location: 'Kakkanad',
-    items: [{ name: 'Table for 2', qty: 1 }],
-    orderedAt: 'March 20, 8:15 PM',
-    total: 799,
-    status: 'Booked',
-  },
-];
-
-const USE_DEMO_CONTENT = APP_CONFIG.isDevelopment;
 
 function normalizeText(value = '') {
   return String(value || '').trim().toLowerCase();
@@ -277,8 +225,9 @@ function dedupeStrings(values = []) {
   return output;
 }
 
-function formatOrderTime(date = new Date()) {
+function formatOrderTime(dateInput = new Date()) {
   try {
+    const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
     return date.toLocaleString('en-IN', {
       month: 'long',
       day: 'numeric',
@@ -292,15 +241,132 @@ function formatOrderTime(date = new Date()) {
 
 function createShortcutBuckets(vendors = []) {
   return {
-    fresh: vendors.filter((vendor) => /(fruit|vegetable|fresh|dairy|farm|grocery|greens)/i.test(`${vendor?.name || ''} ${vendor?.description || ''}`)),
-    maxxsaver: vendors.filter((vendor) => /(save|mart|basket|daily|essentials|value)/i.test(`${vendor?.name || ''} ${vendor?.description || ''}`)),
-    festival: vendors.filter((vendor) => /(dates|dry|dessert|sweet|gift|biryani|festival|ramzan)/i.test(`${vendor?.name || ''} ${vendor?.description || ''}`)),
-    ready: vendors.filter((vendor) => /(ready|instant|coffee|tea|bakery|juice|quick)/i.test(`${vendor?.name || ''} ${vendor?.description || ''}`)),
+    fresh: vendors.filter((vendor) =>
+      /(fruit|vegetable|fresh|dairy|farm|grocery|greens)/i.test(
+        `${vendor?.name || ''} ${vendor?.description || ''}`
+      )
+    ),
+    maxxsaver: vendors.filter((vendor) =>
+      /(save|mart|basket|daily|essentials|value)/i.test(
+        `${vendor?.name || ''} ${vendor?.description || ''}`
+      )
+    ),
+    festival: vendors.filter((vendor) =>
+      /(dates|dry|dessert|sweet|gift|biryani|festival|ramzan)/i.test(
+        `${vendor?.name || ''} ${vendor?.description || ''}`
+      )
+    ),
+    ready: vendors.filter((vendor) =>
+      /(ready|instant|coffee|tea|bakery|juice|quick)/i.test(
+        `${vendor?.name || ''} ${vendor?.description || ''}`
+      )
+    ),
   };
 }
 
 function isValidCart(value) {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && typeof value.items === 'object');
+  return Boolean(
+    value && typeof value === 'object' && !Array.isArray(value) && typeof value.items === 'object'
+  );
+}
+
+function prettifyStatus(status = '') {
+  const raw = String(status || '').trim();
+  if (!raw) return 'Created';
+  return raw
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function inferServiceFromContent(vendor, items = []) {
+  const bag = `${vendor?.name || ''} ${vendor?.description || ''} ${items
+    .map((item) => item?.name || item?.name_snapshot || '')
+    .join(' ')}`.toLowerCase();
+
+  if (/(mart|basket|grocery|milk|curd|bread|atta|snack)/.test(bag)) return 'warehouse';
+  if (/(table|booking|reservation|cafe|brewery|dine)/.test(bag)) return 'eatout';
+  if (/(scene|event|ticket|show|workshop|comedy|gig|entry)/.test(bag)) return 'scenes';
+  return 'food';
+}
+
+function formatAddressShort(address) {
+  if (!address) return '';
+  return [address.label, address.line1, address.city].filter(Boolean).join(' · ');
+}
+
+function normalizeAddress(item) {
+  if (!item) return null;
+  return {
+    id: item.id,
+    label: item.label || 'Address',
+    line1: item.line1 || '',
+    line2: item.line2 || '',
+    city: item.city || '',
+    pincode: item.pincode || '',
+    lat: Number(item.lat ?? 0),
+    lng: Number(item.lng ?? 0),
+    is_default: Boolean(item.is_default),
+  };
+}
+
+function normalizeOrderRecord(order, { vendors = [], addresses = [], serviceHint = '' } = {}) {
+  if (!order) return null;
+
+  const vendorId = order.vendor_id ?? order.vendorId ?? null;
+  const vendor = findVendorById(vendors, vendorId);
+  const items = Array.isArray(order.items)
+    ? order.items.map((item) => ({
+        name: item?.name_snapshot || item?.name || 'Item',
+        qty: Number(item?.qty || 1),
+      }))
+    : [];
+
+  const addressId = order.delivery_address_id ?? order.deliveryAddressId ?? null;
+  const address = addresses.find((item) => String(item?.id) === String(addressId)) || null;
+  const rawService = normalizeText(order.service);
+  const service = rawService
+    ? mapLegacyService(rawService)
+    : serviceHint
+      ? mapLegacyService(serviceHint)
+      : inferServiceFromContent(vendor, items);
+
+  return {
+    id: String(order.id || Date.now()),
+    service,
+    vendorId,
+    vendorName: order.vendorName || vendor?.name || `Store #${vendorId || 'NA'}`,
+    location:
+      order.location ||
+      vendor?.address ||
+      formatAddressShort(address) ||
+      'Saved address',
+    items,
+    orderedAt: order.orderedAt || formatOrderTime(order.created_at || new Date()),
+    total:
+      Number(order.total_amount ?? order.total ?? order.subtotal_amount ?? 0) +
+      Number(order.platform_fee ?? 0),
+    status: prettifyStatus(order.status || 'CREATED'),
+    paymentMethod: order.payment_method || order.paymentMethod || 'COD',
+    paymentStatus: prettifyStatus(order.payment_status || order.paymentStatus || 'PENDING'),
+    deliveryAddressId: addressId,
+    createdAt: order.created_at || null,
+  };
+}
+
+function mergeOrderCollections(primary = [], secondary = []) {
+  const map = new Map();
+
+  [...primary, ...secondary].forEach((item) => {
+    if (!item?.id) return;
+    map.set(String(item.id), item);
+  });
+
+  return Array.from(map.values()).sort((a, b) => {
+    const aTime = new Date(a.createdAt || a.orderedAt || 0).getTime();
+    const bTime = new Date(b.createdAt || b.orderedAt || 0).getTime();
+    return bTime - aTime;
+  });
 }
 
 async function apiRequest(path, options = {}) {
@@ -325,9 +391,7 @@ async function apiRequest(path, options = {}) {
     const data = safeJsonParse(raw);
 
     if (!response.ok) {
-      throw new Error(
-        extractErrorMessage(data, `Request failed with status ${response.status}`)
-      );
+      throw new Error(extractErrorMessage(data, `Request failed with status ${response.status}`));
     }
 
     return data;
@@ -373,11 +437,25 @@ export function GrabBasketProvider({ children }) {
   const [recentSearches, setRecentSearches] = useState([]);
   const [orderHistory, setOrderHistory] = useState([]);
 
+  const [sessionReady, setSessionReady] = useState(false);
+  const [authToken, setAuthToken] = useState('');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authRole, setAuthRole] = useState('');
+  const [profile, setProfile] = useState(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [addresses, setAddresses] = useState([]);
+  const [addressesLoading, setAddressesLoading] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [placingOrder, setPlacingOrder] = useState(false);
+
   const vendorRequestIdRef = useRef(0);
   const dealsRequestIdRef = useRef(0);
   const configAlertShownRef = useRef(false);
   const vendorErrorAlertRef = useRef('');
   const productsErrorAlertRef = useRef('');
+
+  const isAuthenticated = Boolean(authToken);
 
   useEffect(() => {
     if (!API_CONFIG_ERROR || configAlertShownRef.current) return;
@@ -396,6 +474,10 @@ export function GrabBasketProvider({ children }) {
           STORAGE_RECENT_STORES,
           STORAGE_RECENT_SEARCHES,
           STORAGE_ORDER_HISTORY,
+          STORAGE_AUTH_TOKEN,
+          STORAGE_AUTH_EMAIL,
+          STORAGE_AUTH_ROLE,
+          STORAGE_SELECTED_ADDRESS_ID,
         ]);
 
         if (!mounted) return;
@@ -405,6 +487,10 @@ export function GrabBasketProvider({ children }) {
         const nextStores = values[2]?.[1];
         const nextSearches = values[3]?.[1];
         const nextOrders = values[4]?.[1];
+        const nextAuthToken = values[5]?.[1];
+        const nextAuthEmail = values[6]?.[1];
+        const nextAuthRole = values[7]?.[1];
+        const nextSelectedAddressId = values[8]?.[1];
 
         if (nextCart) {
           try {
@@ -444,21 +530,20 @@ export function GrabBasketProvider({ children }) {
           try {
             const parsed = JSON.parse(nextOrders);
             if (Array.isArray(parsed)) {
-              setOrderHistory(
-                parsed
-                  .map((item) => ({
-                    ...item,
-                    service: mapLegacyService(item?.service),
-                  }))
-                  .slice(0, MAX_ORDERS)
-              );
+              setOrderHistory(parsed.slice(0, MAX_ORDERS));
             }
           } catch {}
         }
+
+        if (nextAuthToken) setAuthToken(String(nextAuthToken));
+        if (nextAuthEmail) setAuthEmail(String(nextAuthEmail));
+        if (nextAuthRole) setAuthRole(String(nextAuthRole));
+        if (nextSelectedAddressId) setSelectedAddressId(String(nextSelectedAddressId));
       } catch {
         // ignore invalid local cache
       } finally {
         if (mounted) {
+          setSessionReady(true);
           setVendorsLoading(false);
         }
       }
@@ -470,24 +555,74 @@ export function GrabBasketProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    if (!sessionReady) return;
     AsyncStorage.setItem(STORAGE_CART, JSON.stringify(cart)).catch(() => {});
-  }, [cart]);
+  }, [cart, sessionReady]);
 
   useEffect(() => {
+    if (!sessionReady) return;
     AsyncStorage.setItem(STORAGE_FAVORITES, JSON.stringify(favorites)).catch(() => {});
-  }, [favorites]);
+  }, [favorites, sessionReady]);
 
   useEffect(() => {
+    if (!sessionReady) return;
     AsyncStorage.setItem(STORAGE_RECENT_STORES, JSON.stringify(recentStoreIds)).catch(() => {});
-  }, [recentStoreIds]);
+  }, [recentStoreIds, sessionReady]);
 
   useEffect(() => {
+    if (!sessionReady) return;
     AsyncStorage.setItem(STORAGE_RECENT_SEARCHES, JSON.stringify(recentSearches)).catch(() => {});
-  }, [recentSearches]);
+  }, [recentSearches, sessionReady]);
 
   useEffect(() => {
+    if (!sessionReady) return;
     AsyncStorage.setItem(STORAGE_ORDER_HISTORY, JSON.stringify(orderHistory)).catch(() => {});
-  }, [orderHistory]);
+  }, [orderHistory, sessionReady]);
+
+  useEffect(() => {
+    if (!sessionReady) return;
+
+    if (authToken) {
+      AsyncStorage.multiSet([
+        [STORAGE_AUTH_TOKEN, authToken],
+        [STORAGE_AUTH_EMAIL, authEmail || ''],
+        [STORAGE_AUTH_ROLE, authRole || ''],
+      ]).catch(() => {});
+      return;
+    }
+
+    AsyncStorage.multiRemove([
+      STORAGE_AUTH_TOKEN,
+      STORAGE_AUTH_EMAIL,
+      STORAGE_AUTH_ROLE,
+    ]).catch(() => {});
+  }, [authEmail, authRole, authToken, sessionReady]);
+
+  useEffect(() => {
+    if (!sessionReady) return;
+    if (selectedAddressId) {
+      AsyncStorage.setItem(STORAGE_SELECTED_ADDRESS_ID, String(selectedAddressId)).catch(() => {});
+      return;
+    }
+    AsyncStorage.removeItem(STORAGE_SELECTED_ADDRESS_ID).catch(() => {});
+  }, [selectedAddressId, sessionReady]);
+
+  const authorizedRequest = useCallback(
+    async (path, options = {}) => {
+      if (!authToken) {
+        throw new Error('Sign in is required for this action.');
+      }
+
+      return apiRequest(path, {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+    },
+    [authToken]
+  );
 
   const rememberSearch = useCallback((term) => {
     const value = String(term || '').trim();
@@ -580,15 +715,14 @@ export function GrabBasketProvider({ children }) {
       const curated = groups
         .flatMap(({ vendor, products }) =>
           products
-            .filter((item) => item?.is_available !== false)
+            .filter((item) => item?.is_available)
+            .slice(0, 3)
             .map((item) => ({
               ...item,
               vendorName: vendor?.name,
-              vendor_id: item?.vendor_id ?? vendor?.id,
-              key: `${vendor?.id}-${item?.id}`,
+              brand: vendor?.description || vendor?.address || 'Top pick',
             }))
         )
-        .sort((a, b) => Number(a?.price || 0) - Number(b?.price || 0))
         .slice(0, 8);
 
       setHomeDeals(curated);
@@ -600,11 +734,7 @@ export function GrabBasketProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (vendors.length > 0) loadHomeDeals(vendors);
-    else {
-      setHomeDeals([]);
-      setHomeDealsLoading(false);
-    }
+    loadHomeDeals(vendors);
   }, [vendors, loadHomeDeals]);
 
   const loadProducts = useCallback(async (vendor, searchValue = '') => {
@@ -631,6 +761,105 @@ export function GrabBasketProvider({ children }) {
     }
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    if (!authToken) {
+      setProfile(null);
+      return null;
+    }
+
+    const data = await authorizedRequest('/me/profile');
+    setProfile(data || null);
+    return data || null;
+  }, [authToken, authorizedRequest]);
+
+  const loadAddresses = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!authToken) {
+        setAddresses([]);
+        return [];
+      }
+
+      try {
+        if (!silent) setAddressesLoading(true);
+        const data = await authorizedRequest('/me/addresses');
+        const parsed = Array.isArray(data)
+          ? data.map(normalizeAddress).filter(Boolean)
+          : [];
+        setAddresses(parsed);
+        return parsed;
+      } catch (error) {
+        if (!silent) {
+          Alert.alert('Could not load addresses', normalizeErrorMessage(error));
+        }
+        return [];
+      } finally {
+        if (!silent) setAddressesLoading(false);
+      }
+    },
+    [authToken, authorizedRequest]
+  );
+
+  const loadOrders = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!authToken) {
+        setOrderHistory([]);
+        return [];
+      }
+
+      try {
+        if (!silent) setOrdersLoading(true);
+        const data = await authorizedRequest('/orders/me');
+        const parsed = Array.isArray(data)
+          ? data
+              .map((item) => normalizeOrderRecord(item, { vendors, addresses }))
+              .filter(Boolean)
+          : [];
+        setOrderHistory((current) => mergeOrderCollections(parsed, current).slice(0, MAX_ORDERS));
+        return parsed;
+      } catch (error) {
+        if (!silent) {
+          Alert.alert('Could not load orders', normalizeErrorMessage(error));
+        }
+        return [];
+      } finally {
+        if (!silent) setOrdersLoading(false);
+      }
+    },
+    [addresses, authToken, authorizedRequest, vendors]
+  );
+
+  useEffect(() => {
+    if (!sessionReady) return;
+
+    if (!authToken) {
+      setProfile(null);
+      setAddresses([]);
+      setSelectedAddressId('');
+      return;
+    }
+
+    refreshProfile().catch(() => {});
+    loadAddresses({ silent: true }).catch(() => {});
+  }, [authToken, loadAddresses, refreshProfile, sessionReady]);
+
+  useEffect(() => {
+    if (!sessionReady || !authToken) return;
+    loadOrders({ silent: true }).catch(() => {});
+  }, [authToken, vendors, addresses, loadOrders, sessionReady]);
+
+  useEffect(() => {
+    if (!addresses.length) {
+      if (selectedAddressId) setSelectedAddressId('');
+      return;
+    }
+
+    const stillExists = addresses.some((item) => String(item.id) === String(selectedAddressId));
+    if (stillExists) return;
+
+    const next = addresses.find((item) => item.is_default) || addresses[0];
+    setSelectedAddressId(next ? String(next.id) : '');
+  }, [addresses, selectedAddressId]);
+
   const keywordMap = useMemo(() => createShortcutBuckets(vendors), [vendors]);
 
   const shortcutFilteredVendors = useMemo(() => {
@@ -651,11 +880,7 @@ export function GrabBasketProvider({ children }) {
       dedupeStrings([
         ...recentSearches,
         ...vendors.map((vendor) => vendor?.name),
-        ...(homeDeals.length > 0
-          ? homeDeals
-          : USE_DEMO_CONTENT
-            ? FALLBACK_HOME_DEALS
-            : []).map((item) => item?.name),
+        ...homeDeals.map((item) => item?.name),
       ]).slice(0, 12),
     [recentSearches, vendors, homeDeals]
   );
@@ -680,6 +905,15 @@ export function GrabBasketProvider({ children }) {
     () => (cart?.vendorId ? findVendorById(vendors, cart.vendorId) : null),
     [vendors, cart?.vendorId]
   );
+
+  const defaultAddress = useMemo(() => {
+    if (!addresses.length) return null;
+    return (
+      addresses.find((item) => String(item.id) === String(selectedAddressId)) ||
+      addresses.find((item) => item.is_default) ||
+      addresses[0]
+    );
+  }, [addresses, selectedAddressId]);
 
   const deliveryFeeAmount = cartCount > 0 ? getDeliveryFeeAmount(cartVendor) : 0;
   const platformFeeAmount = cartCount > 0 ? PLATFORM_FEE : 0;
@@ -771,68 +1005,247 @@ export function GrabBasketProvider({ children }) {
     setCart({ vendorId: null, items: {} });
   }, []);
 
-  const placeDemoOrder = useCallback(() => {
-    if (!USE_DEMO_CONTENT) {
-      Alert.alert(
-        'Checkout not connected',
-        'Production checkout is not wired yet. Remove demo ordering and connect real payments/orders before release.'
-      );
-      return false;
-    }
+  const login = useCallback(
+    async ({ email, password }) => {
+      setAuthLoading(true);
+      try {
+        const payload = {
+          email: String(email || '').trim().toLowerCase(),
+          password: String(password || ''),
+        };
 
-    if (cartItems.length === 0) {
-      Alert.alert('Basket is empty', 'Add some items first.');
-      return false;
-    }
+        const data = await apiRequest('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
 
-    const normalizedService = mapLegacyService(activeService);
-    const vendorName =
-      cartVendor?.name ||
-      cartItems[0]?.vendorName ||
-      cartItems[0]?.vendor_name ||
-      'GrabBasket Store';
+        const nextRole = String(data?.role || '').toUpperCase();
+        if (nextRole && nextRole !== 'CUSTOMER') {
+          throw new Error('This mobile app currently supports customer accounts only.');
+        }
 
-    const order = {
-      id: `local-${Date.now()}`,
-      service: normalizedService,
-      vendorId: cartVendor?.id ?? cart?.vendorId ?? null,
-      vendorName,
-      location: cartVendor?.address || 'Saved address',
-      items: cartItems.map((item) => ({
-        name: item?.name,
-        qty: item?.qty,
-      })),
-      orderedAt: formatOrderTime(new Date()),
-      total: cartTotal,
-      status:
-        normalizedService === 'eatout' || normalizedService === 'scenes'
-          ? 'Booked'
-          : 'Delivered',
-    };
+        setAuthToken(String(data?.access_token || ''));
+        setAuthEmail(payload.email);
+        setAuthRole(nextRole || 'CUSTOMER');
+        return true;
+      } catch (error) {
+        Alert.alert('Could not sign in', normalizeErrorMessage(error));
+        return false;
+      } finally {
+        setAuthLoading(false);
+      }
+    },
+    []
+  );
 
-    setOrderHistory((current) => [order, ...current].slice(0, MAX_ORDERS));
+  const register = useCallback(
+    async ({ email, password }) => {
+      setAuthLoading(true);
+      try {
+        const payload = {
+          email: String(email || '').trim().toLowerCase(),
+          password: String(password || ''),
+          role: 'CUSTOMER',
+        };
+
+        const data = await apiRequest('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+
+        setAuthToken(String(data?.access_token || ''));
+        setAuthEmail(payload.email);
+        setAuthRole(String(data?.role || 'CUSTOMER').toUpperCase());
+        return true;
+      } catch (error) {
+        Alert.alert('Could not create account', normalizeErrorMessage(error));
+        return false;
+      } finally {
+        setAuthLoading(false);
+      }
+    },
+    []
+  );
+
+  const logout = useCallback(() => {
+    setAuthToken('');
+    setAuthEmail('');
+    setAuthRole('');
+    setProfile(null);
+    setAddresses([]);
+    setOrderHistory([]);
+    setSelectedAddressId('');
     clearCart();
+  }, [clearCart]);
 
-    Alert.alert(
-      normalizedService === 'eatout' || normalizedService === 'scenes'
-        ? 'Demo booking saved'
-        : 'Demo order placed',
-      'Saved locally so reorder and account flows work while backend checkout is still being wired.'
-    );
+  const createAddress = useCallback(
+    async (payload) => {
+      if (!authToken) {
+        Alert.alert('Sign in required', 'Sign in before adding a delivery address.');
+        return null;
+      }
 
-    return true;
-  }, [activeService, cart, cartItems, cartTotal, cartVendor, clearCart]);
+      try {
+        setAddressesLoading(true);
+        const body = {
+          label: String(payload?.label || 'Home').trim() || 'Home',
+          line1: String(payload?.line1 || '').trim(),
+          line2: String(payload?.line2 || '').trim(),
+          city: String(payload?.city || '').trim(),
+          pincode: String(payload?.pincode || '').trim(),
+          lat: Number(payload?.lat),
+          lng: Number(payload?.lng),
+          is_default: Boolean(payload?.is_default),
+        };
+
+        if (!body.line1) throw new Error('Address line 1 is required.');
+        if (!Number.isFinite(body.lat) || !Number.isFinite(body.lng)) {
+          throw new Error('Latitude and longitude are required.');
+        }
+
+        const data = await authorizedRequest('/me/addresses', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        });
+
+        const next = normalizeAddress(data);
+        if (!next) return null;
+
+        setAddresses((current) => {
+          const rest = body.is_default
+            ? current.map((item) => ({ ...item, is_default: false }))
+            : current;
+          return [next, ...rest.filter((item) => String(item.id) !== String(next.id))];
+        });
+        setSelectedAddressId(String(next.id));
+        return next;
+      } catch (error) {
+        Alert.alert('Could not save address', normalizeErrorMessage(error));
+        return null;
+      } finally {
+        setAddressesLoading(false);
+      }
+    },
+    [authToken, authorizedRequest]
+  );
+
+  const setDefaultAddress = useCallback(
+    async (addressId) => {
+      if (!authToken) return false;
+
+      try {
+        await authorizedRequest(`/me/addresses/${addressId}/default`, {
+          method: 'POST',
+        });
+        setAddresses((current) =>
+          current.map((item) => ({
+            ...item,
+            is_default: String(item.id) === String(addressId),
+          }))
+        );
+        setSelectedAddressId(String(addressId));
+        return true;
+      } catch (error) {
+        Alert.alert('Could not update address', normalizeErrorMessage(error));
+        return false;
+      }
+    },
+    [authToken, authorizedRequest]
+  );
+
+  const placeOrder = useCallback(
+    async ({ paymentMethod = 'COD' } = {}) => {
+      if (cartItems.length === 0) {
+        Alert.alert('Basket is empty', 'Add some items first.');
+        return false;
+      }
+
+      if (!authToken) {
+        Alert.alert('Sign in required', 'Sign in from the Account tab before placing an order.');
+        return false;
+      }
+
+      const normalizedService = mapLegacyService(activeService);
+      const needsDeliveryAddress = normalizedService === 'food' || normalizedService === 'warehouse';
+      const deliveryAddressId = needsDeliveryAddress ? defaultAddress?.id || null : defaultAddress?.id || null;
+
+      if (needsDeliveryAddress && !deliveryAddressId) {
+        Alert.alert(
+          'Add delivery address',
+          'Add a delivery address from the Account tab before placing this order.'
+        );
+        return false;
+      }
+
+      if (!cartVendor?.id && !cart?.vendorId) {
+        Alert.alert('Store unavailable', 'We could not resolve the store for this basket.');
+        return false;
+      }
+
+      try {
+        setPlacingOrder(true);
+
+        const payload = {
+          vendor_id: Number(cartVendor?.id ?? cart?.vendorId),
+          items: cartItems.map((item) => ({
+            product_id: Number(item.id),
+            qty: Number(item.qty || 1),
+          })),
+          payment_method: String(paymentMethod || 'COD').toUpperCase(),
+          ...(deliveryAddressId ? { delivery_address_id: Number(deliveryAddressId) } : {}),
+        };
+
+        const response = await authorizedRequest('/orders', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+
+        const normalizedOrder = normalizeOrderRecord(response, {
+          vendors,
+          addresses,
+          serviceHint: normalizedService,
+        });
+
+        if (normalizedOrder) {
+          setOrderHistory((current) => mergeOrderCollections([normalizedOrder], current).slice(0, MAX_ORDERS));
+        }
+
+        clearCart();
+
+        Alert.alert(
+          normalizedService === 'eatout' || normalizedService === 'scenes'
+            ? 'Booking confirmed'
+            : 'Order placed',
+          payload.payment_method === 'UPI' && response?.payment_ref
+            ? `Order created successfully. Payment reference: ${response.payment_ref}`
+            : 'Your order has been created successfully.'
+        );
+
+        return true;
+      } catch (error) {
+        Alert.alert('Could not place order', normalizeErrorMessage(error));
+        return false;
+      } finally {
+        setPlacingOrder(false);
+      }
+    },
+    [
+      activeService,
+      addresses,
+      authToken,
+      authorizedRequest,
+      cart,
+      cartItems,
+      cartVendor,
+      clearCart,
+      defaultAddress,
+      vendors,
+    ]
+  );
 
   const pastOrders = useMemo(() => {
-    const source =
-      orderHistory.length > 0
-        ? orderHistory
-        : USE_DEMO_CONTENT
-          ? FALLBACK_ORDER_HISTORY
-          : [];
-
-    if (pastOrderFilter === 'all') return source;
-    return source.filter((item) => mapLegacyService(item?.service) === pastOrderFilter);
+    if (pastOrderFilter === 'all') return orderHistory;
+    return orderHistory.filter((item) => mapLegacyService(item?.service) === pastOrderFilter);
   }, [orderHistory, pastOrderFilter]);
 
   const value = {
@@ -876,8 +1289,30 @@ export function GrabBasketProvider({ children }) {
     addToCart,
     updateQty,
     clearCart,
-    placeDemoOrder,
+    placeDemoOrder: placeOrder,
+    placeOrder,
     pastOrders,
+    sessionReady,
+    isAuthenticated,
+    authToken,
+    authEmail,
+    authRole,
+    profile,
+    authLoading,
+    login,
+    register,
+    logout,
+    addresses,
+    addressesLoading,
+    selectedAddressId,
+    setSelectedAddressId,
+    defaultAddress,
+    createAddress,
+    setDefaultAddress,
+    loadAddresses,
+    loadOrders,
+    ordersLoading,
+    placingOrder,
   };
 
   return <GrabBasketContext.Provider value={value}>{children}</GrabBasketContext.Provider>;
@@ -923,9 +1358,10 @@ function getOrderTone(service = '') {
 
 function getStatusColor(status = '') {
   const value = normalizeText(status);
-  if (value === 'booked') return COLORS.peach600;
   if (value.includes('cancel')) return COLORS.danger;
-  return COLORS.success;
+  if (value.includes('deliver')) return COLORS.success;
+  if (value.includes('ready') || value.includes('pick')) return COLORS.blue;
+  return COLORS.peach600;
 }
 
 function buildOrderSummary(order) {
@@ -943,9 +1379,8 @@ function resolveOrderVendor(order, vendors = []) {
   }
 
   return (
-    vendors.find(
-      (vendor) => normalizeText(vendor?.name) === normalizeText(order?.vendorName)
-    ) || null
+    vendors.find((vendor) => normalizeText(vendor?.name) === normalizeText(order?.vendorName)) ||
+    null
   );
 }
 
@@ -1041,26 +1476,15 @@ function RecentVendorCard({ vendor, onPress }) {
 export function ReorderScreen() {
   const router = useRouter();
   const tabBarHeight = useBottomTabBarHeight();
-  const { cartCount, cartVendor, cartTotal, recentVendors, vendors, orderHistory } =
+  const { cartCount, cartVendor, cartTotal, recentVendors, vendors, orderHistory, ordersLoading } =
     useGrabBasket();
 
   const [activeFilter, setActiveFilter] = useState('all');
 
-  const allOrders = useMemo(() => {
-    const source =
-      orderHistory?.length > 0
-        ? orderHistory
-        : USE_DEMO_CONTENT
-          ? FALLBACK_ORDER_HISTORY
-          : [];
-
-    return source.map((item) => ({ ...item, service: mapLegacyService(item?.service) }));
-  }, [orderHistory]);
-
   const visibleOrders = useMemo(() => {
-    if (activeFilter === 'all') return allOrders;
-    return allOrders.filter((item) => mapLegacyService(item?.service) === activeFilter);
-  }, [activeFilter, allOrders]);
+    if (activeFilter === 'all') return orderHistory;
+    return orderHistory.filter((item) => mapLegacyService(item?.service) === activeFilter);
+  }, [activeFilter, orderHistory]);
 
   const openOrderVendor = (order) => {
     const vendor = resolveOrderVendor(order, vendors);
@@ -1075,7 +1499,7 @@ export function ReorderScreen() {
 
     Alert.alert(
       'Vendor unavailable',
-      'This past order is stored, but the vendor is not in the current feed yet.'
+      'This order is in your account history, but the vendor is not in the current store feed yet.'
     );
   };
 
@@ -1087,10 +1511,10 @@ export function ReorderScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.screenContent, { paddingBottom: tabBarHeight + 26 }]}>
         <View style={styles.screenHero}>
-          <Text style={styles.screenHeroEyebrow}>REORDER</Text>
-          <Text style={styles.screenHeroTitle}>Past orders that feel useful, not hidden.</Text>
+          <Text style={styles.screenHeroEyebrow}>ORDERS</Text>
+          <Text style={styles.screenHeroTitle}>Your recent orders and bookings.</Text>
           <Text style={styles.screenHeroSubtitle}>
-            This surface now behaves like a real reorder flow instead of a placeholder tab.
+            Live backend orders appear here once the user signs in and places an order.
           </Text>
         </View>
 
@@ -1130,7 +1554,9 @@ export function ReorderScreen() {
           })}
         </View>
 
-        {visibleOrders.length > 0 ? (
+        {ordersLoading ? (
+          <LoadingState label="Refreshing your orders..." />
+        ) : visibleOrders.length > 0 ? (
           visibleOrders.map((order) => (
             <ReorderOrderCard
               key={order.id}
@@ -1141,7 +1567,7 @@ export function ReorderScreen() {
         ) : (
           <EmptyState
             title="No past orders yet"
-            subtitle="Orders placed from cart will appear here."
+            subtitle="Orders placed from the cart will appear here after checkout succeeds."
           />
         )}
 
@@ -1178,11 +1604,22 @@ function QtyControl({ qty, onAdd, onRemove }) {
       <TouchableOpacity activeOpacity={0.92} style={styles.qtyAction} onPress={onRemove}>
         <Ionicons name="remove" size={16} color={COLORS.text} />
       </TouchableOpacity>
-      <Text style={styles.qtyText}>{qty}</Text>
+      <Text style={styles.qtyValue}>{qty}</Text>
       <TouchableOpacity activeOpacity={0.92} style={styles.qtyAction} onPress={onAdd}>
         <Ionicons name="add" size={16} color={COLORS.text} />
       </TouchableOpacity>
     </View>
+  );
+}
+
+function PaymentMethodPill({ label, value, active, onPress }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.92}
+      style={[styles.paymentPill, active && styles.paymentPillActive]}
+      onPress={() => onPress(value)}>
+      <Text style={[styles.paymentPillText, active && styles.paymentPillTextActive]}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -1201,12 +1638,16 @@ export function CartScreen() {
     addToCart,
     updateQty,
     clearCart,
-    placeDemoOrder,
+    placeOrder,
+    isAuthenticated,
+    defaultAddress,
+    placingOrder,
   } = useGrabBasket();
+
+  const [paymentMethod, setPaymentMethod] = useState('COD');
 
   const accent = SERVICE_ACCENT[activeService] || SERVICE_ACCENT.food;
   const isBooking = activeService === 'eatout' || activeService === 'scenes';
-  const demoMode = USE_DEMO_CONTENT;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -1234,6 +1675,26 @@ export function CartScreen() {
           />
         ) : (
           <>
+            {!isAuthenticated ? (
+              <View style={styles.noticeCard}>
+                <View style={styles.noticeIcon}>
+                  <Ionicons name="lock-closed-outline" size={18} color={COLORS.peach600} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.noticeTitle}>Sign in before checkout</Text>
+                  <Text style={styles.noticeSubtitle}>
+                    Use the Account tab to sign in or create a customer account.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  activeOpacity={0.92}
+                  style={styles.noticeAction}
+                  onPress={() => router.push('/account')}>
+                  <Text style={styles.noticeActionText}>Open Account</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
             {!isBooking ? (
               <View style={styles.billCard}>
                 <Text style={styles.billCardTitle}>Free delivery progress</Text>
@@ -1259,6 +1720,51 @@ export function CartScreen() {
                 </View>
               </View>
             ) : null}
+
+            {!isBooking ? (
+              <View style={styles.billCard}>
+                <Text style={styles.billCardTitle}>Delivery address</Text>
+                {defaultAddress ? (
+                  <>
+                    <Text style={styles.billCardSubtitle}>{formatAddressShort(defaultAddress)}</Text>
+                    <Text style={styles.helperText}>
+                      Lat {Number(defaultAddress.lat).toFixed(4)} · Lng {Number(defaultAddress.lng).toFixed(4)}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.billCardSubtitle}>
+                    No delivery address selected yet. Add one from Account to place a food or grocery order.
+                  </Text>
+                )}
+                <TouchableOpacity
+                  activeOpacity={0.92}
+                  style={styles.inlineGhostButton}
+                  onPress={() => router.push('/account')}>
+                  <Text style={styles.inlineGhostButtonText}>Manage address</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            <View style={styles.billCard}>
+              <Text style={styles.billCardTitle}>Payment method</Text>
+              <View style={styles.paymentRow}>
+                <PaymentMethodPill
+                  label="Cash on delivery"
+                  value="COD"
+                  active={paymentMethod === 'COD'}
+                  onPress={setPaymentMethod}
+                />
+                <PaymentMethodPill
+                  label="UPI"
+                  value="UPI"
+                  active={paymentMethod === 'UPI'}
+                  onPress={setPaymentMethod}
+                />
+              </View>
+              <Text style={styles.helperText}>
+                Gateway integration is still the next backend step. This patch uses your current API contract.
+              </Text>
+            </View>
 
             <View style={styles.billCard}>
               <Text style={styles.billCardTitle}>{isBooking ? 'Selection' : 'Items in basket'}</Text>
@@ -1287,48 +1793,49 @@ export function CartScreen() {
 
               {!isBooking ? (
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Delivery fee</Text>
+                  <Text style={styles.summaryLabel}>Estimated delivery fee</Text>
                   <Text style={styles.summaryValue}>
                     {deliveryFeeAmount === 0 ? 'FREE' : money(deliveryFeeAmount)}
                   </Text>
                 </View>
               ) : null}
 
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Platform fee</Text>
-                <Text style={styles.summaryValue}>{money(platformFeeAmount)}</Text>
-              </View>
+              {platformFeeAmount > 0 ? (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Platform fee</Text>
+                  <Text style={styles.summaryValue}>{money(platformFeeAmount)}</Text>
+                </View>
+              ) : null}
 
               <View style={styles.summaryDivider} />
 
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabelStrong}>Total</Text>
+                <Text style={styles.summaryLabelStrong}>Estimated total</Text>
                 <Text style={styles.summaryValueStrong}>{money(cartTotal)}</Text>
               </View>
             </View>
 
             <TouchableOpacity
-              activeOpacity={demoMode ? 0.92 : 1}
+              activeOpacity={placingOrder ? 1 : 0.92}
+              disabled={placingOrder}
               style={[
                 styles.primaryButton,
                 {
-                  backgroundColor: demoMode
-                    ? accent.dark
-                      ? COLORS.black
-                      : accent.primary
-                    : COLORS.subtle,
+                  backgroundColor: accent.dark ? COLORS.black : accent.primary,
+                  opacity: placingOrder ? 0.75 : 1,
                 },
               ]}
-              onPress={() => {
-                const ok = placeDemoOrder();
+              onPress={async () => {
+                const ok = await placeOrder({ paymentMethod });
                 if (ok) router.replace('/reorder');
               }}>
+              {placingOrder ? <ActivityIndicator color="#FFFFFF" /> : null}
               <Text style={styles.primaryButtonText}>
-                {demoMode
-                  ? isBooking
-                    ? 'Confirm demo booking'
-                    : 'Place demo order'
-                  : 'Checkout not yet connected'}
+                {placingOrder
+                  ? 'Placing order...'
+                  : isBooking
+                    ? 'Confirm booking'
+                    : 'Place order'}
               </Text>
             </TouchableOpacity>
 
@@ -1354,461 +1861,483 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bg,
   },
-
   screenContent: {
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 28,
   },
-
   screenHero: {
     borderRadius: 28,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 20,
-    marginBottom: 16,
+    padding: 22,
+    marginBottom: 18,
   },
-
   screenHeroEyebrow: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1.2,
     color: COLORS.peach600,
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.4,
-  },
-
-  screenHeroTitle: {
-    marginTop: 8,
-    color: COLORS.text,
-    fontSize: 28,
-    fontWeight: '900',
-    lineHeight: 34,
-  },
-
-  screenHeroSubtitle: {
-    marginTop: 8,
-    color: COLORS.muted,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 20,
-  },
-
-  liveBasketCard: {
-    marginBottom: 16,
-    borderRadius: 22,
-    backgroundColor: COLORS.successSoft,
-    borderWidth: 1,
-    borderColor: COLORS.successBorder,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-
-  liveBasketIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: '#DCFCE7',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  liveBasketTitle: {
-    color: COLORS.success,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-
-  liveBasketSubtitle: {
-    marginTop: 4,
-    color: COLORS.success,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
-  segmentWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 14,
-  },
-
-  segmentButton: {
-    borderRadius: 999,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-
-  segmentButtonActive: {
-    backgroundColor: COLORS.peach600,
-    borderColor: COLORS.peach600,
-  },
-
-  segmentButtonText: {
-    color: COLORS.text,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-
-  segmentButtonTextActive: {
-    color: '#FFFFFF',
-  },
-
-  orderCard: {
-    marginBottom: 14,
-    borderRadius: 24,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 16,
-  },
-
-  orderTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-
-  orderThumb: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  orderThumbText: {
-    fontSize: 18,
-    fontWeight: '900',
-  },
-
-  orderMetaBlock: {
-    flex: 1,
-    paddingRight: 8,
-  },
-
-  orderStoreName: {
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-
-  orderStoreLocation: {
-    marginTop: 2,
-    color: COLORS.muted,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-
-  orderStatus: {
-    fontSize: 15,
-    fontWeight: '900',
-  },
-
-  orderTagRow: {
-    marginTop: 14,
     marginBottom: 8,
   },
-
-  serviceTag: {
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-
-  serviceTagText: {
-    fontSize: 12,
+  screenHeroTitle: {
+    fontSize: 24,
+    lineHeight: 30,
     fontWeight: '900',
-  },
-
-  orderItemLine: {
     color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '700',
   },
-
-  orderMetaLine: {
-    marginTop: 10,
-    color: COLORS.muted,
+  screenHeroSubtitle: {
+    marginTop: 8,
     fontSize: 14,
-    fontWeight: '500',
-  },
-
-  orderPrimaryButton: {
-    marginTop: 16,
-    minHeight: 48,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-
-  orderPrimaryButtonText: {
-    fontSize: 15,
-    fontWeight: '900',
-  },
-
-  sectionHeaderRow: {
-    marginTop: 10,
-    marginBottom: 12,
-  },
-
-  sectionHeaderTitle: {
-    color: COLORS.text,
-    fontSize: 22,
-    fontWeight: '900',
-  },
-
-  horizontalRail: {
-    gap: 12,
-    paddingBottom: 4,
-  },
-
-  recentVendorCard: {
-    width: 156,
-    borderRadius: 22,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 14,
-  },
-
-  recentVendorAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: COLORS.peach50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  recentVendorAvatarText: {
-    color: COLORS.peach600,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-
-  recentVendorName: {
-    marginTop: 12,
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-
-  recentVendorMeta: {
-    marginTop: 4,
+    lineHeight: 21,
     color: COLORS.muted,
-    fontSize: 12,
-    fontWeight: '600',
   },
-
-  feedbackCard: {
-    borderRadius: 22,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: 28,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-
-  feedbackTitle: {
-    color: COLORS.text,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-
-  feedbackSubtitle: {
-    color: COLORS.muted,
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-
   topBar: {
-    minHeight: 62,
-    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
+    gap: 12,
   },
-
   iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-
   topBarTitle: {
-    color: COLORS.text,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
+    color: COLORS.text,
   },
-
   topBarSubtitle: {
     marginTop: 2,
-    color: COLORS.muted,
     fontSize: 13,
-    fontWeight: '600',
+    color: COLORS.muted,
   },
-
   billCard: {
-    borderRadius: 24,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 16,
+    borderRadius: 24,
+    padding: 18,
     marginBottom: 14,
   },
-
   billCardTitle: {
-    color: COLORS.text,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
+    color: COLORS.text,
   },
-
   billCardSubtitle: {
     marginTop: 6,
-    color: COLORS.muted,
     fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
+    lineHeight: 20,
+    color: COLORS.muted,
   },
-
   progressTrack: {
-    marginTop: 14,
     height: 10,
     borderRadius: 999,
     backgroundColor: COLORS.line,
     overflow: 'hidden',
+    marginTop: 14,
   },
-
   progressFill: {
     height: '100%',
     borderRadius: 999,
   },
-
   cartLine: {
-    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.line,
   },
-
   cartLineTitle: {
-    color: COLORS.text,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
+    color: COLORS.text,
   },
-
   cartLineMeta: {
     marginTop: 4,
-    color: COLORS.muted,
     fontSize: 13,
-    fontWeight: '600',
+    color: COLORS.muted,
   },
-
   qtyWrap: {
-    minWidth: 92,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: COLORS.cardAlt,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardAlt,
+    borderRadius: 14,
+    paddingHorizontal: 6,
+    height: 40,
   },
-
   qtyAction: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  qtyText: {
-    color: COLORS.text,
-    fontSize: 13,
+  qtyValue: {
+    minWidth: 24,
+    textAlign: 'center',
+    fontSize: 14,
     fontWeight: '900',
+    color: COLORS.text,
   },
-
   summaryRow: {
-    marginTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
-  },
-
-  summaryLabel: {
-    color: COLORS.muted,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  summaryValue: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-
-  summaryDivider: {
     marginTop: 14,
-    height: 1,
-    backgroundColor: COLORS.border,
   },
-
-  summaryLabelStrong: {
+  summaryLabel: {
+    fontSize: 14,
+    color: COLORS.muted,
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '800',
     color: COLORS.text,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: COLORS.line,
+    marginTop: 16,
+  },
+  summaryLabelStrong: {
     fontSize: 16,
     fontWeight: '900',
-  },
-
-  summaryValueStrong: {
     color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '900',
   },
-
+  summaryValueStrong: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: COLORS.text,
+  },
   primaryButton: {
-    minHeight: 52,
+    minHeight: 54,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 6,
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
   },
-
   primaryButtonText: {
-    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '900',
+    color: '#FFFFFF',
   },
-
   secondaryButton: {
     minHeight: 52,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
     marginTop: 12,
+  },
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  feedbackCard: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 180,
+  },
+  feedbackTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+  feedbackSubtitle: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: COLORS.muted,
+    textAlign: 'center',
+  },
+  orderCard: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 14,
+  },
+  orderTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  orderThumb: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orderThumbText: {
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  orderMetaBlock: {
+    flex: 1,
+    paddingHorizontal: 12,
+  },
+  orderStoreName: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: COLORS.text,
+  },
+  orderStoreLocation: {
+    marginTop: 4,
+    fontSize: 12,
+    color: COLORS.muted,
+  },
+  orderStatus: {
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  orderTagRow: {
+    flexDirection: 'row',
+    marginTop: 14,
+    marginBottom: 12,
+  },
+  serviceTag: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  serviceTagText: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+  orderItemLine: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  orderMetaLine: {
+    marginTop: 6,
+    fontSize: 13,
+    color: COLORS.muted,
+  },
+  orderPrimaryButton: {
+    marginTop: 16,
+    minHeight: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  orderPrimaryButtonText: {
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  liveBasketCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.successSoft,
+    borderWidth: 1,
+    borderColor: COLORS.successBorder,
+    borderRadius: 22,
+    padding: 16,
+    marginBottom: 16,
+    gap: 12,
+  },
+  liveBasketIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  liveBasketTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: COLORS.text,
+  },
+  liveBasketSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    color: COLORS.muted,
+  },
+  segmentWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 16,
+  },
+  segmentButton: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.card,
   },
-
-  secondaryButtonText: {
-    color: COLORS.text,
-    fontSize: 15,
+  segmentButtonActive: {
+    backgroundColor: COLORS.peach50,
+    borderColor: COLORS.peach300,
+  },
+  segmentButtonText: {
+    fontSize: 13,
     fontWeight: '800',
+    color: COLORS.muted,
+  },
+  segmentButtonTextActive: {
+    color: COLORS.peach600,
+  },
+  sectionHeaderRow: {
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  sectionHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: COLORS.text,
+  },
+  horizontalRail: {
+    paddingBottom: 4,
+    gap: 12,
+  },
+  recentVendorCard: {
+    width: 148,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    padding: 16,
+  },
+  recentVendorAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: COLORS.peach50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  recentVendorAvatarText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: COLORS.peach600,
+  },
+  recentVendorName: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: COLORS.text,
+  },
+  recentVendorMeta: {
+    marginTop: 6,
+    fontSize: 12,
+    color: COLORS.muted,
+  },
+  noticeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.peach300,
+    borderRadius: 22,
+    padding: 16,
+    marginBottom: 14,
+    gap: 12,
+  },
+  noticeIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.peach50,
+  },
+  noticeTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: COLORS.text,
+  },
+  noticeSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.muted,
+  },
+  noticeAction: {
+    borderRadius: 12,
+    backgroundColor: COLORS.peach600,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  noticeActionText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  paymentRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 14,
+  },
+  paymentPill: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardAlt,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  paymentPillActive: {
+    borderColor: COLORS.peach300,
+    backgroundColor: COLORS.peach50,
+  },
+  paymentPillText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.muted,
+  },
+  paymentPillTextActive: {
+    color: COLORS.peach600,
+  },
+  helperText: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.subtle,
+  },
+  inlineGhostButton: {
+    alignSelf: 'flex-start',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 12,
+  },
+  inlineGhostButtonText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: COLORS.text,
   },
 });
