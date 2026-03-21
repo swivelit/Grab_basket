@@ -17,30 +17,36 @@ import { useRouter } from 'expo-router';
 import { useGrabBasket } from '../../../App';
 
 const COLORS = {
-  page: '#f7f7fb',
-  pageAlt: '#ffffff',
-  text: '#101828',
-  textSoft: '#667085',
-  textMuted: '#8f96a3',
-  border: '#eaecf0',
+  page: '#f6f7fb',
   white: '#ffffff',
-  black: '#0f172a',
-  foodPrimary: '#7c3aed',
-  foodPrimaryDark: '#5b21b6',
-  foodAccent: '#f59e0b',
-  foodSoft: '#f3e8ff',
-  martPrimary: '#0d2d75',
-  martAccent: '#2f6fed',
-  martSoft: '#dbeafe',
-  dinePrimary: '#4c1d95',
-  dineAccent: '#f97316',
-  dineSoft: '#ffedd5',
-  scenesPrimary: '#060816',
-  scenesCard: '#111827',
-  scenesSoft: '#1f2937',
-  success: '#12b76a',
+  text: '#111827',
+  muted: '#6b7280',
+  subtle: '#9ca3af',
+  border: '#ebeef3',
+  success: '#16a34a',
+  successSoft: '#ecfdf3',
   danger: '#ef4444',
-  warning: '#f59e0b',
+  dark: '#050816',
+  foodHero: '#6d28d9',
+  foodHeroSoft: '#8b5cf6',
+  foodCard: '#f4ebff',
+  martHero: '#082b73',
+  martHeroSoft: '#0b4fb3',
+  martCard: '#eaf2ff',
+  dineHero: '#551f9c',
+  dineHeroSoft: '#8b5cf6',
+  dineCard: '#fff3e9',
+  dineAccent: '#f97316',
+  scenesHero: '#030611',
+  scenesCard: '#0f172a',
+  scenesSoft: '#1f2937',
+  scenesBorder: '#162033',
+  gold: '#f59e0b',
+  peach: '#fff1e8',
+  peachText: '#f97316',
+  blueSoft: '#eaf2ff',
+  blueText: '#0b57d0',
+  chip: '#f3f4f6',
   shadow: 'rgba(15, 23, 42, 0.08)',
 };
 
@@ -53,84 +59,125 @@ const TOP_SERVICES = [
 
 const SERVICE_THEMES = {
   food: {
-    hero: COLORS.foodPrimary,
-    heroAccent: '#a78bfa',
     canvas: COLORS.page,
-    title: 'Valliachans Place',
-    subtitle: '12b, Great Orchard / Tower 1, Vidya Nagar',
-    searchPlaceholder: "Search for 'EatRight'",
-    actionLabel: 'VEG',
-    actionIcon: 'leaf-outline',
+    hero: COLORS.foodHero,
+    heroAccent: COLORS.foodHeroSoft,
     statusBar: 'light-content',
+    locationTitle: 'Valliachans Place',
+    locationSubtitle: '12b, Great Orchard / Tower 1, Vidya Nagar',
+    searchPlaceholder: "Search for 'EatRight'",
+    heroLabel: 'CRAVE',
+    heroTitle: 'Up to 60% off & more',
+    heroSubtitle:
+      'Restaurant-led discovery with stronger offer cards and better first-fold hierarchy.',
+    actionText: 'VEG',
+    actionIcon: 'leaf-outline',
   },
   warehouse: {
-    hero: COLORS.martPrimary,
-    heroAccent: '#3b82f6',
-    canvas: '#f8fbff',
-    title: '5 mins',
-    subtitle: 'To Valliachans Place: 12b, Great Orchard / Tower 1',
-    searchPlaceholder: 'Search for Dryfruits',
-    actionLabel: '',
-    actionIcon: 'bookmark-outline',
+    canvas: '#f7fbff',
+    hero: COLORS.martHero,
+    heroAccent: COLORS.martHeroSoft,
     statusBar: 'light-content',
+    locationTitle: '5 mins',
+    locationSubtitle: 'To Valliachans Place · 12b, Great Orchard / Tower 1',
+    searchPlaceholder: 'Search for Dryfruits',
+    heroLabel: 'RAMZAN MUBARAK',
+    heroTitle: 'Fast grocery, clearer merchandising',
+    heroSubtitle:
+      'Festival-led quick-commerce surfaces with faster add flows and cleaner shelf communication.',
+    actionText: '',
+    actionIcon: 'bookmark-outline',
   },
   eatout: {
-    hero: COLORS.dinePrimary,
-    heroAccent: '#8b5cf6',
-    canvas: COLORS.pageAlt,
-    title: 'Valliachans Place',
-    subtitle: '12b, Great Orchard / Tower 1, Vidya Nagar',
-    searchPlaceholder: 'Search for cuisines',
-    actionLabel: '',
-    actionIcon: 'sparkles-outline',
+    canvas: '#fbfbfd',
+    hero: COLORS.dineHero,
+    heroAccent: COLORS.dineHeroSoft,
     statusBar: 'light-content',
+    locationTitle: 'Valliachans Place',
+    locationSubtitle: '12b, Great Orchard / Tower 1, Vidya Nagar',
+    searchPlaceholder: 'Search for cuisines',
+    heroLabel: 'PARTY FULL',
+    heroTitle: 'Flat 50% OFF',
+    heroSubtitle:
+      'Offer-first dining discovery with better campaigns, tables and bill-payment cues.',
+    actionText: '',
+    actionIcon: 'sparkles-outline',
     topStrip: 'Earn flat 10% Dinecash on every bill payment',
   },
   scenes: {
-    hero: '#040713',
-    heroAccent: '#7c3aed',
-    canvas: '#040713',
-    title: '12b, Great Orchard / Tower 1, Vidya Nagar',
-    subtitle: 'Kochi experiences curated for tonight and the weekend',
-    searchPlaceholder: 'Search for events or experiences',
-    actionLabel: '',
-    actionIcon: 'sparkles-outline',
+    canvas: COLORS.scenesHero,
+    hero: COLORS.scenesHero,
+    heroAccent: '#141b30',
     statusBar: 'light-content',
+    locationTitle: '12b, Great Orchard / Tower 1, Vidya Nagar',
+    locationSubtitle: 'Kochi experiences curated for tonight, this week and next weekend.',
+    searchPlaceholder: 'Search for events or experiences',
+    heroLabel: 'LIMITED TIME OFFER',
+    heroTitle: 'Up to 20% off on select events',
+    heroSubtitle:
+      'Discovery-first events browsing with stronger moods, collections and premium dark surfaces.',
+    actionText: '',
+    actionIcon: 'sparkles-outline',
   },
 };
 
 const FOOD_HIGHLIGHTS = [
-  { key: 'deal', title: 'Binge worthy deals', badge: 'Up to 60% OFF & more', emoji: '🔥' },
-  { key: 'eatright', title: 'EatRight', badge: 'Win up to ₹300 free cash', emoji: '🥗' },
-  { key: 'awards', title: 'Restaurant awards', badge: 'Best rated around you', emoji: '🏅' },
+  { key: 'deals', title: 'Binge worthy deals', badge: 'Up to 60% OFF & more', icon: 'flame-outline' },
+  { key: 'eatright', title: 'EatRight', badge: 'Win up to ₹300 free cash', icon: 'leaf-outline' },
+  { key: 'awards', title: 'Restaurant awards', badge: 'Best rated around you', icon: 'trophy-outline' },
 ];
 
 const WAREHOUSE_FILTERS = [
   { key: 'all', label: 'All', icon: 'apps-outline' },
   { key: 'fresh', label: 'Fresh', icon: 'leaf-outline' },
-  { key: 'maxxsaver', label: 'Maxxsaver', icon: 'pricetags-outline' },
+  { key: 'maxxsaver', label: 'Maxxsaver', icon: 'pricetag-outline' },
   { key: 'festival', label: 'Ramzan', icon: 'moon-outline' },
   { key: 'ready', label: 'Exam ready', icon: 'flash-outline' },
 ];
 
 const WAREHOUSE_BANNERS = [
-  { key: 'snacks', title: 'Iftar snacks & drinks', emoji: '🥤' },
-  { key: 'biryani', title: 'Biryani & feasting corner', emoji: '🍛' },
-  { key: 'dates', title: 'Dates, dry fruits & desserts', emoji: '🌰' },
-  { key: 'gifting', title: 'Gift-ready picks', emoji: '🎁' },
+  { key: 'snacks', title: 'Iftar snacks & drinks', icon: 'cafe-outline' },
+  { key: 'biryani', title: 'Biryani & feasting corner', icon: 'restaurant-outline' },
+  { key: 'dates', title: 'Dates, dry fruits & desserts', icon: 'gift-outline' },
+  { key: 'gifting', title: 'Gift-ready picks', icon: 'sparkles-outline' },
 ];
 
 const DINEOUT_SPOTLIGHT = [
-  { key: 'awards', title: 'Restaurant Awards', subtitle: 'Vote, share & win up to ₹600!', accent: '#5b1021', action: 'Vote now' },
-  { key: 'flavours', title: 'Flavours by the city', subtitle: 'Editor-picked places and fresh menus.', accent: '#29421d', action: 'Preview' },
-  { key: 'gourmet', title: 'Pre-book offers', subtitle: 'Book early and unlock extra dining deals.', accent: '#4b1d95', action: 'Explore' },
+  {
+    key: 'awards',
+    title: 'Restaurant Awards',
+    subtitle: 'Vote, share & win up to ₹600!',
+    action: 'Vote now',
+    accent: '#6c1731',
+  },
+  {
+    key: 'flavours',
+    title: 'Flavours by the city',
+    subtitle: 'Editor-picked tables and fresh menus.',
+    action: 'Preview',
+    accent: '#29421d',
+  },
+  {
+    key: 'prebook',
+    title: 'Pre-book offers',
+    subtitle: 'Reserve early and unlock sharper dining deals.',
+    action: 'Explore',
+    accent: '#48218d',
+  },
 ];
 
-const SCENE_MOMENTS = [
+const SCENE_MOODS = [
+  { key: 'today', label: "Today's\nVibe" },
+  { key: 'weekend', label: 'Weekend\nMood' },
+  { key: 'week', label: "This Week's\nDrops" },
+  { key: 'next', label: 'Next Weekend\nTea' },
+];
+
+const SCENE_FILTERS = [
+  { key: 'all', label: 'All scenes' },
   { key: 'today', label: 'Today' },
-  { key: 'weekend', label: 'This Weekend' },
   { key: 'week', label: 'This Week' },
-  { key: 'next', label: 'Next Weekend' },
+  { key: 'weekend', label: 'This Weekend' },
 ];
 
 const SCENE_EVENTS = [
@@ -138,59 +185,92 @@ const SCENE_EVENTS = [
     id: 'scene-1',
     title: 'Rage Room at Break N Chill',
     subtitle: 'Break n Chill · Rage Room · Chittethukara',
-    date: '20 MAR',
+    date: '20\nMAR',
     price: 299,
-    emoji: '💥',
     tag: 'Stress buster',
-    accent: '#1a0c18',
+    bucket: 'today',
+    accent: '#1b1020',
+    icon: 'game-controller-outline',
   },
   {
     id: 'scene-2',
     title: 'Pottery Wheel Throwing Workshop',
     subtitle: 'Soil to Soul Ceramics · Kadavanthra',
-    date: '20 MAR',
+    date: '20\nMAR',
     price: 1000,
-    emoji: '🏺',
     tag: 'Hands-on',
-    accent: '#3f2a21',
+    bucket: 'week',
+    accent: '#3b2d24',
+    icon: 'color-palette-outline',
   },
   {
     id: 'scene-3',
     title: 'Kimchi Culture',
     subtitle: 'SKEI Presents · Korean food and culture',
-    date: '22 MAR',
+    date: '22\nMAR',
     price: 699,
-    emoji: '🥢',
     tag: 'Culture',
-    accent: '#61161a',
+    bucket: 'weekend',
+    accent: '#6a1f24',
+    icon: 'restaurant-outline',
   },
   {
     id: 'scene-4',
     title: 'Stand-up Comedy Night',
     subtitle: 'Top comics · Kakkanad',
-    date: '23 MAR',
+    date: '23\nMAR',
     price: 499,
-    emoji: '🎤',
     tag: 'Top rated',
-    accent: '#13233f',
+    bucket: 'weekend',
+    accent: '#1c2f53',
+    icon: 'mic-outline',
   },
   {
     id: 'scene-5',
     title: 'Kids Creative Lab',
     subtitle: 'Family plans · Panampilly Nagar',
-    date: '29 MAR',
+    date: '29\nMAR',
     price: 399,
-    emoji: '🎨',
     tag: 'Family pick',
-    accent: '#402061',
+    bucket: 'next',
+    accent: '#4a2c69',
+    icon: 'happy-outline',
   },
 ];
 
 const FALLBACK_DEALS = [
-  { id: 'fallback-1', vendor_id: 'demo-mart', vendorName: 'Instamart Daily', name: 'Amul Curd', price: 35, brand: 'Daily essential', emoji: '🥛' },
-  { id: 'fallback-2', vendor_id: 'demo-mart', vendorName: 'Instamart Daily', name: 'Cadbury Dairy Milk', price: 20, brand: 'Quick sweet bite', emoji: '🍫' },
-  { id: 'fallback-3', vendor_id: 'demo-mart', vendorName: 'Instamart Daily', name: 'Kissan Jam', price: 49, brand: 'Breakfast saver', emoji: '🍓' },
-  { id: 'fallback-4', vendor_id: 'demo-mart', vendorName: 'Instamart Daily', name: 'Classic Chips', price: 20, brand: 'Impulse add-on', emoji: '🥔' },
+  {
+    id: 'fallback-1',
+    vendor_id: 'demo-mart',
+    vendorName: 'Instamart Daily',
+    name: 'Amul Curd',
+    price: 35,
+    brand: 'Daily essential',
+  },
+  {
+    id: 'fallback-2',
+    vendor_id: 'demo-mart',
+    vendorName: 'Instamart Daily',
+    name: 'Cadbury Dairy Milk',
+    price: 20,
+    brand: 'Quick sweet bite',
+  },
+  {
+    id: 'fallback-3',
+    vendor_id: 'demo-mart',
+    vendorName: 'Instamart Daily',
+    name: 'Kissan Jam',
+    price: 49,
+    brand: 'Breakfast saver',
+  },
+  {
+    id: 'fallback-4',
+    vendor_id: 'demo-mart',
+    vendorName: 'Instamart Daily',
+    name: 'Classic Chips',
+    price: 20,
+    brand: 'Impulse add-on',
+  },
 ];
 
 function money(value) {
@@ -261,131 +341,302 @@ function pickEmoji(name = '') {
   return '🛍️';
 }
 
+function chunkItems(items = [], size = 2) {
+  const rows = [];
+  for (let index = 0; index < items.length; index += size) {
+    rows.push(items.slice(index, index + size));
+  }
+  return rows;
+}
+
 function SectionHeader({ title, subtitle, actionLabel, onPressAction, light = false }) {
   return (
     <View style={styles.sectionHeader}>
       <View style={{ flex: 1 }}>
         <Text style={[styles.sectionTitle, light && styles.sectionTitleLight]}>{title}</Text>
-        {subtitle ? <Text style={[styles.sectionSubtitle, light && styles.sectionSubtitleLight]}>{subtitle}</Text> : null}
+        {subtitle ? (
+          <Text style={[styles.sectionSubtitle, light && styles.sectionSubtitleLight]}>
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
       {actionLabel ? (
-        <TouchableOpacity activeOpacity={0.9} onPress={onPressAction}>
-          <Text style={[styles.sectionAction, light && styles.sectionActionLight]}>{actionLabel}</Text>
+        <TouchableOpacity activeOpacity={0.92} onPress={onPressAction}>
+          <Text style={[styles.sectionAction, light && styles.sectionActionLight]}>
+            {actionLabel}
+          </Text>
         </TouchableOpacity>
       ) : null}
     </View>
   );
 }
 
-function ServiceChip({ item, active, onPress, dark = false }) {
+function LoadingBlock({ label, light = false }) {
+  return (
+    <View style={[styles.feedbackCard, light && styles.feedbackCardDark]}>
+      <ActivityIndicator size="large" color={light ? '#ffffff' : COLORS.success} />
+      <Text style={[styles.feedbackTitle, light && styles.feedbackTitleDark]}>{label}</Text>
+    </View>
+  );
+}
+
+function EmptyBlock({ title, subtitle, light = false }) {
+  return (
+    <View style={[styles.feedbackCard, light && styles.feedbackCardDark]}>
+      <Text style={[styles.feedbackTitle, light && styles.feedbackTitleDark]}>{title}</Text>
+      <Text style={[styles.feedbackSubtitle, light && styles.feedbackSubtitleDark]}>
+        {subtitle}
+      </Text>
+    </View>
+  );
+}
+
+function ServiceChip({ item, active, dark = false, onPress }) {
   return (
     <TouchableOpacity
       activeOpacity={0.92}
       style={[
         styles.serviceChip,
-        active && styles.serviceChipActive,
         dark && styles.serviceChipDark,
+        active && styles.serviceChipActive,
         dark && active && styles.serviceChipDarkActive,
       ]}
       onPress={onPress}>
-      <Text style={styles.serviceChipEmoji}>{item.emoji}</Text>
-      <View>
-        {item.badge ? <Text style={[styles.serviceChipBadge, dark && styles.serviceChipBadgeDark]}>{item.badge}</Text> : null}
-        <Text style={[styles.serviceChipLabel, dark && styles.serviceChipLabelDark, active && styles.serviceChipLabelActive]}>{item.label}</Text>
+      <View style={styles.serviceChipIconWrap}>
+        <Ionicons
+          name={item.icon}
+          size={18}
+          color={active ? '#ffffff' : dark ? '#ffffff' : COLORS.text}
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        {item.badge && active ? <Text style={styles.serviceChipBadge}>{item.badge}</Text> : null}
+        <Text
+          style={[
+            styles.serviceChipText,
+            active && styles.serviceChipTextActive,
+            dark && !active && styles.serviceChipTextDark,
+          ]}>
+          {item.label}
+        </Text>
       </View>
     </TouchableOpacity>
   );
 }
 
-function HeroSearch({ placeholder, value, onChangeText, onSubmit, actionLabel, actionIcon, dark = false }) {
+function HeroSearchBar({
+  placeholder,
+  value,
+  onChangeText,
+  onSubmit,
+  actionText,
+  actionIcon,
+  dark = false,
+}) {
   return (
-    <View style={styles.heroSearchRow}>
-      <View style={[styles.heroSearch, dark && styles.heroSearchDark]}>
-        <Ionicons name="search-outline" size={22} color={dark ? '#d0d5dd' : COLORS.textSoft} />
+    <View style={styles.searchBarWrap}>
+      <View style={[styles.searchBar, dark && styles.searchBarDark]}>
+        <Ionicons
+          name="search-outline"
+          size={20}
+          color={dark ? '#c7cedd' : COLORS.muted}
+        />
         <TextInput
+          style={[styles.searchInput, dark && styles.searchInputDark]}
+          placeholder={placeholder}
+          placeholderTextColor={dark ? '#aab4c8' : COLORS.subtle}
           value={value}
           onChangeText={onChangeText}
           onSubmitEditing={onSubmit}
-          placeholder={placeholder}
-          placeholderTextColor={dark ? '#98a2b3' : '#98a2b3'}
-          style={[styles.heroSearchInput, dark && styles.heroSearchInputDark]}
           returnKeyType="search"
         />
-        <Ionicons name={actionLabel ? 'mic-outline' : actionIcon || 'search-outline'} size={20} color={dark ? '#d0d5dd' : COLORS.textSoft} />
+        <Ionicons
+          name={actionText ? 'mic-outline' : actionIcon || 'bookmark-outline'}
+          size={20}
+          color={dark ? '#c7cedd' : COLORS.muted}
+        />
       </View>
-      <TouchableOpacity activeOpacity={0.92} style={[styles.heroSearchAction, dark && styles.heroSearchActionDark]}>
-        {actionLabel ? (
+
+      <TouchableOpacity
+        activeOpacity={0.92}
+        style={[styles.searchAction, dark && styles.searchActionDark]}>
+        {actionText ? (
           <>
-            <Text style={styles.heroSearchActionText}>{actionLabel}</Text>
-            <Ionicons name={actionIcon || 'leaf-outline'} size={16} color={COLORS.white} />
+            <Text style={styles.searchActionText}>{actionText}</Text>
+            <Ionicons name={actionIcon || 'leaf-outline'} size={18} color="#ffffff" />
           </>
         ) : (
-          <Ionicons name={actionIcon || 'bookmark-outline'} size={20} color={COLORS.white} />
+          <Ionicons name={actionIcon || 'bookmark-outline'} size={20} color="#ffffff" />
         )}
       </TouchableOpacity>
     </View>
   );
 }
 
-function SearchShortcuts({ items, dark = false }) {
+function BasketBanner({ cartCount, cartTotal, onPress, dark = false }) {
+  if (cartCount <= 0) return null;
+
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shortcutRow}>
-      {items.map((item) => (
-        <View key={item} style={[styles.shortcutChip, dark && styles.shortcutChipDark]}>
-          <Text style={[styles.shortcutText, dark && styles.shortcutTextDark]}>{item}</Text>
-        </View>
-      ))}
-    </ScrollView>
+    <TouchableOpacity
+      activeOpacity={0.92}
+      style={[styles.basketBanner, dark && styles.basketBannerDark]}
+      onPress={onPress}>
+      <View style={[styles.basketIconWrap, dark && styles.basketIconWrapDark]}>
+        <Ionicons
+          name="bag-handle-outline"
+          size={20}
+          color={dark ? '#ffffff' : COLORS.success}
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.basketBannerTitle, dark && styles.basketBannerTitleDark]}>
+          Active basket
+        </Text>
+        <Text
+          style={[styles.basketBannerSubtitle, dark && styles.basketBannerSubtitleDark]}>
+          {cartCount} items · {money(cartTotal)}
+        </Text>
+      </View>
+      <Ionicons
+        name="chevron-forward"
+        size={18}
+        color={dark ? '#ffffff' : COLORS.success}
+      />
+    </TouchableOpacity>
   );
 }
 
 function FoodHighlightCard({ item }) {
   return (
     <TouchableOpacity activeOpacity={0.92} style={styles.foodHighlightCard}>
-      <Text style={styles.foodHighlightEmoji}>{item.emoji}</Text>
+      <View style={styles.foodHighlightIconWrap}>
+        <Ionicons name={item.icon} size={20} color={COLORS.foodHero} />
+      </View>
       <Text style={styles.foodHighlightTitle}>{item.title}</Text>
       <Text style={styles.foodHighlightBadge}>{item.badge}</Text>
     </TouchableOpacity>
   );
 }
 
-function FoodRestaurantCard({ vendor, favorite, onToggleFavorite, onOpen, service = 'food' }) {
+function RailVendorCard({
+  vendor,
+  service = 'food',
+  favorite,
+  onToggleFavorite,
+  onOpen,
+}) {
   return (
-    <TouchableOpacity activeOpacity={0.95} style={styles.restaurantCard} onPress={onOpen}>
-      <View style={[styles.restaurantPoster, service === 'eatout' ? styles.restaurantPosterDineout : styles.restaurantPosterFood]}>
-        <View style={styles.offerPillBlack}>
-          <Text style={styles.offerPillBlackText}>{getOfferLabel(vendor, service)}</Text>
+    <TouchableOpacity
+      activeOpacity={0.94}
+      style={[styles.railVendorCard, service === 'eatout' && styles.railVendorCardDine]}
+      onPress={onOpen}>
+      <View
+        style={[
+          styles.railVendorVisual,
+          service === 'eatout' && styles.railVendorVisualDine,
+        ]}>
+        <View style={styles.offerBadge}>
+          <Text style={styles.offerBadgeText}>{getOfferLabel(vendor, service)}</Text>
         </View>
-        <TouchableOpacity activeOpacity={0.92} style={styles.heartFab} onPress={onToggleFavorite}>
-          <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={16} color={favorite ? COLORS.danger : COLORS.white} />
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={styles.favoriteButton}
+          onPress={onToggleFavorite}>
+          <Ionicons
+            name={favorite ? 'heart' : 'heart-outline'}
+            size={16}
+            color={favorite ? COLORS.danger : COLORS.white}
+          />
         </TouchableOpacity>
-        <Text style={styles.restaurantPosterInitials}>{initials(vendor.name)}</Text>
+        <View style={styles.visualMonogramWrap}>
+          <Text style={styles.visualMonogram}>{initials(vendor?.name)}</Text>
+        </View>
       </View>
-      <Text style={styles.restaurantCardTitle} numberOfLines={1}>{vendor.name}</Text>
-      <Text style={styles.restaurantCardMeta} numberOfLines={1}>{estimateEta(vendor, service)} • {getVendorRating(vendor)} ★</Text>
+
+      <Text style={styles.railVendorName} numberOfLines={1}>
+        {vendor?.name}
+      </Text>
+      <Text style={styles.railVendorMeta} numberOfLines={1}>
+        {estimateEta(vendor, service)} · {getDeliveryFeeLabel(vendor, service)}
+      </Text>
+      <View style={styles.railVendorRatingRow}>
+        <Ionicons name="star" size={12} color={COLORS.success} />
+        <Text style={styles.railVendorRating}>{getVendorRating(vendor)}</Text>
+      </View>
     </TouchableOpacity>
   );
 }
 
-function VendorListCard({ vendor, service = 'food', favorite, onOpen, onToggleFavorite }) {
+function VendorFeedCard({
+  vendor,
+  service = 'food',
+  favorite,
+  onToggleFavorite,
+  onOpen,
+}) {
+  const ctaLabel =
+    service === 'eatout'
+      ? 'BOOK TABLE'
+      : service === 'warehouse'
+        ? 'START SHOPPING'
+        : 'OPEN STORE';
+
   return (
-    <TouchableOpacity activeOpacity={0.95} style={styles.vendorListCard} onPress={onOpen}>
-      <View style={[styles.vendorThumb, service === 'warehouse' ? styles.vendorThumbMart : service === 'eatout' ? styles.vendorThumbDine : styles.vendorThumbFood]}>
-        <Text style={styles.vendorThumbText}>{initials(vendor.name)}</Text>
+    <TouchableOpacity
+      activeOpacity={0.94}
+      style={[styles.feedCard, service === 'eatout' && styles.feedCardDine]}
+      onPress={onOpen}>
+      <View style={styles.feedVisualCol}>
+        <View
+          style={[
+            styles.feedVisual,
+            service === 'warehouse' && styles.feedVisualMart,
+            service === 'eatout' && styles.feedVisualDine,
+          ]}>
+          <Text style={styles.feedVisualText}>{initials(vendor?.name)}</Text>
+          <View style={styles.feedOfferInline}>
+            <Text style={styles.feedOfferInlineText}>
+              {getOfferLabel(vendor, service)}
+            </Text>
+          </View>
+        </View>
       </View>
-      <View style={{ flex: 1 }}>
-        <View style={styles.vendorTopRow}>
-          <Text style={styles.vendorName} numberOfLines={1}>{vendor.name}</Text>
+
+      <View style={styles.feedContent}>
+        <View style={styles.feedTitleRow}>
+          <Text style={styles.feedTitle} numberOfLines={1}>
+            {vendor?.name}
+          </Text>
           <TouchableOpacity activeOpacity={0.92} onPress={onToggleFavorite}>
-            <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={18} color={favorite ? COLORS.danger : COLORS.text} />
+            <Ionicons
+              name={favorite ? 'heart' : 'heart-outline'}
+              size={20}
+              color={favorite ? COLORS.danger : COLORS.subtle}
+            />
           </TouchableOpacity>
         </View>
-        <Text style={styles.vendorDescription} numberOfLines={2}>{getVendorDescription(vendor, service)}</Text>
-        <View style={styles.vendorMetaWrap}>
-          <View style={styles.metaPillAccent}><Text style={styles.metaPillAccentText}>{getOfferLabel(vendor, service)}</Text></View>
-          <View style={styles.metaPill}><Text style={styles.metaPillText}>{estimateEta(vendor, service)}</Text></View>
-          <View style={styles.metaPill}><Text style={styles.metaPillText}>{getDeliveryFeeLabel(vendor, service)}</Text></View>
-          <View style={styles.metaPill}><Text style={styles.metaPillText}>{getVendorRating(vendor)} ★</Text></View>
+
+        <View style={styles.feedMetaRow}>
+          <View style={styles.ratingPill}>
+            <Ionicons name="star" size={11} color="#ffffff" />
+            <Text style={styles.ratingPillText}>{getVendorRating(vendor)}</Text>
+          </View>
+          <Text style={styles.feedMetaText}>{estimateEta(vendor, service)}</Text>
+          <Text style={styles.feedMetaDot}>•</Text>
+          <Text style={styles.feedMetaText}>
+            {getDeliveryFeeLabel(vendor, service)}
+          </Text>
+        </View>
+
+        <Text style={styles.feedDescription} numberOfLines={2}>
+          {getVendorDescription(vendor, service)}
+        </Text>
+
+        <View style={styles.feedFooterRow}>
+          <Text style={styles.feedAddress} numberOfLines={1}>
+            {vendor?.address || 'Near your saved location'}
+          </Text>
+          <Text style={styles.feedCta}>{ctaLabel}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -394,94 +645,148 @@ function VendorListCard({ vendor, service = 'food', favorite, onOpen, onToggleFa
 
 function WarehouseFilterChip({ item, active, onPress }) {
   return (
-    <TouchableOpacity activeOpacity={0.92} style={[styles.martFilterChip, active && styles.martFilterChipActive]} onPress={onPress}>
-      <Ionicons name={item.icon} size={16} color={active ? COLORS.martPrimary : COLORS.white} />
-      <Text style={[styles.martFilterChipText, active && styles.martFilterChipTextActive]}>{item.label}</Text>
+    <TouchableOpacity
+      activeOpacity={0.92}
+      style={[styles.warehouseFilterChip, active && styles.warehouseFilterChipActive]}
+      onPress={onPress}>
+      <Ionicons name={item.icon} size={16} color={COLORS.white} />
+      <Text style={styles.warehouseFilterText}>{item.label}</Text>
     </TouchableOpacity>
+  );
+}
+
+function QtyStepper({ qty, onAdd, onRemove }) {
+  return (
+    <View style={styles.qtyStepper}>
+      <TouchableOpacity activeOpacity={0.92} style={styles.qtyButton} onPress={onRemove}>
+        <Ionicons name="remove" size={14} color={COLORS.text} />
+      </TouchableOpacity>
+      <Text style={styles.qtyValue}>{qty}</Text>
+      <TouchableOpacity activeOpacity={0.92} style={styles.qtyButton} onPress={onAdd}>
+        <Ionicons name="add" size={14} color={COLORS.text} />
+      </TouchableOpacity>
+    </View>
   );
 }
 
 function WarehouseDealCard({ item, qty, onAdd, onRemove }) {
   return (
-    <View style={styles.martDealCard}>
-      <Text style={styles.martDealBadge}>₹9 everyday</Text>
-      <View style={styles.martDealImage}>
-        <Text style={styles.martDealEmoji}>{item.emoji || pickEmoji(item.name)}</Text>
+    <View style={styles.dealCard}>
+      <View style={styles.dealVisual}>
+        <Text style={styles.dealVisualEmoji}>{pickEmoji(item?.name)}</Text>
       </View>
-      <Text style={styles.martDealTitle} numberOfLines={1}>{item.name}</Text>
-      <Text style={styles.martDealMeta} numberOfLines={1}>{item.vendorName || item.brand || 'GrabBasket Mart'}</Text>
-      <View style={styles.martDealFooter}>
-        <Text style={styles.martDealPrice}>{money(item.price)}</Text>
-        {qty > 0 ? (
-          <View style={styles.qtyStepper}>
-            <TouchableOpacity activeOpacity={0.92} style={styles.qtyStepperButton} onPress={onRemove}>
-              <Ionicons name="remove" size={15} color={COLORS.text} />
-            </TouchableOpacity>
-            <Text style={styles.qtyStepperText}>{qty}</Text>
-            <TouchableOpacity activeOpacity={0.92} style={styles.qtyStepperButton} onPress={onAdd}>
-              <Ionicons name="add" size={15} color={COLORS.text} />
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity activeOpacity={0.92} style={styles.selectButton} onPress={onAdd}>
-            <Text style={styles.selectButtonText}>Select</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      <Text style={styles.dealBrand} numberOfLines={1}>
+        {item?.brand || item?.vendorName || 'Daily essential'}
+      </Text>
+      <Text style={styles.dealName} numberOfLines={2}>
+        {item?.name}
+      </Text>
+      <Text style={styles.dealPrice}>{money(item?.price)}</Text>
+      {qty > 0 ? (
+        <QtyStepper qty={qty} onAdd={onAdd} onRemove={onRemove} />
+      ) : (
+        <TouchableOpacity activeOpacity={0.92} style={styles.dealAddButton} onPress={onAdd}>
+          <Text style={styles.dealAddButtonText}>ADD</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
 function DineoutSpotlightCard({ item }) {
   return (
-    <TouchableOpacity activeOpacity={0.92} style={[styles.spotlightCard, { backgroundColor: item.accent }]}>
+    <TouchableOpacity
+      activeOpacity={0.92}
+      style={[styles.spotlightCard, { backgroundColor: item.accent }]}>
       <Text style={styles.spotlightTitle}>{item.title}</Text>
-      <Text style={styles.spotlightSub}>{item.subtitle}</Text>
-      <View style={styles.spotlightButton}>
-        <Text style={styles.spotlightButtonText}>{item.action}</Text>
+      <Text style={styles.spotlightSubtitle}>{item.subtitle}</Text>
+      <View style={styles.spotlightActionPill}>
+        <Text style={styles.spotlightActionText}>{item.action}</Text>
       </View>
+    </TouchableOpacity>
+  );
+}
+
+function SceneMoodChip({ item, active, onPress }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.92}
+      style={[styles.sceneMoodChip, active && styles.sceneMoodChipActive]}
+      onPress={onPress}>
+      <Text style={[styles.sceneMoodText, active && styles.sceneMoodTextActive]}>
+        {item.label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function SceneFilterChip({ item, active, onPress }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.92}
+      style={[styles.sceneFilterChip, active && styles.sceneFilterChipActive]}
+      onPress={onPress}>
+      <Text style={[styles.sceneFilterText, active && styles.sceneFilterTextActive]}>
+        {item.label}
+      </Text>
     </TouchableOpacity>
   );
 }
 
 function SceneEventCard({ item, compact = false }) {
-  return (
-    <TouchableOpacity activeOpacity={0.92} style={[styles.sceneCard, compact ? styles.sceneCardCompact : styles.sceneCardGrid, { backgroundColor: item.accent }]}>
-      <View style={styles.sceneDateBlock}>
-        <Text style={styles.sceneDateText}>{item.date}</Text>
-      </View>
-      <View style={styles.sceneContent}>
-        <View style={styles.sceneTagRow}>
-          <View style={styles.sceneTag}><Text style={styles.sceneTagText}>{item.tag}</Text></View>
-          <Text style={styles.sceneEmoji}>{item.emoji}</Text>
+  if (compact) {
+    return (
+      <TouchableOpacity activeOpacity={0.92} style={styles.sceneGridCard}>
+        <View style={[styles.sceneGridVisual, { backgroundColor: item.accent }]}>
+          <Ionicons name={item.icon} size={30} color="#ffffff" />
+          <Text style={styles.scenePriceTag}>Starts at {money(item.price)}</Text>
         </View>
-        <Text style={styles.scenePrice}>Starts at {money(item.price)}</Text>
-        <Text style={styles.sceneTitle} numberOfLines={2}>{item.title}</Text>
-        <Text style={styles.sceneSubtitle} numberOfLines={2}>{item.subtitle}</Text>
+        <View style={styles.sceneGridBody}>
+          <View style={styles.sceneDateBlock}>
+            <Text style={styles.sceneDateText}>{item.date}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sceneCardTitle} numberOfLines={2}>
+              {item.title}
+            </Text>
+            <Text style={styles.sceneCardSubtitle} numberOfLines={2}>
+              {item.subtitle}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <TouchableOpacity activeOpacity={0.92} style={styles.sceneRailCard}>
+      <View style={[styles.sceneRailVisual, { backgroundColor: item.accent }]}>
+        <Ionicons name={item.icon} size={34} color="#ffffff" />
+        <Text style={styles.scenePriceTag}>Starts at {money(item.price)}</Text>
+      </View>
+      <View style={styles.sceneRailInfo}>
+        <View style={styles.sceneDateBlock}>
+          <Text style={styles.sceneDateText}>{item.date}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sceneCardTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+          <Text style={styles.sceneCardSubtitle} numberOfLines={2}>
+            {item.subtitle}
+          </Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
 }
 
-function EmptyBlock({ light = false, title, subtitle }) {
-  return (
-    <View style={[styles.emptyBlock, light && styles.emptyBlockDark]}>
-      <Text style={[styles.emptyBlockTitle, light && styles.emptyBlockTitleDark]}>{title}</Text>
-      <Text style={[styles.emptyBlockSubtitle, light && styles.emptyBlockSubtitleDark]}>{subtitle}</Text>
-    </View>
-  );
-}
+export default function HomeScreen() {
+  const router = useRouter();
+  const tabBarHeight = useBottomTabBarHeight();
+  const [sceneMood, setSceneMood] = useState('week');
+  const [sceneFilter, setSceneFilter] = useState('all');
 
-function LoadingBlock({ light = false, label }) {
-  return (
-    <View style={styles.loadingBlock}>
-      <ActivityIndicator size="large" color={light ? COLORS.white : COLORS.success} />
-      <Text style={[styles.loadingBlockText, light && styles.loadingBlockTextDark]}>{label}</Text>
-    </View>
-  );
-}
-
-export default function HomeTabScreen() {
   const {
     activeService,
     setActiveService,
@@ -489,125 +794,262 @@ export default function HomeTabScreen() {
     setActiveShortcut,
     homeSearch,
     setHomeSearch,
-    rememberSearch,
+    vendors,
+    vendorsLoading,
     refreshing,
     loadVendors,
-    vendorsLoading,
-    featuredVendors,
-    favorites,
-    toggleFavorite,
-    rememberStore,
-    cart,
-    cartCount,
-    cartSubtotal,
-    cartTotal,
-    freeDeliveryRemaining,
     homeDeals,
     homeDealsLoading,
+    favorites,
+    toggleFavorite,
+    featuredVendors,
+    cart,
+    cartCount,
+    cartTotal,
     addToCart,
     updateQty,
-    recentSearches,
-    suggestionPool,
+    rememberSearch,
+    rememberStore,
   } = useGrabBasket();
 
-  const router = useRouter();
-  const tabBarHeight = useBottomTabBarHeight();
-  const [sceneMoment, setSceneMoment] = useState('today');
-
   const theme = SERVICE_THEMES[activeService] || SERVICE_THEMES.food;
-  const isScenes = activeService === 'scenes';
-  const isWarehouse = activeService === 'warehouse';
-  const isEatout = activeService === 'eatout';
 
-  const deals = homeDeals.length > 0 ? homeDeals : FALLBACK_DEALS;
+  const displayVendors = useMemo(() => {
+    const source = featuredVendors?.length ? featuredVendors : vendors;
+    return source.slice(0, 8);
+  }, [featuredVendors, vendors]);
 
-  const quickSearches = useMemo(() => {
-    if (activeService === 'warehouse') {
-      return ['Dryfruits', 'Dates', 'Snacks', 'Desserts', 'Best brands'];
-    }
-    if (activeService === 'eatout') {
-      return ['Restaurants near me', 'Pre-Book Offers', 'Family dining', 'Cafe dates'];
-    }
-    if (activeService === 'scenes') {
-      return ["Today's vibe", 'Weekend mood', "This week's drops", 'Next weekend'];
-    }
+  const displayDeals = useMemo(() => {
+    if (homeDeals?.length) return homeDeals;
+    return FALLBACK_DEALS;
+  }, [homeDeals]);
 
-    const seeds = ['Binge worthy deals', 'EatRight', 'Restaurant awards', 'Top rated near you'];
-    const dynamic = [...recentSearches, ...suggestionPool].filter(Boolean);
-    return [...new Set([...seeds, ...dynamic])].slice(0, 6);
-  }, [activeService, recentSearches, suggestionPool]);
+  const sceneRailItems = useMemo(() => {
+    if (sceneMood === 'today') return SCENE_EVENTS.filter((item) => item.bucket === 'today');
+    if (sceneMood === 'weekend') return SCENE_EVENTS.filter((item) => item.bucket === 'weekend');
+    if (sceneMood === 'next') return SCENE_EVENTS.filter((item) => item.bucket === 'next');
+    return SCENE_EVENTS.filter(
+      (item) => item.bucket === 'week' || item.bucket === 'weekend'
+    );
+  }, [sceneMood]);
 
-  const openVendor = (vendor) => {
+  const sceneGridItems = useMemo(() => {
+    if (sceneFilter === 'all') return SCENE_EVENTS;
+    return SCENE_EVENTS.filter((item) => item.bucket === sceneFilter);
+  }, [sceneFilter]);
+
+  const sceneGridRows = useMemo(() => chunkItems(sceneGridItems, 2), [sceneGridItems]);
+
+  const handleSubmitSearch = () => {
+    rememberSearch(homeSearch);
+    loadVendors();
+  };
+
+  const handleRefresh = () => {
+    loadVendors({ pullToRefresh: true });
+  };
+
+  const handleOpenVendor = (vendor) => {
     rememberStore(vendor.id);
     router.push({ pathname: '/store/[vendorId]', params: { vendorId: String(vendor.id) } });
   };
 
-  const deliveryStripText =
-    cartSubtotal <= 0
-      ? 'FREE DELIVERY on orders above ₹199'
-      : freeDeliveryRemaining > 0
-        ? `Add ${money(freeDeliveryRemaining)} more for FREE DELIVERY`
-        : 'FREE DELIVERY unlocked';
-
-  const onRefresh = () => loadVendors({ pullToRefresh: true });
+  const handleChangeService = (serviceKey) => {
+    setActiveService(serviceKey);
+    if (serviceKey !== 'warehouse' && activeShortcut !== 'all') {
+      setActiveShortcut('all');
+    }
+  };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.hero }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.canvas }]} edges={['top']}>
       <StatusBar barStyle={theme.statusBar} backgroundColor={theme.hero} />
-      <View style={[styles.root, { backgroundColor: theme.canvas }]}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: tabBarHeight + 130 },
-            isScenes && styles.scrollContentScenes,
-          ]}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isScenes ? COLORS.white : COLORS.success} />}>
-          <View style={[styles.hero, { backgroundColor: theme.hero }]}>
-            {theme.topStrip ? (
-              <View style={styles.topStrip}>
-                <Ionicons name="cash-outline" size={16} color="#dcfce7" />
-                <Text style={styles.topStripText}>{theme.topStrip}</Text>
-              </View>
-            ) : null}
 
-            <View style={styles.heroHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.heroTitle, isScenes && styles.heroTitleScenes]} numberOfLines={1}>{theme.title}</Text>
-                <TouchableOpacity activeOpacity={0.9} style={styles.heroAddressRow}>
-                  <Text style={styles.heroAddress} numberOfLines={1}>{theme.subtitle}</Text>
-                  <Ionicons name="chevron-down" size={16} color={COLORS.white} />
-                </TouchableOpacity>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={activeService === 'scenes' ? '#ffffff' : COLORS.success}
+          />
+        }
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 28 }}>
+        {activeService === 'eatout' && theme.topStrip ? (
+          <View style={styles.topStrip}>
+            <Ionicons name="cash-outline" size={18} color="#ffffff" />
+            <Text style={styles.topStripText}>{theme.topStrip}</Text>
+          </View>
+        ) : null}
+
+        <View style={[styles.heroWrap, { backgroundColor: theme.hero }]}>
+          <View style={[styles.heroBlobOne, { backgroundColor: theme.heroAccent }]} />
+          <View style={[styles.heroBlobTwo, { backgroundColor: theme.heroAccent }]} />
+
+          <View style={styles.heroTopRow}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <View style={styles.locationRow}>
+                <Ionicons name="navigate" size={18} color="#ffffff" />
+                <Text style={styles.locationTitle} numberOfLines={1}>
+                  {theme.locationTitle}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color="#ffffff" />
               </View>
-              <TouchableOpacity activeOpacity={0.92} style={styles.profileButton}>
-                <Ionicons name="person-outline" size={22} color={COLORS.white} />
-              </TouchableOpacity>
+              <Text style={styles.locationSubtitle} numberOfLines={1}>
+                {theme.locationSubtitle}
+              </Text>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.serviceRow}>
-              {TOP_SERVICES.map((item) => (
-                <ServiceChip
-                  key={item.key}
-                  item={item}
-                  active={activeService === item.key}
-                  dark={isScenes}
-                  onPress={() => setActiveService(item.key)}
+            <View style={styles.heroRightActions}>
+              {activeService === 'food' ? (
+                <TouchableOpacity activeOpacity={0.92} style={styles.upgradePill}>
+                  <Text style={styles.upgradePillText}>UPGRADE ONE</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                activeOpacity={0.92}
+                style={styles.profileButton}
+                onPress={() => router.push('/account')}>
+                <Ionicons name="person" size={20} color="#111827" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.serviceChipsRow}>
+            {TOP_SERVICES.map((item) => (
+              <ServiceChip
+                key={item.key}
+                item={item}
+                active={activeService === item.key}
+                dark
+                onPress={() => handleChangeService(item.key)}
+              />
+            ))}
+          </ScrollView>
+
+          <HeroSearchBar
+            placeholder={theme.searchPlaceholder}
+            value={homeSearch}
+            onChangeText={setHomeSearch}
+            onSubmit={handleSubmitSearch}
+            actionText={theme.actionText}
+            actionIcon={theme.actionIcon}
+            dark={activeService === 'scenes'}
+          />
+
+          <View
+            style={[
+              styles.heroCampaignCard,
+              activeService === 'warehouse' && styles.heroCampaignCardMart,
+              activeService === 'eatout' && styles.heroCampaignCardDine,
+              activeService === 'scenes' && styles.heroCampaignCardScenes,
+            ]}>
+            <Text
+              style={[
+                styles.heroCampaignLabel,
+                activeService === 'warehouse' && styles.heroCampaignLabelMart,
+                activeService === 'scenes' && styles.heroCampaignLabelLight,
+              ]}>
+              {theme.heroLabel}
+            </Text>
+            <Text
+              style={[
+                styles.heroCampaignTitle,
+                activeService === 'scenes' && styles.heroCampaignTitleLight,
+              ]}>
+              {theme.heroTitle}
+            </Text>
+            <Text
+              style={[
+                styles.heroCampaignSubtitle,
+                activeService === 'scenes' && styles.heroCampaignSubtitleLight,
+              ]}>
+              {theme.heroSubtitle}
+            </Text>
+          </View>
+        </View>
+
+        <View style={[styles.contentWrap, activeService === 'scenes' && styles.contentWrapScenes]}>
+          <BasketBanner
+            cartCount={cartCount}
+            cartTotal={cartTotal}
+            onPress={() => router.push('/cart')}
+            dark={activeService === 'scenes'}
+          />
+
+          {activeService === 'food' ? (
+            <>
+              <View style={styles.foodHighlightRow}>
+                {FOOD_HIGHLIGHTS.map((item) => (
+                  <FoodHighlightCard key={item.key} item={item} />
+                ))}
+              </View>
+
+              <SectionHeader
+                title="Top rated near you"
+                subtitle="The first rail now feels more visual, branded and easier to browse."
+              />
+
+              {vendorsLoading ? (
+                <LoadingBlock label="Loading restaurants..." />
+              ) : displayVendors.length === 0 ? (
+                <EmptyBlock
+                  title="No restaurants available"
+                  subtitle="Connect your vendors feed or seed more demo stores to fill this rail."
                 />
-              ))}
-            </ScrollView>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.horizontalRail}>
+                  {displayVendors.map((vendor) => (
+                    <RailVendorCard
+                      key={vendor.id}
+                      vendor={vendor}
+                      favorite={Boolean(favorites[vendor.id])}
+                      onToggleFavorite={() => toggleFavorite(vendor.id)}
+                      onOpen={() => handleOpenVendor(vendor)}
+                    />
+                  ))}
+                </ScrollView>
+              )}
 
-            <HeroSearch
-              placeholder={theme.searchPlaceholder}
-              value={homeSearch}
-              onChangeText={setHomeSearch}
-              onSubmit={() => rememberSearch(homeSearch)}
-              actionLabel={theme.actionLabel}
-              actionIcon={theme.actionIcon}
-              dark={isScenes}
-            />
+              <SectionHeader
+                title="Restaurants to order from"
+                subtitle="Cleaner metadata, stronger offer hierarchy and better list density."
+              />
 
-            {isWarehouse ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.martFilterRow}>
+              {vendorsLoading ? (
+                <LoadingBlock label="Refreshing restaurant feed..." />
+              ) : displayVendors.length === 0 ? (
+                <EmptyBlock
+                  title="Your feed is empty"
+                  subtitle="Once your backend vendors load, this becomes the main commerce discovery stack."
+                />
+              ) : (
+                displayVendors.slice(0, 6).map((vendor) => (
+                  <VendorFeedCard
+                    key={vendor.id}
+                    vendor={vendor}
+                    service="food"
+                    favorite={Boolean(favorites[vendor.id])}
+                    onToggleFavorite={() => toggleFavorite(vendor.id)}
+                    onOpen={() => handleOpenVendor(vendor)}
+                  />
+                ))
+              )}
+            </>
+          ) : null}
+
+          {activeService === 'warehouse' ? (
+            <>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalRail}>
                 {WAREHOUSE_FILTERS.map((item) => (
                   <WarehouseFilterChip
                     key={item.key}
@@ -617,155 +1059,127 @@ export default function HomeTabScreen() {
                   />
                 ))}
               </ScrollView>
-            ) : (
-              <SearchShortcuts items={quickSearches.slice(0, 4)} dark={isScenes} />
-            )}
-          </View>
 
-          {activeService === 'food' ? (
-            <View style={styles.sectionWrap}>
-              <View style={styles.foodCraveBanner}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.foodCraveTitle}>CRAVE</Text>
-                  <Text style={styles.foodCraveSub}>UP TO 60% OFF & MORE</Text>
+              <View style={styles.martHeroPanel}>
+                <View style={styles.bestBrandBadge}>
+                  <Text style={styles.bestBrandBadgeText}>BEST BRANDS</Text>
                 </View>
-                <TouchableOpacity activeOpacity={0.92} style={styles.foodCraveButton}>
-                  <Text style={styles.foodCraveButtonText}>ORDER NOW</Text>
-                </TouchableOpacity>
+                <Text style={styles.martHeroTitle}>Ramzan Mubarak</Text>
+                <Text style={styles.martHeroSub}>
+                  Sharper festival merchandising, clearer collections and a more Swiggy-like
+                  quick-commerce feel.
+                </Text>
               </View>
 
-              <View style={styles.foodHighlightRow}>
-                {FOOD_HIGHLIGHTS.map((item) => (
-                  <FoodHighlightCard key={item.key} item={item} />
-                ))}
-              </View>
-
-              <SectionHeader title="Top rated near you" subtitle="Make the first fold feel visual, branded and browseable." />
-
-              {vendorsLoading ? (
-                <LoadingBlock label="Loading restaurants..." />
-              ) : featuredVendors.length === 0 ? (
-                <EmptyBlock title="No restaurants available" subtitle="Connect your vendors feed or seed more demo stores to fill this rail." />
-              ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
-                  {featuredVendors.slice(0, 8).map((vendor) => (
-                    <FoodRestaurantCard
-                      key={vendor.id}
-                      vendor={vendor}
-                      favorite={Boolean(favorites[vendor.id])}
-                      onToggleFavorite={() => toggleFavorite(vendor.id)}
-                      onOpen={() => openVendor(vendor)}
-                    />
-                  ))}
-                </ScrollView>
-              )}
-
-              <SectionHeader title="Restaurants to order from" subtitle="A cleaner visual list with denser metadata and stronger offer hierarchy." />
-
-              {vendorsLoading ? (
-                <LoadingBlock label="Refreshing restaurant feed..." />
-              ) : featuredVendors.length === 0 ? (
-                <EmptyBlock title="Your feed is empty" subtitle="Once your backend vendors load, this list becomes the main commerce discovery stack." />
-              ) : (
-                featuredVendors.slice(0, 6).map((vendor) => (
-                  <VendorListCard
-                    key={vendor.id}
-                    vendor={vendor}
-                    service="food"
-                    favorite={Boolean(favorites[vendor.id])}
-                    onOpen={() => openVendor(vendor)}
-                    onToggleFavorite={() => toggleFavorite(vendor.id)}
-                  />
-                ))
-              )}
-            </View>
-          ) : null}
-
-          {activeService === 'warehouse' ? (
-            <View style={styles.sectionWrap}>
-              <View style={styles.martHeroBanner}>
-                <Text style={styles.martHeroBannerEyebrow}>BEST BRANDS</Text>
-                <Text style={styles.martHeroBannerTitle}>Ramzan Mubarak</Text>
-                <Text style={styles.martHeroBannerSub}>Festival merchandising, fast grocery intent and stronger quick-commerce density.</Text>
-              </View>
-
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalRail}>
                 {WAREHOUSE_BANNERS.map((item) => (
                   <View key={item.key} style={styles.martMiniBanner}>
-                    <Text style={styles.martMiniBannerEmoji}>{item.emoji}</Text>
+                    <View style={styles.martMiniBannerIcon}>
+                      <Ionicons name={item.icon} size={22} color={COLORS.martHero} />
+                    </View>
                     <Text style={styles.martMiniBannerTitle}>{item.title}</Text>
                   </View>
                 ))}
               </ScrollView>
 
               <TouchableOpacity activeOpacity={0.92} style={styles.martInfoStrip}>
-                <Text style={styles.martInfoStripText}>Explore 28 varieties of dates sourced from 12 countries.</Text>
-                <Ionicons name="chevron-forward" size={18} color={COLORS.white} />
+                <Text style={styles.martInfoStripText}>
+                  Explore 28 varieties of dates sourced from 12 countries.
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color="#ffffff" />
               </TouchableOpacity>
 
-              <View style={styles.martDealsPanel}>
-                <View style={styles.martDealsHeader}>
-                  <Text style={styles.martDealsTitle}>₹9 everyday</Text>
-                  <Text style={styles.martDealsSub}>Impulse-friendly add-ons, better pricing visibility and a faster add-to-cart loop.</Text>
+              <View style={styles.dealsPanel}>
+                <View style={styles.dealsPanelHeader}>
+                  <Text style={styles.dealsPanelTitle}>₹9 everyday</Text>
+                  <Text style={styles.dealsPanelSubtitle}>
+                    Impulse-friendly pricing visibility and a quicker add-to-cart loop.
+                  </Text>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
-                  {(homeDealsLoading ? FALLBACK_DEALS : deals).map((item) => (
-                    <WarehouseDealCard
-                      key={item.id}
-                      item={item}
-                      qty={cart.items[item.id]?.qty || 0}
-                      onAdd={() => addToCart(item)}
-                      onRemove={() => updateQty(item, -1)}
-                    />
-                  ))}
-                </ScrollView>
+
+                {homeDealsLoading && homeDeals.length === 0 ? (
+                  <LoadingBlock label="Loading quick deals..." />
+                ) : (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.horizontalRail}>
+                    {displayDeals.map((item) => (
+                      <WarehouseDealCard
+                        key={item.id}
+                        item={item}
+                        qty={cart.items[item.id]?.qty || 0}
+                        onAdd={() => addToCart(item)}
+                        onRemove={() => updateQty(item, -1)}
+                      />
+                    ))}
+                  </ScrollView>
+                )}
               </View>
 
-              <SectionHeader title="Quick grocery stores" subtitle="This list should feel like instant commerce, not a generic marketplace feed." />
+              <SectionHeader
+                title="Quick grocery stores"
+                subtitle="This tab should feel like instant commerce, not a generic marketplace feed."
+              />
 
               {vendorsLoading ? (
                 <LoadingBlock label="Loading nearby grocery stores..." />
-              ) : featuredVendors.length === 0 ? (
-                <EmptyBlock title="No nearby stores yet" subtitle="Seed warehouse-ready vendors and category imagery to make this tab feel complete." />
+              ) : displayVendors.length === 0 ? (
+                <EmptyBlock
+                  title="No nearby stores yet"
+                  subtitle="Seed warehouse-ready vendors and category imagery to make this tab feel complete."
+                />
               ) : (
-                featuredVendors.slice(0, 6).map((vendor) => (
-                  <VendorListCard
+                displayVendors.slice(0, 6).map((vendor) => (
+                  <VendorFeedCard
                     key={vendor.id}
                     vendor={vendor}
                     service="warehouse"
                     favorite={Boolean(favorites[vendor.id])}
-                    onOpen={() => openVendor(vendor)}
                     onToggleFavorite={() => toggleFavorite(vendor.id)}
+                    onOpen={() => handleOpenVendor(vendor)}
                   />
                 ))
               )}
-            </View>
+            </>
           ) : null}
 
           {activeService === 'eatout' ? (
-            <View style={styles.sectionWrapDineout}>
-              <View style={styles.dineoutHeroCard}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.dineoutHeroTitle}>PARTY{`\n`}FULL</Text>
-                  <Text style={styles.dineoutHeroSub}>Offer-led dining discovery with better hierarchy for plans, bookings and bill payment benefits.</Text>
-                </View>
-                <View style={styles.dineoutHeroFace}><Text style={styles.dineoutHeroFaceText}>😎</Text></View>
-              </View>
-
-              <View style={styles.dineoutFeatureGrid}>
-                <TouchableOpacity activeOpacity={0.92} style={styles.dineoutBigFeature}>
-                  <Text style={styles.dineoutBigFeatureValue}>FLAT{`\n`}50% OFF</Text>
+            <>
+              <View style={styles.dineFeatureGrid}>
+                <TouchableOpacity activeOpacity={0.92} style={styles.dineBigFeature}>
+                  <Text style={styles.dineBigFeatureText}>FLAT{`\n`}50% OFF</Text>
                 </TouchableOpacity>
-                <View style={styles.dineoutMiniFeatureColumn}>
-                  <TouchableOpacity activeOpacity={0.92} style={styles.dineoutMiniFeature}><Text style={styles.dineoutMiniFeatureText}>GIRF Hall of Fame</Text></TouchableOpacity>
-                  <TouchableOpacity activeOpacity={0.92} style={styles.dineoutMiniFeature}><Text style={styles.dineoutMiniFeatureText}>Family-Friendly Spots</Text></TouchableOpacity>
-                  <TouchableOpacity activeOpacity={0.92} style={styles.dineoutMiniFeature}><Text style={styles.dineoutMiniFeatureText}>Cafes & Quick Bites</Text></TouchableOpacity>
-                  <TouchableOpacity activeOpacity={0.92} style={styles.dineoutMiniFeature}><Text style={styles.dineoutMiniFeatureText}>Exciting Freebies</Text></TouchableOpacity>
+                <View style={styles.dineMiniGrid}>
+                  <TouchableOpacity activeOpacity={0.92} style={styles.dineMiniFeature}>
+                    <Text style={styles.dineMiniFeatureText}>GIRF Hall{`\n`}Of Fame</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity activeOpacity={0.92} style={styles.dineMiniFeature}>
+                    <Text style={styles.dineMiniFeatureText}>
+                      Family-Friendly{`\n`}Spots
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity activeOpacity={0.92} style={styles.dineMiniFeature}>
+                    <Text style={styles.dineMiniFeatureText}>Cafes &{`\n`}Quick Bites</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity activeOpacity={0.92} style={styles.dineMiniFeature}>
+                    <Text style={styles.dineMiniFeatureText}>Exciting{`\n`}Freebies</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
 
-              <SectionHeader title="In the spotlight" subtitle="Campaign surfaces, event cards and offer-led discovery should feel instantly premium." actionLabel="View all" />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
+              <SectionHeader
+                title="In the spotlight"
+                subtitle="Campaign surfaces and offer-led discovery should feel instantly premium."
+                actionLabel="View all"
+              />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalRail}>
                 {DINEOUT_SPOTLIGHT.map((item) => (
                   <DineoutSpotlightCard key={item.key} item={item} />
                 ))}
@@ -773,108 +1187,157 @@ export default function HomeTabScreen() {
 
               <Text style={styles.personalPrompt}>Hari, what's on your mind?</Text>
               <View style={styles.quickPromptRow}>
-                <TouchableOpacity activeOpacity={0.92} style={styles.quickPromptCard}><Text style={styles.quickPromptText}>Restaurants near me</Text></TouchableOpacity>
-                <TouchableOpacity activeOpacity={0.92} style={styles.quickPromptCard}><Text style={styles.quickPromptText}>Pre-Book Offers</Text></TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.92} style={styles.quickPromptCard}>
+                  <Text style={styles.quickPromptText}>Restaurants near me</Text>
+                </TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.92} style={styles.quickPromptCard}>
+                  <Text style={styles.quickPromptText}>Pre-Book Offers</Text>
+                </TouchableOpacity>
               </View>
 
-              <SectionHeader title="Popular picks" subtitle="Horizontal venue storytelling adds warmth before the denser list below." actionLabel="View all" />
+              <SectionHeader
+                title="Popular picks"
+                subtitle="Horizontal venue storytelling adds warmth before the denser list below."
+                actionLabel="View all"
+              />
 
               {vendorsLoading ? (
                 <LoadingBlock label="Loading dineout venues..." />
-              ) : featuredVendors.length === 0 ? (
-                <EmptyBlock title="No venues available" subtitle="Once you connect dining-specific vendors and artwork, this section becomes much stronger." />
+              ) : displayVendors.length === 0 ? (
+                <EmptyBlock
+                  title="No venues available"
+                  subtitle="Connect dining-specific vendors and artwork to make this section feel complete."
+                />
               ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
-                  {featuredVendors.slice(0, 8).map((vendor) => (
-                    <FoodRestaurantCard
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.horizontalRail}>
+                  {displayVendors.map((vendor) => (
+                    <RailVendorCard
                       key={vendor.id}
                       vendor={vendor}
                       service="eatout"
                       favorite={Boolean(favorites[vendor.id])}
                       onToggleFavorite={() => toggleFavorite(vendor.id)}
-                      onOpen={() => openVendor(vendor)}
+                      onOpen={() => handleOpenVendor(vendor)}
                     />
                   ))}
                 </ScrollView>
               )}
 
-              <SectionHeader title="Places with bill offers" subtitle="List view should support conversion once discovery has created intent." />
+              <SectionHeader
+                title="Places with bill offers"
+                subtitle="List view should support conversion once discovery has created intent."
+              />
 
               {vendorsLoading ? (
                 <LoadingBlock label="Refreshing dineout feed..." />
-              ) : featuredVendors.length === 0 ? (
-                <EmptyBlock title="No dineout list yet" subtitle="Your design shell is ready; now the experience needs venue imagery, offers and bookings data." />
+              ) : displayVendors.length === 0 ? (
+                <EmptyBlock
+                  title="No dineout list yet"
+                  subtitle="The shell is ready; now the experience needs venue imagery, offers and bookings data."
+                />
               ) : (
-                featuredVendors.slice(0, 6).map((vendor) => (
-                  <VendorListCard
+                displayVendors.slice(0, 6).map((vendor) => (
+                  <VendorFeedCard
                     key={vendor.id}
                     vendor={vendor}
                     service="eatout"
                     favorite={Boolean(favorites[vendor.id])}
-                    onOpen={() => openVendor(vendor)}
                     onToggleFavorite={() => toggleFavorite(vendor.id)}
+                    onOpen={() => handleOpenVendor(vendor)}
                   />
                 ))
               )}
-            </View>
+            </>
           ) : null}
 
           {activeService === 'scenes' ? (
-            <View style={styles.sectionWrapScenes}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRailScenes}>
-                {SCENE_EVENTS.slice(0, 2).map((item) => (
-                  <SceneEventCard key={item.id} item={item} compact />
+            <>
+              <SectionHeader
+                title="Featured tonight"
+                subtitle="Premium event cards should anchor the first fold."
+                light
+              />
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalRail}>
+                {sceneRailItems.length > 0 ? (
+                  sceneRailItems.map((item) => <SceneEventCard key={item.id} item={item} />)
+                ) : (
+                  <EmptyBlock
+                    title="No events in this mood"
+                    subtitle="Add more scenes content to widen the browsing surface."
+                    light
+                  />
+                )}
+              </ScrollView>
+
+              <SectionHeader
+                title="When is the plan?"
+                subtitle="Mood-led discovery brings the Swiggy Scenes feeling much closer."
+                light
+              />
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalRail}>
+                {SCENE_MOODS.map((item) => (
+                  <SceneMoodChip
+                    key={item.key}
+                    item={item}
+                    active={sceneMood === item.key}
+                    onPress={() => setSceneMood(item.key)}
+                  />
                 ))}
               </ScrollView>
 
-              <TouchableOpacity activeOpacity={0.92} style={styles.scenesViewAllButton}>
-                <Text style={styles.scenesViewAllText}>View all</Text>
-              </TouchableOpacity>
+              <SectionHeader
+                title="All scenes"
+                subtitle={`${sceneGridItems.length} events`}
+                light
+              />
 
-              <SectionHeader title="WHEN IS THE PLAN?" subtitle="Use fast filters and bold typography to make the event feed feel editorial." light />
-              <View style={styles.sceneMomentRow}>
-                {SCENE_MOMENTS.map((item) => {
-                  const active = sceneMoment === item.key;
-                  return (
-                    <TouchableOpacity
-                      key={item.key}
-                      activeOpacity={0.92}
-                      style={[styles.sceneMomentChip, active && styles.sceneMomentChipActive]}
-                      onPress={() => setSceneMoment(item.key)}>
-                      <Text style={[styles.sceneMomentChipText, active && styles.sceneMomentChipTextActive]}>{item.label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              <SectionHeader title="ALL SCENES" subtitle="Grid cards, clear dates and bold price markers push this closer to a production events marketplace." light />
-              <View style={styles.sceneGrid}>
-                {SCENE_EVENTS.map((item) => (
-                  <SceneEventCard key={item.id} item={item} />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalRail}>
+                {SCENE_FILTERS.map((item) => (
+                  <SceneFilterChip
+                    key={item.key}
+                    item={item}
+                    active={sceneFilter === item.key}
+                    onPress={() => setSceneFilter(item.key)}
+                  />
                 ))}
-              </View>
-            </View>
-          ) : null}
-        </ScrollView>
+              </ScrollView>
 
-        <View style={[styles.overlayWrap, { bottom: tabBarHeight + 12 }]}>
-          {cartCount > 0 ? (
-            <TouchableOpacity activeOpacity={0.94} style={styles.cartBar} onPress={() => router.push('/cart')}>
-              <View>
-                <Text style={styles.cartBarTitle}>{isEatout ? 'Continue booking' : 'View cart'}</Text>
-                <Text style={styles.cartBarText}>{cartCount} items · {money(cartTotal)}</Text>
-              </View>
-              <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
-            </TouchableOpacity>
-          ) : null}
-
-          {isWarehouse ? (
-            <View style={styles.deliveryStrip}>
-              <Text style={styles.deliveryStripText}>{deliveryStripText}</Text>
-            </View>
+              {sceneGridItems.length === 0 ? (
+                <EmptyBlock
+                  title="No events found"
+                  subtitle="Try another moment or seed more events into this section."
+                  light
+                />
+              ) : (
+                sceneGridRows.map((row, rowIndex) => (
+                  <View key={`row-${rowIndex}`} style={styles.sceneGridRow}>
+                    {row.map((item) => (
+                      <View key={item.id} style={styles.sceneGridCell}>
+                        <SceneEventCard item={item} compact />
+                      </View>
+                    ))}
+                    {row.length === 1 ? <View style={styles.sceneGridCell} /> : null}
+                  </View>
+                ))
+              )}
+            </>
           ) : null}
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -883,529 +1346,663 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  root: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-  scrollContentScenes: {
-    backgroundColor: '#040713',
-  },
-  hero: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 18,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    overflow: 'hidden',
-  },
+
   topStrip: {
-    minHeight: 34,
-    borderRadius: 18,
-    paddingHorizontal: 12,
-    marginBottom: 14,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    minHeight: 42,
+    backgroundColor: '#0f5e35',
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    alignSelf: 'stretch',
   },
   topStripText: {
-    flex: 1,
-    color: COLORS.white,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  heroHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-  heroTitle: {
-    color: COLORS.white,
-    fontSize: 31,
-    fontWeight: '900',
-    letterSpacing: -0.8,
-  },
-  heroTitleScenes: {
-    fontSize: 21,
-    fontWeight: '800',
-  },
-  heroAddressRow: {
-    marginTop: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    maxWidth: '95%',
-  },
-  heroAddress: {
-    flex: 1,
-    color: 'rgba(255,255,255,0.92)',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  profileButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
-  },
-  serviceRow: {
-    paddingTop: 4,
-    paddingBottom: 14,
-    gap: 10,
-  },
-  serviceChip: {
-    minWidth: 92,
-    borderRadius: 24,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  serviceChipActive: {
-    backgroundColor: COLORS.white,
-    borderColor: COLORS.white,
-  },
-  serviceChipDark: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  serviceChipDarkActive: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderColor: 'rgba(255,255,255,0.18)',
-  },
-  serviceChipEmoji: {
-    fontSize: 20,
-  },
-  serviceChipBadge: {
-    color: '#dbeafe',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  serviceChipBadgeDark: {
-    color: '#c7d2fe',
-  },
-  serviceChipLabel: {
-    color: COLORS.white,
+    color: '#ffffff',
     fontSize: 13,
     fontWeight: '800',
   },
-  serviceChipLabelDark: {
-    color: COLORS.white,
-  },
-  serviceChipLabelActive: {
-    color: COLORS.black,
-  },
-  heroSearchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  heroSearch: {
-    flex: 1,
-    minHeight: 58,
-    borderRadius: 18,
+
+  heroWrap: {
     paddingHorizontal: 16,
-    backgroundColor: COLORS.white,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  heroSearchDark: {
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-  },
-  heroSearchInput: {
-    flex: 1,
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  heroSearchInputDark: {
-    color: COLORS.white,
-  },
-  heroSearchAction: {
-    width: 62,
-    minHeight: 58,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.20)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-  },
-  heroSearchActionDark: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  heroSearchActionText: {
-    color: COLORS.white,
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  shortcutRow: {
-    gap: 10,
     paddingTop: 14,
-  },
-  shortcutChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-  },
-  shortcutChipDark: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  shortcutText: {
-    color: COLORS.white,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  shortcutTextDark: {
-    color: '#e5e7eb',
-  },
-  martFilterRow: {
-    gap: 10,
-    paddingTop: 14,
-  },
-  martFilterChip: {
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  martFilterChipActive: {
-    backgroundColor: COLORS.white,
-  },
-  martFilterChipText: {
-    color: COLORS.white,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  martFilterChipTextActive: {
-    color: COLORS.martPrimary,
-  },
-  sectionWrap: {
-    paddingTop: 16,
-    paddingHorizontal: 16,
-  },
-  sectionWrapDineout: {
-    paddingTop: 16,
-    paddingHorizontal: 16,
-    backgroundColor: COLORS.white,
-  },
-  sectionWrapScenes: {
-    paddingTop: 16,
-    paddingHorizontal: 16,
-    backgroundColor: '#040713',
-  },
-  foodCraveBanner: {
-    borderRadius: 28,
-    padding: 20,
-    backgroundColor: COLORS.foodPrimary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    shadowColor: COLORS.shadow,
-    shadowOpacity: 1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
-  },
-  foodCraveTitle: {
-    color: '#ffcf24',
-    fontSize: 44,
-    fontWeight: '900',
-    letterSpacing: -1,
-  },
-  foodCraveSub: {
-    color: COLORS.white,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  foodCraveButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    backgroundColor: '#ffd400',
-  },
-  foodCraveButtonText: {
-    color: COLORS.foodPrimaryDark,
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  foodHighlightRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 14,
-  },
-  foodHighlightCard: {
-    flex: 1,
-    minHeight: 126,
-    borderRadius: 22,
-    padding: 16,
-    backgroundColor: '#ffd644',
-  },
-  foodHighlightEmoji: {
-    fontSize: 28,
-    marginBottom: 10,
-  },
-  foodHighlightTitle: {
-    color: COLORS.foodPrimaryDark,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  foodHighlightBadge: {
-    color: '#5b2d00',
-    fontSize: 12,
-    fontWeight: '700',
-    marginTop: 6,
-  },
-  sectionHeader: {
-    marginTop: 22,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  sectionTitle: {
-    color: COLORS.text,
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: -0.8,
-  },
-  sectionTitleLight: {
-    color: COLORS.white,
-  },
-  sectionSubtitle: {
-    color: COLORS.textSoft,
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 4,
-    fontWeight: '600',
-  },
-  sectionSubtitleLight: {
-    color: '#98a2b3',
-  },
-  sectionAction: {
-    color: COLORS.dineAccent,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  sectionActionLight: {
-    color: COLORS.white,
-  },
-  horizontalRail: {
-    gap: 14,
-    paddingBottom: 4,
-  },
-  horizontalRailScenes: {
-    gap: 14,
-    paddingBottom: 4,
-    paddingRight: 12,
-  },
-  restaurantCard: {
-    width: 156,
-  },
-  restaurantPoster: {
-    height: 136,
-    borderRadius: 24,
-    padding: 12,
-    justifyContent: 'space-between',
+    paddingBottom: 24,
     overflow: 'hidden',
   },
-  restaurantPosterFood: {
-    backgroundColor: '#3a0f57',
+  heroBlobOne: {
+    position: 'absolute',
+    right: -40,
+    top: -20,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    opacity: 0.22,
   },
-  restaurantPosterDineout: {
-    backgroundColor: '#522012',
+  heroBlobTwo: {
+    position: 'absolute',
+    left: -35,
+    top: 90,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    opacity: 0.14,
   },
-  offerPillBlack: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  locationTitle: {
+    flex: 1,
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  locationSubtitle: {
+    marginTop: 4,
+    color: 'rgba(255,255,255,0.84)',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  heroRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  upgradePill: {
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
-  offerPillBlackText: {
-    color: COLORS.white,
+  upgradePillText: {
+    color: '#ffffff',
     fontSize: 11,
     fontWeight: '900',
   },
-  heartFab: {
+  profileButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  serviceChipsRow: {
+    paddingTop: 18,
+    paddingBottom: 16,
+    gap: 10,
+  },
+  serviceChip: {
+    minWidth: 118,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+  },
+  serviceChipDark: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.09)',
+  },
+  serviceChipActive: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderColor: 'rgba(255,255,255,0.45)',
+  },
+  serviceChipDarkActive: {
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  serviceChipIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serviceChipBadge: {
+    color: '#8ad4ff',
+    fontSize: 10,
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+  serviceChipText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  serviceChipTextActive: {
+    color: '#ffffff',
+  },
+  serviceChipTextDark: {
+    color: '#ffffff',
+  },
+
+  searchBarWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  searchBar: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  searchBarDark: {
+    backgroundColor: '#10172a',
+    borderWidth: 1,
+    borderColor: '#1c2740',
+  },
+  searchInput: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 17,
+    fontWeight: '600',
+    paddingVertical: 0,
+  },
+  searchInputDark: {
+    color: '#ffffff',
+  },
+  searchAction: {
+    minWidth: 58,
+    height: 58,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  searchActionDark: {
+    backgroundColor: '#162033',
+    borderWidth: 1,
+    borderColor: '#273452',
+  },
+  searchActionText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  heroCampaignCard: {
+    marginTop: 18,
+    borderRadius: 30,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  heroCampaignCardMart: {
+    backgroundColor: '#0b4fb3',
+  },
+  heroCampaignCardDine: {
+    backgroundColor: '#2d0b52',
+  },
+  heroCampaignCardScenes: {
+    backgroundColor: '#0d1426',
+    borderWidth: 1,
+    borderColor: '#1c2740',
+  },
+  heroCampaignLabel: {
+    color: COLORS.foodHero,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  heroCampaignLabelMart: {
+    color: '#dbeafe',
+  },
+  heroCampaignLabelLight: {
+    color: '#9fb0d4',
+  },
+  heroCampaignTitle: {
+    marginTop: 8,
+    color: COLORS.text,
+    fontSize: 30,
+    lineHeight: 34,
+    fontWeight: '900',
+  },
+  heroCampaignTitleLight: {
+    color: '#ffffff',
+  },
+  heroCampaignSubtitle: {
+    marginTop: 8,
+    color: COLORS.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+  heroCampaignSubtitleLight: {
+    color: '#c7d0df',
+  },
+
+  contentWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    backgroundColor: COLORS.page,
+  },
+  contentWrapScenes: {
+    backgroundColor: COLORS.scenesHero,
+  },
+
+  basketBanner: {
+    marginBottom: 16,
+    borderRadius: 20,
+    backgroundColor: COLORS.successSoft,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  basketBannerDark: {
+    backgroundColor: '#0d1426',
+    borderColor: '#1b2843',
+  },
+  basketIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#dcfce7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  basketIconWrapDark: {
+    backgroundColor: '#162033',
+  },
+  basketBannerTitle: {
+    color: COLORS.success,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  basketBannerTitleDark: {
+    color: '#ffffff',
+  },
+  basketBannerSubtitle: {
+    color: COLORS.success,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  basketBannerSubtitleDark: {
+    color: '#c7d0df',
+  },
+
+  foodHighlightRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 18,
+  },
+  foodHighlightCard: {
+    flex: 1,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    minHeight: 120,
+  },
+  foodHighlightIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: COLORS.foodCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  foodHighlightTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '900',
+  },
+  foodHighlightBadge: {
+    marginTop: 8,
+    color: COLORS.muted,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+  },
+
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    color: COLORS.text,
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  sectionTitleLight: {
+    color: '#ffffff',
+  },
+  sectionSubtitle: {
+    marginTop: 4,
+    color: COLORS.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  sectionSubtitleLight: {
+    color: '#aab4c8',
+  },
+  sectionAction: {
+    color: COLORS.dineAccent,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  sectionActionLight: {
+    color: '#ffffff',
+  },
+
+  horizontalRail: {
+    gap: 12,
+    paddingBottom: 18,
+  },
+
+  railVendorCard: {
+    width: 168,
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 12,
+  },
+  railVendorCardDine: {
+    width: 184,
+  },
+  railVendorVisual: {
+    height: 128,
+    borderRadius: 20,
+    backgroundColor: COLORS.foodCard,
+    marginBottom: 12,
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+  railVendorVisualDine: {
+    backgroundColor: COLORS.dineCard,
+  },
+  offerBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    backgroundColor: '#111827',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  offerBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  favoriteButton: {
     position: 'absolute',
     top: 12,
     right: 12,
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(0,0,0,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  restaurantPosterInitials: {
-    position: 'absolute',
-    left: 14,
-    bottom: 14,
-    color: 'rgba(255,255,255,0.92)',
-    fontSize: 34,
-    fontWeight: '900',
-    letterSpacing: -1,
+  visualMonogramWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.74)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  restaurantCardTitle: {
+  visualMonogram: {
     color: COLORS.text,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
-    marginTop: 10,
   },
-  restaurantCardMeta: {
-    color: COLORS.textSoft,
-    fontSize: 13,
-    fontWeight: '700',
-    marginTop: 4,
+  railVendorName: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '900',
   },
-  vendorListCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 24,
-    padding: 14,
-    marginBottom: 12,
+  railVendorMeta: {
+    marginTop: 6,
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  railVendorRatingRow: {
+    marginTop: 8,
     flexDirection: 'row',
-    gap: 14,
+    alignItems: 'center',
+    gap: 4,
+  },
+  railVendorRating: {
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  feedCard: {
+    marginBottom: 14,
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: COLORS.border,
-    shadowColor: COLORS.shadow,
-    shadowOpacity: 1,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 5,
+    padding: 12,
+    flexDirection: 'row',
+    gap: 12,
   },
-  vendorThumb: {
-    width: 84,
-    height: 84,
+  feedCardDine: {
+    borderColor: '#f2e8ff',
+  },
+  feedVisualCol: {
+    width: 112,
+  },
+  feedVisual: {
+    height: 112,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: COLORS.foodCard,
+    padding: 10,
+    justifyContent: 'space-between',
   },
-  vendorThumbFood: {
-    backgroundColor: COLORS.foodSoft,
+  feedVisualMart: {
+    backgroundColor: COLORS.martCard,
   },
-  vendorThumbMart: {
-    backgroundColor: COLORS.martSoft,
+  feedVisualDine: {
+    backgroundColor: COLORS.dineCard,
   },
-  vendorThumbDine: {
-    backgroundColor: COLORS.dineSoft,
-  },
-  vendorThumbText: {
-    color: COLORS.black,
-    fontSize: 24,
+  feedVisualText: {
+    alignSelf: 'center',
+    marginTop: 18,
+    color: COLORS.text,
+    fontSize: 28,
     fontWeight: '900',
   },
-  vendorTopRow: {
+  feedOfferInline: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    backgroundColor: '#111827',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  feedOfferInlineText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  feedContent: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  feedTitleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 10,
   },
-  vendorName: {
+  feedTitle: {
     flex: 1,
     color: COLORS.text,
     fontSize: 18,
     fontWeight: '900',
   },
-  vendorDescription: {
-    color: COLORS.textSoft,
+  feedMetaRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  ratingPill: {
+    borderRadius: 999,
+    backgroundColor: COLORS.success,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingPillText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  feedMetaText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  feedMetaDot: {
+    color: COLORS.subtle,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  feedDescription: {
+    marginTop: 10,
+    color: COLORS.muted,
     fontSize: 13,
-    lineHeight: 18,
-    marginTop: 6,
+    lineHeight: 19,
+    fontWeight: '500',
+  },
+  feedFooterRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  feedAddress: {
+    flex: 1,
+    color: COLORS.subtle,
+    fontSize: 12,
     fontWeight: '600',
   },
-  vendorMetaWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 10,
+  feedCta: {
+    color: COLORS.dineAccent,
+    fontSize: 12,
+    fontWeight: '900',
   },
-  metaPill: {
+
+  warehouseFilterChip: {
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: '#f2f4f7',
+    backgroundColor: '#0c2d72',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
   },
-  metaPillText: {
-    color: COLORS.textSoft,
-    fontSize: 11,
+  warehouseFilterChipActive: {
+    backgroundColor: '#1d4ed8',
+  },
+  warehouseFilterText: {
+    color: '#ffffff',
+    fontSize: 13,
     fontWeight: '800',
   },
-  metaPillAccent: {
+
+  martHeroPanel: {
+    borderRadius: 28,
+    backgroundColor: '#0b3f98',
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    marginBottom: 16,
+  },
+  bestBrandBadge: {
+    alignSelf: 'flex-end',
     borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: '#fff1e7',
   },
-  metaPillAccentText: {
-    color: '#c2410c',
-    fontSize: 11,
+  bestBrandBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
     fontWeight: '900',
   },
-  martHeroBanner: {
-    borderRadius: 28,
-    padding: 20,
-    backgroundColor: COLORS.martPrimary,
-  },
-  martHeroBannerEyebrow: {
-    color: '#dbeafe',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  martHeroBannerTitle: {
-    color: COLORS.white,
+  martHeroTitle: {
+    marginTop: 6,
+    color: '#ffffff',
     fontSize: 30,
     fontWeight: '900',
-    marginTop: 8,
   },
-  martHeroBannerSub: {
+  martHeroSub: {
+    marginTop: 8,
     color: '#dbeafe',
     fontSize: 14,
-    fontWeight: '600',
     lineHeight: 20,
-    marginTop: 8,
+    fontWeight: '500',
   },
+
   martMiniBanner: {
     width: 146,
-    minHeight: 116,
-    borderRadius: 22,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
     padding: 14,
-    backgroundColor: COLORS.martPrimary,
-    justifyContent: 'space-between',
+    minHeight: 112,
   },
-  martMiniBannerEmoji: {
-    fontSize: 28,
+  martMiniBannerIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   martMiniBannerTitle: {
-    color: COLORS.white,
-    fontSize: 16,
+    color: COLORS.text,
+    fontSize: 14,
+    lineHeight: 19,
     fontWeight: '800',
-    lineHeight: 20,
   },
+
   martInfoStrip: {
-    marginTop: 14,
-    borderRadius: 20,
+    marginBottom: 16,
+    borderRadius: 18,
+    backgroundColor: '#113b89',
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: COLORS.martPrimary,
+    paddingVertical: 15,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1413,458 +2010,383 @@ const styles = StyleSheet.create({
   },
   martInfoStripText: {
     flex: 1,
-    color: COLORS.white,
-    fontSize: 15,
+    color: '#ffffff',
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: '800',
   },
-  martDealsPanel: {
-    marginTop: 16,
-    borderRadius: 28,
-    padding: 16,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  martDealsHeader: {
-    marginBottom: 12,
-  },
-  martDealsTitle: {
-    color: COLORS.martPrimary,
-    fontSize: 28,
-    fontWeight: '900',
-  },
-  martDealsSub: {
-    color: COLORS.textSoft,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 20,
-    marginTop: 4,
-  },
-  martDealCard: {
-    width: 172,
+
+  dealsPanel: {
     borderRadius: 24,
-    padding: 14,
-    backgroundColor: '#f8fbff',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#dce8ff',
+    paddingVertical: 16,
+    marginBottom: 18,
   },
-  martDealBadge: {
-    alignSelf: 'flex-start',
-    color: COLORS.martPrimary,
-    fontSize: 11,
+  dealsPanelHeader: {
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  dealsPanelTitle: {
+    color: COLORS.martHero,
+    fontSize: 24,
     fontWeight: '900',
-    backgroundColor: '#dbeafe',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
   },
-  martDealImage: {
-    marginTop: 12,
-    width: 68,
-    height: 68,
+  dealsPanelSubtitle: {
+    marginTop: 6,
+    color: COLORS.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+
+  dealCard: {
+    width: 154,
+    borderRadius: 22,
+    backgroundColor: '#f8fbff',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    padding: 12,
+  },
+  dealVisual: {
+    height: 92,
     borderRadius: 18,
-    backgroundColor: COLORS.white,
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 12,
   },
-  martDealEmoji: {
+  dealVisualEmoji: {
     fontSize: 34,
   },
-  martDealTitle: {
+  dealBrand: {
+    color: COLORS.subtle,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  dealName: {
+    marginTop: 4,
+    color: COLORS.text,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '800',
+    minHeight: 38,
+  },
+  dealPrice: {
+    marginTop: 8,
     color: COLORS.text,
     fontSize: 16,
     fontWeight: '900',
+  },
+  dealAddButton: {
     marginTop: 12,
-  },
-  martDealMeta: {
-    color: COLORS.textSoft,
-    fontSize: 12,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  martDealFooter: {
-    marginTop: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  martDealPrice: {
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  selectButton: {
-    minWidth: 76,
-    height: 38,
+    height: 40,
     borderRadius: 14,
     backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.martHeroSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#b9ccff',
   },
-  selectButtonText: {
-    color: COLORS.martAccent,
+  dealAddButtonText: {
+    color: COLORS.martHeroSoft,
     fontSize: 13,
     fontWeight: '900',
   },
   qtyStepper: {
-    minWidth: 92,
-    height: 38,
+    marginTop: 12,
+    height: 40,
     borderRadius: 14,
-    backgroundColor: COLORS.white,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#d0d5dd',
+    borderColor: COLORS.border,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
   },
-  qtyStepperButton: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#f2f4f7',
+  qtyButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  qtyStepperText: {
+  qtyValue: {
     color: COLORS.text,
     fontSize: 13,
     fontWeight: '900',
   },
-  dineoutHeroCard: {
+
+  dineFeatureGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 18,
+  },
+  dineBigFeature: {
+    flex: 1,
+    minHeight: 184,
     borderRadius: 28,
-    padding: 20,
-    backgroundColor: COLORS.dinePrimary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  dineoutHeroTitle: {
-    color: '#fde047',
-    fontSize: 40,
-    fontWeight: '900',
-    letterSpacing: -1,
-    lineHeight: 38,
-  },
-  dineoutHeroSub: {
-    color: '#ede9fe',
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 20,
-    marginTop: 10,
-  },
-  dineoutHeroFace: {
-    width: 76,
-    height: 76,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dineoutHeroFaceText: {
-    fontSize: 34,
-  },
-  dineoutFeatureGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 14,
-  },
-  dineoutBigFeature: {
-    flex: 0.9,
-    minHeight: 182,
-    borderRadius: 24,
-    backgroundColor: '#fde047',
+    backgroundColor: '#ffe600',
     padding: 18,
     justifyContent: 'flex-end',
   },
-  dineoutBigFeatureValue: {
-    color: '#4a1d96',
-    fontSize: 34,
-    fontWeight: '900',
+  dineBigFeatureText: {
+    color: COLORS.text,
+    fontSize: 30,
     lineHeight: 32,
-    letterSpacing: -1,
+    fontWeight: '900',
   },
-  dineoutMiniFeatureColumn: {
+  dineMiniGrid: {
     flex: 1,
     gap: 10,
   },
-  dineoutMiniFeature: {
+  dineMiniFeature: {
     flex: 1,
-    minHeight: 40,
-    borderRadius: 18,
-    backgroundColor: '#ffef98',
+    borderRadius: 20,
+    backgroundColor: '#ffe600',
     paddingHorizontal: 14,
     paddingVertical: 12,
     justifyContent: 'center',
   },
-  dineoutMiniFeatureText: {
-    color: '#5b2d00',
-    fontSize: 13,
+  dineMiniFeatureText: {
+    color: COLORS.text,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '900',
   },
+
   spotlightCard: {
-    width: 252,
-    minHeight: 170,
-    borderRadius: 24,
+    width: 248,
+    borderRadius: 26,
     padding: 18,
+    minHeight: 152,
     justifyContent: 'space-between',
   },
   spotlightTitle: {
-    color: COLORS.white,
+    color: '#ffffff',
     fontSize: 24,
+    lineHeight: 28,
     fontWeight: '900',
-    letterSpacing: -0.6,
   },
-  spotlightSub: {
-    color: 'rgba(255,255,255,0.9)',
+  spotlightSubtitle: {
+    color: 'rgba(255,255,255,0.88)',
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: '700',
+    fontWeight: '500',
     marginTop: 8,
   },
-  spotlightButton: {
+  spotlightActionPill: {
     alignSelf: 'flex-start',
     borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.16)',
   },
-  spotlightButtonText: {
-    color: COLORS.white,
+  spotlightActionText: {
+    color: '#ffffff',
     fontSize: 12,
     fontWeight: '900',
   },
+
   personalPrompt: {
+    marginBottom: 12,
     color: COLORS.text,
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '900',
-    letterSpacing: -0.8,
-    marginTop: 16,
   },
   quickPromptRow: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 12,
+    marginBottom: 18,
   },
   quickPromptCard: {
     flex: 1,
-    minHeight: 72,
-    borderRadius: 22,
-    padding: 16,
-    backgroundColor: '#fff1e7',
-    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: '#fff3ec',
+    borderWidth: 1,
+    borderColor: '#ffe4d5',
+    paddingHorizontal: 14,
+    paddingVertical: 16,
   },
   quickPromptText: {
-    color: '#8a3500',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  sceneMomentRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 6,
-    marginBottom: 6,
-  },
-  sceneMomentChip: {
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-  },
-  sceneMomentChipActive: {
-    backgroundColor: COLORS.white,
-  },
-  sceneMomentChipText: {
-    color: COLORS.white,
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  sceneMomentChipTextActive: {
-    color: COLORS.black,
-  },
-  scenesViewAllButton: {
-    alignSelf: 'center',
-    marginTop: 10,
-    marginBottom: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  scenesViewAllText: {
-    color: COLORS.white,
-    fontSize: 14,
+    color: COLORS.text,
+    fontSize: 15,
     fontWeight: '800',
   },
-  sceneGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginTop: 4,
-  },
-  sceneCard: {
+
+  sceneRailCard: {
+    width: 258,
     borderRadius: 24,
+    backgroundColor: COLORS.scenesCard,
+    borderWidth: 1,
+    borderColor: COLORS.scenesBorder,
     overflow: 'hidden',
   },
-  sceneCardCompact: {
-    width: 240,
+  sceneRailVisual: {
+    height: 172,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
   },
-  sceneCardGrid: {
-    width: '48%',
+  scenePriceTag: {
+    position: 'absolute',
+    left: 12,
+    bottom: 12,
+    borderRadius: 999,
+    backgroundColor: '#ff4da0',
+    color: '#ffffff',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    fontSize: 12,
+    fontWeight: '900',
+    overflow: 'hidden',
+  },
+  sceneRailInfo: {
+    padding: 14,
+    flexDirection: 'row',
+    gap: 12,
   },
   sceneDateBlock: {
-    width: 70,
-    minHeight: 54,
-    borderBottomRightRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    width: 54,
+    minHeight: 62,
+    borderRadius: 16,
+    backgroundColor: '#202a3f',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
   sceneDateText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: '900',
+    color: '#ffffff',
+    fontSize: 12,
+    lineHeight: 15,
     textAlign: 'center',
-  },
-  sceneContent: {
-    padding: 16,
-    minHeight: 182,
-    justifyContent: 'space-between',
-  },
-  sceneTagRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  sceneTag: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  sceneTagText: {
-    color: COLORS.white,
-    fontSize: 11,
     fontWeight: '900',
   },
-  sceneEmoji: {
-    fontSize: 24,
-  },
-  scenePrice: {
-    color: '#f8fafc',
-    fontSize: 16,
-    fontWeight: '900',
-    marginTop: 14,
-  },
-  sceneTitle: {
-    color: COLORS.white,
-    fontSize: 19,
-    fontWeight: '900',
+  sceneCardTitle: {
+    color: '#ffffff',
+    fontSize: 18,
     lineHeight: 22,
-    marginTop: 8,
+    fontWeight: '900',
   },
-  sceneSubtitle: {
-    color: '#cbd5e1',
+  sceneCardSubtitle: {
+    marginTop: 6,
+    color: '#aab4c8',
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: '700',
-    marginTop: 6,
+    fontWeight: '500',
   },
-  loadingBlock: {
-    borderRadius: 24,
-    paddingVertical: 30,
+
+  sceneMoodChip: {
+    width: 104,
+    height: 104,
+    borderRadius: 30,
+    backgroundColor: '#172033',
+    borderWidth: 1,
+    borderColor: '#25314c',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 10,
   },
-  loadingBlockText: {
-    color: COLORS.textSoft,
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 12,
+  sceneMoodChipActive: {
+    backgroundColor: '#8b5cf6',
+    borderColor: '#c4b5fd',
   },
-  loadingBlockTextDark: {
-    color: '#cbd5e1',
+  sceneMoodText: {
+    color: '#ffffff',
+    fontSize: 18,
+    lineHeight: 20,
+    textAlign: 'center',
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
-  emptyBlock: {
+  sceneMoodTextActive: {
+    color: '#ffffff',
+  },
+
+  sceneFilterChip: {
+    borderRadius: 999,
+    backgroundColor: '#172033',
+    borderWidth: 1,
+    borderColor: '#25314c',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  sceneFilterChipActive: {
+    backgroundColor: '#ffffff',
+    borderColor: '#ffffff',
+  },
+  sceneFilterText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  sceneFilterTextActive: {
+    color: COLORS.text,
+  },
+
+  sceneGridRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  sceneGridCell: {
+    flex: 1,
+  },
+  sceneGridCard: {
     borderRadius: 24,
-    padding: 18,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.scenesCard,
+    borderWidth: 1,
+    borderColor: COLORS.scenesBorder,
+    overflow: 'hidden',
+  },
+  sceneGridVisual: {
+    height: 156,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  sceneGridBody: {
+    padding: 14,
+    flexDirection: 'row',
+    gap: 12,
+  },
+
+  feedbackCard: {
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: COLORS.border,
-  },
-  emptyBlockDark: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  emptyBlockTitle: {
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  emptyBlockTitleDark: {
-    color: COLORS.white,
-  },
-  emptyBlockSubtitle: {
-    color: COLORS.textSoft,
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  emptyBlockSubtitleDark: {
-    color: '#cbd5e1',
-  },
-  overlayWrap: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    gap: 10,
-  },
-  cartBar: {
-    borderRadius: 22,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    backgroundColor: COLORS.black,
-    flexDirection: 'row',
+    padding: 20,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: COLORS.shadow,
-    shadowOpacity: 1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
+    justifyContent: 'center',
+    minHeight: 132,
+    marginBottom: 16,
   },
-  cartBarTitle: {
-    color: COLORS.white,
+  feedbackCardDark: {
+    backgroundColor: COLORS.scenesCard,
+    borderColor: COLORS.scenesBorder,
+  },
+  feedbackTitle: {
+    marginTop: 12,
+    color: COLORS.text,
     fontSize: 16,
+    textAlign: 'center',
     fontWeight: '900',
   },
-  cartBarText: {
-    color: '#d0d5dd',
+  feedbackTitleDark: {
+    color: '#ffffff',
+  },
+  feedbackSubtitle: {
+    marginTop: 8,
+    color: COLORS.muted,
     fontSize: 13,
-    fontWeight: '700',
-    marginTop: 4,
+    lineHeight: 19,
+    textAlign: 'center',
   },
-  deliveryStrip: {
-    alignSelf: 'center',
-    borderRadius: 16,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    backgroundColor: '#e6f7f3',
-  },
-  deliveryStripText: {
-    color: '#0f5132',
-    fontSize: 14,
-    fontWeight: '900',
+  feedbackSubtitleDark: {
+    color: '#aab4c8',
   },
 });
