@@ -24,7 +24,8 @@ fi
 [[ -d "$MOBILE_DIR" ]] || fail "Could not find the Expo mobile app folder."
 [[ -f "$MOBILE_DIR/package.json" ]] || fail "mobile/package.json not found. Create the Expo app first."
 
-BUILD_TYPE="${BUILD_TYPE:-debug}"
+# Default to release instead of debug
+BUILD_TYPE="${BUILD_TYPE:-release}"
 BUILD_TYPE="$(printf '%s' "$BUILD_TYPE" | tr '[:upper:]' '[:lower:]')"
 
 case "$BUILD_TYPE" in
@@ -127,7 +128,8 @@ echo "Saved to: $DIST_DIR/$APK_NAME"
 echo ""
 echo "Examples:"
 echo "  ./build-apk.sh"
-echo "  BUILD_TYPE=release API_BASE_URL=https://your-api-domain.com ./build-apk.sh"
+echo "  BUILD_TYPE=debug ./build-apk.sh"
+echo "  API_BASE_URL=https://your-api-domain.com ./build-apk.sh"
 echo ""
 echo "Install on device with:"
 echo "  adb install -r \"$DIST_DIR/$APK_NAME\""
