@@ -116,7 +116,17 @@ function normalizeAppVariant(value) {
 }
 
 function isHttpUrl(value = '') {
-  return /^http:\/\/?/i.test(String(value || '').trim());
+  return /^https?:\/\//i.test(String(value || '').trim());
+}
+
+function dedupeList(values = []) {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    )
+  );
 }
 
 const APP_VARIANT = normalizeAppVariant(
@@ -199,7 +209,9 @@ const HAS_API_HINT = Boolean(API_BASE_URL || API_HOST || APP_ENV !== 'production
 
 const ALLOW_CLEARTEXT = readBool(
   'EXPO_PUBLIC_ALLOW_CLEARTEXT',
-  isHttpUrl(API_BASE_URL) || (HAS_API_HINT && API_SCHEME === 'http')
+  isHttpUrl(API_BASE_URL) && API_BASE_URL.toLowerCase().startsWith('http://')
+    ? true
+    : HAS_API_HINT && API_SCHEME === 'http'
 );
 
 const DEFAULT_SENTRY_TRACES_SAMPLE_RATE = APP_ENV === 'production' ? 0.2 : 1.0;
@@ -256,121 +268,167 @@ const POSTHOG_ENABLED = readBool(
 );
 
 const pushPermissionLabel = `${APP_NAME} uses notifications for order updates, assignment alerts, and payment status changes.`;
-const deliveryLocationWhenInUsePermission = `${APP_NAME} uses your location while the app is open so riders can see pickup points and delivery routes.`;
-const deliveryLocationAlwaysPermission = `${APP_NAME} uses your location in the background so customers and sellers can track active deliveries.`;
 
-const plugins = [
-  [
-    'expo-notifications',
-    {
+const deliveryLocationWhenInUsePermission = `${APP_NAME} uses your location while the app is open so you can navigate to pickup points and drop-off addresses.`;
+const deliveryLocationAlwaysPermission = `${APP_NAME} uses your location in the background during active deliveries so customers and sellers can track orders in real time.`;
+
+const DELIVERY_ANDROID_PERMISSIONS = dedupeList([
+  'android.permission.POST_NOTIFICATIONS',
+  'android.permission.ACCESS_COARSE_LOCATION',
+  'android.permission.ACCESS_FINE_LOCATION',
+  'android.permission.ACCESS_BACKGROUND_LOCATION',
+  'android.permission.FOREGROUND_SERVICE',
+  'android.permission.FOREGROUND_SERVICE_LOCATION',
+  'android.permission.RECEIVE_BOOT_COMPLETED',
+  'android.permission.WAKE_LOCK',
+]);
+
+const DEFAULT_ANDROID_PERMISSIONS = dedupeList([
+  'android.permission.POST_NOTIFICATIONS',
+]);
+
+const NON_DELIVERY_BLOCKED_ANDROID_PERMISSIONS = dedupeList([
+  'android.permission.ACCESS_COARSE_LOCATION',
+  'android.permission.ACCESS_FINE_LOCATION',
+  'android.permission.ACCESS_BACKGROUND_LOCATION',
+  'android.permission.FOREGROUND_SERVICE_LOCATION',
+]);
+
+function buildPlugins() {
+  const nextPlugins = [
+    [
+      'expo-notifications',
+      {
+        icon: './assets/images/android-icon-monochrome.png',
+        color: '#D97651',
+        sounds: [],
+        defaultChannel: 'orders-updates',
+      },
+    ],
+    'expo-router',
+    [
+      'expo-secure-store',
+      {
+        configureAndroidBackup: true,
+      },
+    ],
+    [
+      'expo-build-properties',
+      {
+        android: {
+          usesCleartextTraffic: ALLOW_CLEARTEXT,
+        },
+      },
+    ],
+    [
+      'expo-tracking-transparency',
+      {
+        userTrackingPermission:
+          'We use this data to improve measurement, attribution, and relevant sponsored content.',
+      },
+    ],
+  ];
+
+  if (IS_DELIVERY_APP) {
+    nextPlugins.splice(2, 0, [
+      'expo-location',
+      {
+        locationWhenInUsePermission: deliveryLocationWhenInUsePermission,
+        locationAlwaysAndWhenInUsePermission: deliveryLocationAlwaysPermission,
+        isIosBackgroundLocationEnabled: true,
+        isAndroidBackgroundLocationEnabled: true,
+        isAndroidForegroundServiceEnabled: true,
+      },
+    ]);
+  }
+
+  if (SHOULD_ENABLE_SENTRY_PLUGIN) {
+    nextPlugins.push([
+      '@sentry/react-native/expo',
+      {
+        url: SENTRY_URL,
+        organization: SENTRY_ORG,
+        project: SENTRY_PROJECT,
+        note: 'Enable EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED=true only in CI/release pipelines where you want source-map upload.',
+      },
+    ]);
+  }
+
+  if (HAS_META_CREDENTIALS) {
+    nextPlugins.push([
+      'react-native-fbsdk-next',
+      {
+        appID: META_APP_ID,
+        clientToken: META_CLIENT_TOKEN,
+        displayName: APP_NAME,
+        scheme: `fb${META_APP_ID}`,
+        advertiserIDCollectionEnabled: true,
+        autoLogAppEventsEnabled: true,
+        isAutoInitEnabled: true,
+        iosUserTrackingPermission:
+          'We use this identifier to improve attribution and personalize relevant sponsored content.',
+      },
+    ]);
+  }
+
+  nextPlugins.push(
+    GOOGLE_MAPS_API_KEY
+      ? [
+          'react-native-maps',
+          {
+            androidGoogleMapsApiKey: GOOGLE_MAPS_API_KEY,
+          },
+        ]
+      : 'react-native-maps'
+  );
+
+  return nextPlugins;
+}
+
+function buildIosInfoPlist() {
+  const infoPlist = {
+    ITSAppUsesNonExemptEncryption: false,
+    NSUserTrackingUsageDescription:
+      'We use this identifier to improve attribution and personalize relevant sponsored content.',
+  };
+
+  if (IS_DELIVERY_APP) {
+    infoPlist.UIBackgroundModes = ['location'];
+    infoPlist.NSLocationWhenInUseUsageDescription = deliveryLocationWhenInUsePermission;
+    infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription = deliveryLocationAlwaysPermission;
+    infoPlist.NSLocationAlwaysUsageDescription = deliveryLocationAlwaysPermission;
+  }
+
+  return infoPlist;
+}
+
+function buildAndroidConfig() {
+  const androidConfig = {
+    package: ANDROID_PACKAGE,
+    versionCode: ANDROID_VERSION_CODE,
+    permissions: IS_DELIVERY_APP
+      ? DELIVERY_ANDROID_PERMISSIONS
+      : DEFAULT_ANDROID_PERMISSIONS,
+    adaptiveIcon: {
+      foregroundImage: './assets/images/android-icon-foreground.png',
+      backgroundImage: './assets/images/android-icon-background.png',
+      monochromeImage: './assets/images/android-icon-monochrome.png',
+    },
+    config: {
+      googleMaps: GOOGLE_MAPS_API_KEY ? { apiKey: GOOGLE_MAPS_API_KEY } : undefined,
+    },
+    notification: {
       icon: './assets/images/android-icon-monochrome.png',
       color: '#D97651',
-      sounds: [],
       defaultChannel: 'orders-updates',
     },
-  ],
-  'expo-router',
-  [
-    'expo-secure-store',
-    {
-      configureAndroidBackup: true,
-    },
-  ],
-  [
-    'expo-build-properties',
-    {
-      android: {
-        usesCleartextTraffic: ALLOW_CLEARTEXT,
-      },
-    },
-  ],
-  [
-    'expo-tracking-transparency',
-    {
-      userTrackingPermission:
-        'We use this data to improve measurement, attribution, and relevant sponsored content.',
-    },
-  ],
-];
+  };
 
-if (IS_DELIVERY_APP) {
-  plugins.splice(2, 0, [
-    'expo-location',
-    {
-      locationWhenInUsePermission: deliveryLocationWhenInUsePermission,
-      locationAlwaysAndWhenInUsePermission: deliveryLocationAlwaysPermission,
-      isAndroidBackgroundLocationEnabled: true,
-      isAndroidForegroundServiceEnabled: true,
-      isIosBackgroundLocationEnabled: true,
-    },
-  ]);
-}
+  if (!IS_DELIVERY_APP) {
+    androidConfig.blockedPermissions = NON_DELIVERY_BLOCKED_ANDROID_PERMISSIONS;
+  }
 
-if (SHOULD_ENABLE_SENTRY_PLUGIN) {
-  plugins.push([
-    '@sentry/react-native/expo',
-    {
-      url: SENTRY_URL,
-      organization: SENTRY_ORG,
-      project: SENTRY_PROJECT,
-      note: 'Enable EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED=true only in CI/release pipelines where you want source-map upload.',
-    },
-  ]);
-}
-
-if (HAS_META_CREDENTIALS) {
-  plugins.push([
-    'react-native-fbsdk-next',
-    {
-      appID: META_APP_ID,
-      clientToken: META_CLIENT_TOKEN,
-      displayName: APP_NAME,
-      scheme: `fb${META_APP_ID}`,
-      advertiserIDCollectionEnabled: true,
-      autoLogAppEventsEnabled: true,
-      isAutoInitEnabled: true,
-      iosUserTrackingPermission:
-        'We use this identifier to improve attribution and personalize relevant sponsored content.',
-    },
-  ]);
-}
-
-plugins.push(
-  GOOGLE_MAPS_API_KEY
-    ? [
-        'react-native-maps',
-        {
-          androidGoogleMapsApiKey: GOOGLE_MAPS_API_KEY,
-        },
-      ]
-    : 'react-native-maps'
-);
-
-const iosInfoPlist = {
-  ITSAppUsesNonExemptEncryption: false,
-  NSUserTrackingUsageDescription:
-    'We use this identifier to improve attribution and personalize relevant sponsored content.',
-  UIBackgroundModes: IS_DELIVERY_APP ? ['location'] : undefined,
-};
-
-if (IS_DELIVERY_APP) {
-  iosInfoPlist.NSLocationWhenInUseUsageDescription = deliveryLocationWhenInUsePermission;
-  iosInfoPlist.NSLocationAlwaysAndWhenInUseUsageDescription = deliveryLocationAlwaysPermission;
-  iosInfoPlist.NSLocationAlwaysUsageDescription = deliveryLocationAlwaysPermission;
-}
-
-const androidPermissions = ['POST_NOTIFICATIONS'];
-
-if (IS_DELIVERY_APP) {
-  androidPermissions.push(
-    'ACCESS_COARSE_LOCATION',
-    'ACCESS_FINE_LOCATION',
-    'ACCESS_BACKGROUND_LOCATION',
-    'FOREGROUND_SERVICE',
-    'FOREGROUND_SERVICE_LOCATION',
-    'RECEIVE_BOOT_COMPLETED',
-    'WAKE_LOCK'
-  );
+  return androidConfig;
 }
 
 const expoConfig = {
@@ -406,31 +464,14 @@ const expoConfig = {
   ios: {
     bundleIdentifier: IOS_BUNDLE_IDENTIFIER,
     supportsTablet: true,
-    infoPlist: iosInfoPlist,
+    infoPlist: buildIosInfoPlist(),
   },
-  android: {
-    package: ANDROID_PACKAGE,
-    permissions: androidPermissions,
-    versionCode: ANDROID_VERSION_CODE,
-    adaptiveIcon: {
-      foregroundImage: './assets/images/android-icon-foreground.png',
-      backgroundImage: './assets/images/android-icon-background.png',
-      monochromeImage: './assets/images/android-icon-monochrome.png',
-    },
-    config: {
-      googleMaps: GOOGLE_MAPS_API_KEY ? { apiKey: GOOGLE_MAPS_API_KEY } : undefined,
-    },
-    notification: {
-      icon: './assets/images/android-icon-monochrome.png',
-      color: '#D97651',
-      defaultChannel: 'orders-updates',
-    },
-  },
+  android: buildAndroidConfig(),
   web: {
     bundler: 'metro',
     favicon: './assets/images/favicon.png',
   },
-  plugins,
+  plugins: buildPlugins(),
   extra: {
     appEnv: APP_ENV,
     appVariant: APP_VARIANT,
@@ -440,6 +481,9 @@ const expoConfig = {
     apiScheme: API_SCHEME,
     apiTimeoutMs: API_TIMEOUT_MS,
     allowCleartextTraffic: ALLOW_CLEARTEXT,
+    features: {
+      backgroundDeliveryTracking: IS_DELIVERY_APP,
+    },
     permissions: {
       notifications: pushPermissionLabel,
       locationWhenInUse: IS_DELIVERY_APP ? deliveryLocationWhenInUsePermission : '',
