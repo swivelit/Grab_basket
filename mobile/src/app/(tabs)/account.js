@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
+  Linking as RNLinking,
   Modal,
   Platform,
   RefreshControl,
@@ -19,9 +19,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as ExpoLinking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 
 import { useGrabBasket } from '../../../App';
 import { buildApiUrl } from '../../config';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const COLORS = {
   bg: '#FFF9F3',
@@ -60,61 +64,11 @@ function money(value) {
 
 function safeJsonParse(raw) {
   if (!raw) return null;
-
   try {
     return JSON.parse(raw);
   } catch {
     return null;
   }
-}
-
-function normalizeText(value = '') {
-  return String(value || '').trim().toLowerCase();
-}
-
-function normalizeService(value = '') {
-  const normalized = normalizeText(value);
-  if (normalized === 'instamart') return 'warehouse';
-  if (normalized === 'dineout') return 'eatout';
-  return normalized || 'food';
-}
-
-function initials(name = '') {
-  return String(name || '')
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
-
-function formatDateTime(value) {
-  if (!value) return '—';
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-
-  return date.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function formatAddress(address) {
-  if (!address) return '';
-  return [address.label, address.line1, address.city, address.pincode].filter(Boolean).join(' · ');
-}
-
-function formatPrettyStatus(value = '') {
-  return (
-    String(value || '')
-      .replace(/_/g, ' ')
-      .toLowerCase()
-      .replace(/\b\w/g, (char) => char.toUpperCase()) || 'Created'
-  );
 }
 
 function createHttpError(message, extras = {}) {
@@ -142,10 +96,7 @@ async function authRequest(path, token, { method = 'GET', body } = {}) {
   if (!response.ok) {
     throw createHttpError(
       payload?.detail || payload?.message || `Request failed with status ${response.status}`,
-      {
-        status: response.status,
-        payload,
-      }
+      { status: response.status, payload }
     );
   }
 
@@ -154,9 +105,7 @@ async function authRequest(path, token, { method = 'GET', body } = {}) {
 
 async function publicRequest(path) {
   const response = await fetch(buildApiUrl(path), {
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: { Accept: 'application/json' },
   });
 
   const raw = await response.text();
@@ -165,33 +114,124 @@ async function publicRequest(path) {
   if (!response.ok) {
     throw createHttpError(
       payload?.detail || payload?.message || `Request failed with status ${response.status}`,
-      {
-        status: response.status,
-        payload,
-      }
+      { status: response.status, payload }
     );
   }
 
   return payload;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeText(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizeService(value = '') {
+  const normalized = normalizeText(value);
+  if (normalized === 'instamart') return 'warehouse';
+  if (normalized === 'dineout') return 'eatout';
+  return normalized || 'food';
+}
+
+function normalizePaymentMethod(value = '') {
+  return String(value || '').trim().toUpperCase();
+}
+
+function normalizeGatewayStatus(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isFinalOrderStatus(value = '') {
+  return ['DELIVERED', 'CANCELLED_BY_CUSTOMER', 'REJECTED_BY_SELLER'].includes(
+    String(value || '').toUpperCase()
+  );
+}
+
+function canRetryGatewayPayment(order) {
+  const method = normalizePaymentMethod(order?.payment_method || order?.paymentMethod);
+  const paymentStatus = String(order?.payment_status || order?.paymentStatus || '').toUpperCase();
+  const status = String(order?.status || '').toUpperCase();
+
+  if (!['UPI', 'CARD'].includes(method)) return false;
+  if (paymentStatus === 'PAID') return false;
+  if (isFinalOrderStatus(status)) return false;
+
+  return (
+    ['PAYMENT_PENDING', 'CREATED', 'ASSIGNED_TO_PARTNER', 'READY_FOR_PICKUP'].includes(status) ||
+    ['PENDING_VERIFICATION', 'FAILED', 'PENDING'].includes(paymentStatus)
+  );
+}
+
+async function pollGatewayStatus(orderId, authToken, { attempts = 4, delayMs = 1500 } = {}) {
+  let last = null;
+
+  for (let index = 0; index < attempts; index += 1) {
+    last = await authRequest(`/payments/${orderId}/status`, authToken, { method: 'GET' });
+
+    const checkoutStatus = normalizeGatewayStatus(last?.checkout_status);
+    const paymentStatus = String(last?.payment_status || '').toUpperCase();
+
+    if (paymentStatus === 'PAID') return last;
+    if (paymentStatus === 'FAILED') return last;
+    if (['cancelled', 'expired'].includes(checkoutStatus)) return last;
+
+    if (index < attempts - 1) {
+      await sleep(delayMs);
+    }
+  }
+
+  return last;
+}
+
+function initials(name = '') {
+  return String(name || '')
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  return date.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatAddress(address) {
+  if (!address) return '';
+  return [address.label, address.line1, address.city, address.pincode].filter(Boolean).join(' · ');
+}
+
+function formatPrettyStatus(value = '') {
+  return (
+    String(value || '')
+      .replace(/_/g, ' ')
+      .toLowerCase()
+      .replace(/\b\w/g, (char) => char.toUpperCase()) || 'Created'
+  );
+}
+
 function getStatusTone(status = '') {
   const value = String(status || '').toUpperCase();
 
   if (value.includes('DELIVERED')) {
-    return {
-      bg: COLORS.successSoft,
-      text: COLORS.success,
-      icon: 'checkmark-circle-outline',
-    };
+    return { bg: COLORS.successSoft, text: COLORS.success, icon: 'checkmark-circle-outline' };
   }
 
   if (value.includes('CANCEL') || value.includes('REJECT')) {
-    return {
-      bg: COLORS.dangerSoft,
-      text: COLORS.danger,
-      icon: 'close-circle-outline',
-    };
+    return { bg: COLORS.dangerSoft, text: COLORS.danger, icon: 'close-circle-outline' };
   }
 
   if (
@@ -200,18 +240,10 @@ function getStatusTone(status = '') {
     value.includes('ASSIGNED') ||
     value.includes('PAYMENT')
   ) {
-    return {
-      bg: COLORS.infoSoft,
-      text: COLORS.info,
-      icon: 'bicycle-outline',
-    };
+    return { bg: COLORS.infoSoft, text: COLORS.info, icon: 'bicycle-outline' };
   }
 
-  return {
-    bg: COLORS.warningSoft,
-    text: COLORS.warning,
-    icon: 'time-outline',
-  };
+  return { bg: COLORS.warningSoft, text: COLORS.warning, icon: 'time-outline' };
 }
 
 function normalizeCoordinate(lat, lng) {
@@ -227,14 +259,16 @@ function normalizeCoordinate(lat, lng) {
 
 function hasCoordinate(point) {
   return Boolean(
-    point && Number.isFinite(Number(point.latitude)) && Number.isFinite(Number(point.longitude))
+    point &&
+      Number.isFinite(Number(point.latitude)) &&
+      Number.isFinite(Number(point.longitude))
   );
 }
 
 function buildMapRegion(points = []) {
-  const usablePoints = points.filter(hasCoordinate);
+  const usable = points.filter(hasCoordinate);
 
-  if (!usablePoints.length) {
+  if (!usable.length) {
     return {
       latitude: 12.9716,
       longitude: 77.5946,
@@ -243,8 +277,8 @@ function buildMapRegion(points = []) {
     };
   }
 
-  const latitudes = usablePoints.map((point) => point.latitude);
-  const longitudes = usablePoints.map((point) => point.longitude);
+  const latitudes = usable.map((point) => point.latitude);
+  const longitudes = usable.map((point) => point.longitude);
   const minLat = Math.min(...latitudes);
   const maxLat = Math.max(...latitudes);
   const minLng = Math.min(...longitudes);
@@ -274,7 +308,6 @@ function buildRouteUrl(destination, { pickup, rider, orderStatus } = {}) {
     if (hasCoordinate(start)) {
       return `http://maps.apple.com/?saddr=${start.latitude},${start.longitude}&daddr=${destination.latitude},${destination.longitude}`;
     }
-
     return `http://maps.apple.com/?daddr=${destination.latitude},${destination.longitude}`;
   }
 
@@ -286,7 +319,9 @@ function buildRouteUrl(destination, { pickup, rider, orderStatus } = {}) {
 }
 
 function getTrackingStop({ orderStatus, pickupPoint, dropPoint }) {
-  return String(orderStatus || '').toUpperCase() === 'PICKED_UP' ? dropPoint : pickupPoint || dropPoint;
+  return String(orderStatus || '').toUpperCase() === 'PICKED_UP'
+    ? dropPoint
+    : pickupPoint || dropPoint;
 }
 
 function getOrderItems(order) {
@@ -306,6 +341,7 @@ function getOrderSearchText(order) {
     order?.status,
     order?.service,
     order?.paymentMethod,
+    order?.paymentStatus,
     getOrderItems(order)
       .map((item) => `${item.qty} x ${item.name}`)
       .join(' '),
@@ -337,34 +373,19 @@ function matchesOrderFilter(order, filterKey) {
   return normalizeService(order?.service) === filterKey;
 }
 
-function StatusPill({ status }) {
-  const tone = getStatusTone(status);
-
+function SectionCard({ title, subtitle, right, children }) {
   return (
-    <View style={[styles.statusPill, { backgroundColor: tone.bg }]}>
-      <Ionicons name={tone.icon} size={14} color={tone.text} />
-      <Text style={[styles.statusPillText, { color: tone.text }]}>{formatPrettyStatus(status)}</Text>
-    </View>
-  );
-}
-
-function StatCard({ icon, label, value, tone = 'brand' }) {
-  const palette =
-    tone === 'success'
-      ? { bg: COLORS.successSoft, color: COLORS.success }
-      : tone === 'info'
-        ? { bg: COLORS.infoSoft, color: COLORS.info }
-        : tone === 'danger'
-          ? { bg: COLORS.dangerSoft, color: COLORS.danger }
-          : { bg: COLORS.brandSoft, color: COLORS.brand };
-
-  return (
-    <View style={styles.statCard}>
-      <View style={[styles.statIconWrap, { backgroundColor: palette.bg }]}>
-        <Ionicons name={icon} size={16} color={palette.color} />
-      </View>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+    <View style={styles.sectionCard}>
+      {title || subtitle || right ? (
+        <View style={styles.sectionHeader}>
+          <View style={{ flex: 1 }}>
+            {title ? <Text style={styles.sectionTitle}>{title}</Text> : null}
+            {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
+          </View>
+          {right ? <View>{right}</View> : null}
+        </View>
+      ) : null}
+      {children}
     </View>
   );
 }
@@ -397,19 +418,36 @@ function Field({
   );
 }
 
-function SectionCard({ title, subtitle, right, children }) {
+function StatusPill({ status }) {
+  const tone = getStatusTone(status);
+
   return (
-    <View style={styles.sectionCard}>
-      {title || subtitle || right ? (
-        <View style={styles.sectionHeader}>
-          <View style={{ flex: 1 }}>
-            {title ? <Text style={styles.sectionTitle}>{title}</Text> : null}
-            {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
-          </View>
-          {right ? <View>{right}</View> : null}
-        </View>
-      ) : null}
-      {children}
+    <View style={[styles.statusPill, { backgroundColor: tone.bg }]}>
+      <Ionicons name={tone.icon} size={14} color={tone.text} />
+      <Text style={[styles.statusPillText, { color: tone.text }]}>
+        {formatPrettyStatus(status)}
+      </Text>
+    </View>
+  );
+}
+
+function StatCard({ icon, label, value, tone = 'brand' }) {
+  const palette =
+    tone === 'success'
+      ? { bg: COLORS.successSoft, color: COLORS.success }
+      : tone === 'info'
+        ? { bg: COLORS.infoSoft, color: COLORS.info }
+        : tone === 'danger'
+          ? { bg: COLORS.dangerSoft, color: COLORS.danger }
+          : { bg: COLORS.brandSoft, color: COLORS.brand };
+
+  return (
+    <View style={styles.statCard}>
+      <View style={[styles.statIconWrap, { backgroundColor: palette.bg }]}>
+        <Ionicons name={icon} size={16} color={palette.color} />
+      </View>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
 }
@@ -451,14 +489,20 @@ function AuthPanel({
         disabled={loading}
         onPress={onSubmit}>
         {loading ? <ActivityIndicator color="#FFFFFF" /> : null}
-        <Text style={styles.primaryButtonText}>{isRegister ? 'Create account' : 'Sign in'}</Text>
+        <Text style={styles.primaryButtonText}>
+          {isRegister ? 'Create account' : 'Sign in'}
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        activeOpacity={0.9}
+        activeOpacity={0.92}
         style={styles.secondaryButton}
         onPress={() => setMode(isRegister ? 'login' : 'register')}>
-        <Ionicons name={isRegister ? 'log-in-outline' : 'person-add-outline'} size={16} color={COLORS.text} />
+        <Ionicons
+          name={isRegister ? 'log-in-outline' : 'person-add-outline'}
+          size={16}
+          color={COLORS.text}
+        />
         <Text style={styles.secondaryButtonText}>
           {isRegister ? 'Already have an account? Sign in' : 'New here? Create account'}
         </Text>
@@ -475,6 +519,7 @@ function AddressCard({ address, isDefault, onSetDefault }) {
           <Ionicons name="location-outline" size={14} color={COLORS.brand} />
           <Text style={styles.addressBadgeText}>{address?.label || 'Address'}</Text>
         </View>
+
         {isDefault ? (
           <View style={styles.defaultChip}>
             <Text style={styles.defaultChipText}>Default</Text>
@@ -485,6 +530,7 @@ function AddressCard({ address, isDefault, onSetDefault }) {
           </TouchableOpacity>
         )}
       </View>
+
       <Text style={styles.addressLine}>{formatAddress(address)}</Text>
       <Text style={styles.addressMeta}>
         Lat {Number(address?.lat || 0).toFixed(4)} · Lng {Number(address?.lng || 0).toFixed(4)}
@@ -517,7 +563,9 @@ function OrderCard({ order, onPress }) {
         </View>
 
         <View style={[styles.orderStatusBadge, { backgroundColor: tone.bg }]}>
-          <Text style={[styles.orderStatusText, { color: tone.text }]}>{formatPrettyStatus(order?.status)}</Text>
+          <Text style={[styles.orderStatusText, { color: tone.text }]}>
+            {formatPrettyStatus(order?.status)}
+          </Text>
         </View>
       </View>
 
@@ -531,10 +579,20 @@ function OrderCard({ order, onPress }) {
       </View>
 
       <View style={styles.orderFooterRow}>
-        <View style={styles.orderHintPill}>
-          <Ionicons name="navigate-outline" size={14} color={COLORS.info} />
-          <Text style={styles.orderHintText}>Track order</Text>
+        <View style={styles.orderFooterBadges}>
+          <View style={styles.orderHintPill}>
+            <Ionicons name="navigate-outline" size={14} color={COLORS.info} />
+            <Text style={styles.orderHintText}>Track order</Text>
+          </View>
+
+          {canRetryGatewayPayment(order) ? (
+            <View style={styles.orderPaymentRetryPill}>
+              <Ionicons name="card-outline" size={14} color={COLORS.brand} />
+              <Text style={styles.orderPaymentRetryPillText}>Complete payment</Text>
+            </View>
+          ) : null}
         </View>
+
         <Ionicons name="chevron-forward" size={18} color={COLORS.subtle} />
       </View>
     </TouchableOpacity>
@@ -593,15 +651,8 @@ function TrackingMapCard({ order, vendor, partnerLocation }) {
 
   const polylineCoordinates = useMemo(() => {
     const points = [pickupPoint];
-
-    if (hasCoordinate(riderPoint)) {
-      points.push(riderPoint);
-    }
-
-    if (hasCoordinate(dropPoint)) {
-      points.push(dropPoint);
-    }
-
+    if (hasCoordinate(riderPoint)) points.push(riderPoint);
+    if (hasCoordinate(dropPoint)) points.push(dropPoint);
     return points.filter(hasCoordinate);
   }, [pickupPoint, riderPoint, dropPoint]);
 
@@ -613,18 +664,21 @@ function TrackingMapCard({ order, vendor, partnerLocation }) {
     });
 
     if (!url) {
-      Alert.alert('Route unavailable', 'Pickup or drop coordinates are not available for this order yet.');
+      Alert.alert(
+        'Route unavailable',
+        'Pickup or drop coordinates are not available for this order yet.'
+      );
       return;
     }
 
-    const supported = await Linking.canOpenURL(url).catch(() => false);
+    const supported = await RNLinking.canOpenURL(url).catch(() => false);
     if (!supported) {
       Alert.alert('Maps unavailable', 'No maps app was found to open the route.');
       return;
     }
 
-    await Linking.openURL(url);
-  }, [routePoint, pickupPoint, riderPoint, order?.status]);
+    await RNLinking.openURL(url);
+  }, [order?.status, pickupPoint, riderPoint, routePoint]);
 
   if (!hasCoordinate(pickupPoint) && !hasCoordinate(dropPoint) && !hasCoordinate(riderPoint)) {
     return (
@@ -641,7 +695,9 @@ function TrackingMapCard({ order, vendor, partnerLocation }) {
     <View style={styles.mapWrap}>
       {Platform.OS === 'web' ? (
         <View style={styles.emptyPanel}>
-          <Text style={styles.emptyPanelTitle}>Map preview is only available on iOS and Android.</Text>
+          <Text style={styles.emptyPanelTitle}>
+            Map preview is only available on iOS and Android.
+          </Text>
           <TouchableOpacity activeOpacity={0.92} style={styles.secondaryButton} onPress={openRoute}>
             <Ionicons name="navigate-outline" size={16} color={COLORS.text} />
             <Text style={styles.secondaryButtonText}>Open route</Text>
@@ -717,8 +773,10 @@ function OrderDetailsSheet({
   vendor,
   loading,
   actionLoading,
+  retryLoading,
   onRefresh,
   onCancel,
+  onRetryPayment,
   onOpenStore,
 }) {
   const detailOrder = detail?.order || null;
@@ -726,9 +784,11 @@ function OrderDetailsSheet({
   const partnerLocation = detail?.partner_latest_location || null;
   const events = Array.isArray(detailOrder?.events) ? detailOrder.events : [];
   const items = getOrderItems(detailOrder || order);
+
   const canCancel = !['PICKED_UP', 'DELIVERED', 'CANCELLED_BY_CUSTOMER', 'REJECTED_BY_SELLER'].includes(
     String(status || '').toUpperCase()
   );
+  const canRetryPayment = canRetryGatewayPayment(detailOrder || order);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -739,7 +799,9 @@ function OrderDetailsSheet({
           <View style={styles.sheetHeaderRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.sheetTitle}>Order #{order?.id}</Text>
-              <Text style={styles.sheetSubtitle}>{order?.vendorName || vendor?.name || 'Vendor order'}</Text>
+              <Text style={styles.sheetSubtitle}>
+                {order?.vendorName || vendor?.name || 'Vendor order'}
+              </Text>
             </View>
 
             <TouchableOpacity activeOpacity={0.92} style={styles.sheetCloseButton} onPress={onClose}>
@@ -763,6 +825,38 @@ function OrderDetailsSheet({
                 </Text>
               </View>
 
+              {canRetryPayment ? (
+                <SectionCard
+                  title="Complete pending payment"
+                  subtitle="Reopen the same secure Razorpay checkout from your account without going back to the cart.">
+                  <View style={styles.paymentRetryBanner}>
+                    <View style={styles.paymentRetryIconWrap}>
+                      <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.brand} />
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.paymentRetryTitle}>Hosted secure checkout</Text>
+                      <Text style={styles.paymentRetrySubtitle}>
+                        Your app will reopen the Razorpay payment page and wait for backend callback + webhook confirmation before marking this order paid.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    activeOpacity={0.92}
+                    style={styles.primaryButton}
+                    disabled={retryLoading}
+                    onPress={onRetryPayment}>
+                    {retryLoading ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Ionicons name="card-outline" size={16} color="#FFFFFF" />
+                    )}
+                    <Text style={styles.primaryButtonText}>Retry secure payment</Text>
+                  </TouchableOpacity>
+                </SectionCard>
+              ) : null}
+
               <SectionCard
                 title="Live map"
                 subtitle="Pickup → rider → drop tracking from the customer app"
@@ -771,7 +865,11 @@ function OrderDetailsSheet({
                     <Text style={styles.linkText}>Refresh</Text>
                   </TouchableOpacity>
                 }>
-                <TrackingMapCard order={detailOrder || order} vendor={vendor} partnerLocation={partnerLocation} />
+                <TrackingMapCard
+                  order={detailOrder || order}
+                  vendor={vendor}
+                  partnerLocation={partnerLocation}
+                />
               </SectionCard>
 
               <SectionCard title="Live tracking" subtitle="Latest delivery updates from the backend">
@@ -779,14 +877,18 @@ function OrderDetailsSheet({
                   <View style={styles.detailTile}>
                     <Text style={styles.detailLabel}>Pickup</Text>
                     <Text style={styles.detailValue}>{vendor?.name || order?.vendorName || 'Vendor'}</Text>
-                    <Text style={styles.detailHint}>{vendor?.address || order?.location || 'Pickup address unavailable'}</Text>
+                    <Text style={styles.detailHint}>
+                      {vendor?.address || order?.location || 'Pickup address unavailable'}
+                    </Text>
                   </View>
 
                   <View style={styles.detailTile}>
                     <Text style={styles.detailLabel}>Drop</Text>
                     <Text style={styles.detailValue}>Delivery address</Text>
                     <Text style={styles.detailHint}>
-                      {hasCoordinate(normalizeCoordinate(detailOrder?.delivery_lat, detailOrder?.delivery_lng))
+                      {hasCoordinate(
+                        normalizeCoordinate(detailOrder?.delivery_lat, detailOrder?.delivery_lng)
+                      )
                         ? `Lat ${Number(detailOrder?.delivery_lat).toFixed(4)} · Lng ${Number(detailOrder?.delivery_lng).toFixed(4)}`
                         : 'Drop coordinates unavailable'}
                     </Text>
@@ -821,11 +923,15 @@ function OrderDetailsSheet({
                       <View style={styles.itemQtyBubble}>
                         <Text style={styles.itemQtyBubbleText}>{item.qty}</Text>
                       </View>
+
                       <View style={{ flex: 1 }}>
                         <Text style={styles.itemName}>{item.name}</Text>
                         <Text style={styles.itemMeta}>Qty {item.qty}</Text>
                       </View>
-                      <Text style={styles.itemPrice}>{item.price ? money(item.price * item.qty) : '—'}</Text>
+
+                      <Text style={styles.itemPrice}>
+                        {item.price ? money(item.price * item.qty) : '—'}
+                      </Text>
                     </View>
                   ))
                 ) : (
@@ -867,6 +973,7 @@ function OrderDetailsSheet({
 export default function AccountScreen() {
   const router = useRouter();
   const tabBarHeight = useBottomTabBarHeight();
+
   const {
     vendors,
     orderHistory,
@@ -913,6 +1020,7 @@ export default function AccountScreen() {
   const [orderDetailVendor, setOrderDetailVendor] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailActionLoading, setDetailActionLoading] = useState(false);
+  const [retryPaymentLoading, setRetryPaymentLoading] = useState(false);
 
   useEffect(() => {
     setEmail(String(authEmail || ''));
@@ -920,10 +1028,7 @@ export default function AccountScreen() {
 
   const stats = useMemo(() => {
     const list = Array.isArray(orderHistory) ? orderHistory : [];
-    const active = list.filter((item) => {
-      const status = String(item?.status || '').toUpperCase();
-      return !['DELIVERED', 'CANCELLED_BY_CUSTOMER', 'REJECTED_BY_SELLER'].includes(status);
-    }).length;
+    const active = list.filter((item) => !isFinalOrderStatus(item?.status)).length;
 
     return {
       orders: list.length,
@@ -978,6 +1083,7 @@ export default function AccountScreen() {
   const saveAddress = useCallback(async () => {
     try {
       setSavingAddress(true);
+
       const payload = {
         label,
         line1,
@@ -997,9 +1103,13 @@ export default function AccountScreen() {
       setPincode('');
       setLat('12.9716');
       setLng('77.5946');
+
       Alert.alert('Saved', 'Address added successfully.');
     } catch (error) {
-      Alert.alert('Could not save address', error?.message || 'Please check the address and coordinates.');
+      Alert.alert(
+        'Could not save address',
+        error?.message || 'Please check the address and coordinates.'
+      );
     } finally {
       setSavingAddress(false);
     }
@@ -1039,7 +1149,9 @@ export default function AccountScreen() {
         const trackingPayload = await authRequest(`/orders/${order.id}/tracking`, authToken);
         setOrderDetail(trackingPayload || null);
 
-        const vendorId = trackingPayload?.order?.vendor_id || order?.vendorId || order?.vendor_id;
+        const vendorId =
+          trackingPayload?.order?.vendor_id || order?.vendorId || order?.vendor_id;
+
         const existingVendor = (Array.isArray(vendors) ? vendors : []).find(
           (item) => String(item?.id) === String(vendorId)
         );
@@ -1083,7 +1195,8 @@ export default function AccountScreen() {
               authToken,
               { method: 'POST' }
             );
-            await Promise.all([loadOrders(), refreshSelectedOrder()]);
+
+            await Promise.all([loadOrders({ silent: true }), refreshSelectedOrder()]);
             Alert.alert('Cancelled', `Order #${selectedOrder.id} has been cancelled.`);
           } catch (error) {
             Alert.alert('Could not cancel order', error?.message || 'Please try again.');
@@ -1095,12 +1208,86 @@ export default function AccountScreen() {
     ]);
   }, [authToken, loadOrders, refreshSelectedOrder, selectedOrder]);
 
+  const retryPendingPayment = useCallback(async () => {
+    const retryOrder = orderDetail?.order || selectedOrder;
+
+    if (!authToken || !retryOrder?.id) return;
+
+    if (!canRetryGatewayPayment(retryOrder)) {
+      Alert.alert(
+        'Payment already settled',
+        'This order no longer needs an online payment retry.'
+      );
+      return;
+    }
+
+    try {
+      setRetryPaymentLoading(true);
+
+      const returnUrl = ExpoLinking.createURL('/account');
+
+      const session = await authRequest(`/payments/${retryOrder.id}/checkout-session`, authToken, {
+        method: 'POST',
+        body: JSON.stringify({ return_url: returnUrl }),
+      });
+
+      const checkoutUrl = String(session?.checkout_url || '').trim();
+      if (!checkoutUrl) {
+        throw new Error('The payment gateway did not return a checkout URL.');
+      }
+
+      const browserResult = await WebBrowser.openAuthSessionAsync(checkoutUrl, returnUrl);
+
+      const gatewayStatus = await pollGatewayStatus(retryOrder.id, authToken, {
+        attempts: browserResult?.type === 'success' ? 3 : 4,
+        delayMs: browserResult?.type === 'success' ? 1200 : 1800,
+      });
+
+      const paymentStatus = String(gatewayStatus?.payment_status || '').toUpperCase();
+      const checkoutStatus = normalizeGatewayStatus(gatewayStatus?.checkout_status);
+      const providerPaymentId = gatewayStatus?.provider_payment_id;
+
+      await Promise.all([
+        loadOrders({ silent: true }).catch(() => {}),
+        refreshSelectedOrder().catch(() => {}),
+      ]);
+
+      if (paymentStatus === 'PAID') {
+        Alert.alert(
+          'Payment successful',
+          providerPaymentId
+            ? `Payment captured and verified on the server. Payment ID: ${providerPaymentId}`
+            : 'Payment captured and verified on the server.'
+        );
+        return;
+      }
+
+      if (paymentStatus === 'FAILED' || ['cancelled', 'expired'].includes(checkoutStatus)) {
+        Alert.alert(
+          'Payment not completed',
+          'No amount was confirmed by the gateway for this order yet. You can retry again from this screen.'
+        );
+        return;
+      }
+
+      Alert.alert(
+        'Payment still processing',
+        `Order #${retryOrder.id} is waiting for final gateway confirmation. Pull to refresh or reopen this order in a moment.`
+      );
+    } catch (error) {
+      Alert.alert('Could not reopen checkout', error?.message || 'Please try again.');
+    } finally {
+      setRetryPaymentLoading(false);
+    }
+  }, [authToken, loadOrders, orderDetail, refreshSelectedOrder, selectedOrder]);
+
   const closeSheet = useCallback(() => {
     setSelectedOrder(null);
     setOrderDetail(null);
     setOrderDetailVendor(null);
     setDetailLoading(false);
     setDetailActionLoading(false);
+    setRetryPaymentLoading(false);
   }, []);
 
   return (
@@ -1110,7 +1297,13 @@ export default function AccountScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: tabBarHeight + 28 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshDashboard} tintColor={COLORS.brand} />}>
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refreshDashboard}
+            tintColor={COLORS.brand}
+          />
+        }>
         <View style={styles.heroCard}>
           <View style={{ flex: 1 }}>
             <Text style={styles.heroEyebrow}>Grab Basket account</Text>
@@ -1121,6 +1314,7 @@ export default function AccountScreen() {
               Push notifications, live order updates, and delivery tracking are wired from here.
             </Text>
           </View>
+
           <View style={styles.heroIconWrap}>
             <Ionicons name="person-circle-outline" size={34} color="#FFFFFF" />
           </View>
@@ -1156,8 +1350,11 @@ export default function AccountScreen() {
               <View style={styles.accountMetaRow}>
                 <View style={styles.accountMetaItem}>
                   <Text style={styles.accountMetaLabel}>Cart</Text>
-                  <Text style={styles.accountMetaValue}>{cartCount} items · {money(cartTotal)}</Text>
+                  <Text style={styles.accountMetaValue}>
+                    {cartCount} items · {money(cartTotal)}
+                  </Text>
                 </View>
+
                 <View style={styles.accountMetaItem}>
                   <Text style={styles.accountMetaLabel}>Default address</Text>
                   <Text style={styles.accountMetaValue} numberOfLines={2}>
@@ -1171,22 +1368,60 @@ export default function AccountScreen() {
               title="Delivery addresses"
               subtitle="Manual coordinates are accepted now. Later you can replace this with GPS picker + geocoding."
               right={addressesLoading ? <ActivityIndicator color={COLORS.brand} /> : null}>
-              <Field label="Label" value={label} onChangeText={setLabel} placeholder="Home / Work" autoCapitalize="words" />
-              <Field label="Address line 1" value={line1} onChangeText={setLine1} placeholder="Flat, building, street" autoCapitalize="words" />
+              <Field
+                label="Label"
+                value={label}
+                onChangeText={setLabel}
+                placeholder="Home / Work"
+                autoCapitalize="words"
+              />
+              <Field
+                label="Address line 1"
+                value={line1}
+                onChangeText={setLine1}
+                placeholder="Flat, building, street"
+                autoCapitalize="words"
+              />
+
               <View style={styles.inlineFieldsRow}>
                 <View style={{ flex: 1 }}>
-                  <Field label="City" value={city} onChangeText={setCity} placeholder="Bengaluru" autoCapitalize="words" />
+                  <Field
+                    label="City"
+                    value={city}
+                    onChangeText={setCity}
+                    placeholder="Bengaluru"
+                    autoCapitalize="words"
+                  />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Field label="Pincode" value={pincode} onChangeText={setPincode} placeholder="560001" keyboardType="number-pad" />
+                  <Field
+                    label="Pincode"
+                    value={pincode}
+                    onChangeText={setPincode}
+                    placeholder="560001"
+                    keyboardType="number-pad"
+                  />
                 </View>
               </View>
+
               <View style={styles.inlineFieldsRow}>
                 <View style={{ flex: 1 }}>
-                  <Field label="Latitude" value={lat} onChangeText={setLat} placeholder="12.9716" keyboardType="decimal-pad" />
+                  <Field
+                    label="Latitude"
+                    value={lat}
+                    onChangeText={setLat}
+                    placeholder="12.9716"
+                    keyboardType="decimal-pad"
+                  />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Field label="Longitude" value={lng} onChangeText={setLng} placeholder="77.5946" keyboardType="decimal-pad" />
+                  <Field
+                    label="Longitude"
+                    value={lng}
+                    onChangeText={setLng}
+                    placeholder="77.5946"
+                    keyboardType="decimal-pad"
+                  />
                 </View>
               </View>
 
@@ -1212,7 +1447,9 @@ export default function AccountScreen() {
                 ) : (
                   <View style={styles.emptyPanel}>
                     <Text style={styles.emptyPanelTitle}>No addresses yet</Text>
-                    <Text style={styles.emptyPanelSubtitle}>Save one address to start placing orders.</Text>
+                    <Text style={styles.emptyPanelSubtitle}>
+                      Save one address to start placing orders.
+                    </Text>
                   </View>
                 )}
               </View>
@@ -1230,16 +1467,22 @@ export default function AccountScreen() {
                 />
               </View>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filtersRow}>
                 {ORDER_FILTERS.map((filter) => {
                   const active = filter.key === filterKey;
+
                   return (
                     <TouchableOpacity
                       key={filter.key}
                       activeOpacity={0.92}
                       style={[styles.filterChip, active && styles.filterChipActive]}
                       onPress={() => setFilterKey(filter.key)}>
-                      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{filter.label}</Text>
+                      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                        {filter.label}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -1252,21 +1495,27 @@ export default function AccountScreen() {
                 </View>
               ) : filteredOrders.length ? (
                 filteredOrders.map((order) => (
-                  <OrderCard key={String(order?.id)} order={order} onPress={() => loadOrderDetail(order)} />
+                  <OrderCard
+                    key={String(order?.id)}
+                    order={order}
+                    onPress={() => loadOrderDetail(order)}
+                  />
                 ))
               ) : (
                 <View style={styles.emptyPanel}>
                   <Text style={styles.emptyPanelTitle}>No orders match your search</Text>
-                  <Text style={styles.emptyPanelSubtitle}>Try a different filter or place your first order.</Text>
+                  <Text style={styles.emptyPanelSubtitle}>
+                    Try a different filter or place your first order.
+                  </Text>
                 </View>
               )}
             </SectionCard>
 
             <SectionCard title="Current status" subtitle="What is done today in this app shell">
               <Text style={styles.checkText}>• Push notifications are registered globally from the root layout.</Text>
-              <Text style={styles.checkText}>• Customer app can now open a live tracking map for order details.</Text>
+              <Text style={styles.checkText}>• Customer app can open a live tracking map for order details.</Text>
               <Text style={styles.checkText}>• Search + filters work inside the order list in this screen.</Text>
-              <Text style={styles.checkText}>• Payments are still backend-verified demo flow, not a real gateway SDK flow.</Text>
+              <Text style={styles.checkText}>• Online payments can now be retried from Account for unpaid UPI/card orders.</Text>
             </SectionCard>
           </>
         )}
@@ -1280,8 +1529,10 @@ export default function AccountScreen() {
         vendor={orderDetailVendor}
         loading={detailLoading}
         actionLoading={detailActionLoading}
+        retryLoading={retryPaymentLoading}
         onRefresh={refreshSelectedOrder}
         onCancel={cancelOrder}
+        onRetryPayment={retryPendingPayment}
         onOpenStore={() => openStoreFromOrder(selectedOrder)}
       />
     </SafeAreaView>
@@ -1332,6 +1583,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.16)',
   },
+
   sectionCard: {
     marginHorizontal: 16,
     marginBottom: 14,
@@ -1364,6 +1616,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: COLORS.muted,
   },
+
   fieldWrap: {
     marginBottom: 12,
   },
@@ -1388,6 +1641,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     textAlignVertical: 'top',
   },
+
   primaryButton: {
     minHeight: 50,
     borderRadius: 16,
@@ -1397,6 +1651,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginTop: 4,
+    paddingHorizontal: 14,
   },
   primaryButtonText: {
     fontSize: 15,
@@ -1426,6 +1681,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.brand,
   },
+
   statsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -1456,6 +1712,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.muted,
   },
+
   accountMetaRow: {
     marginTop: 14,
     gap: 12,
@@ -1480,6 +1737,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: COLORS.text,
   },
+
   inlineFieldsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -1537,6 +1795,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.muted,
   },
+
   searchWrap: {
     minHeight: 50,
     borderRadius: 16,
@@ -1581,6 +1840,7 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     color: '#FFFFFF',
   },
+
   loadingWrap: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1591,6 +1851,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.muted,
   },
+
   orderCard: {
     borderRadius: 18,
     padding: 14,
@@ -1659,6 +1920,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  orderFooterBadges: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingRight: 8,
+  },
   orderHintPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1673,6 +1942,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.info,
   },
+  orderPaymentRetryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: COLORS.brandSoft,
+  },
+  orderPaymentRetryPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.brand,
+  },
+
   checkText: {
     fontSize: 14,
     lineHeight: 21,
@@ -1697,6 +1981,7 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: COLORS.muted,
   },
+
   sheetOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -1776,6 +2061,38 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: 'rgba(255,255,255,0.75)',
   },
+
+  paymentRetryBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.brandSoft,
+    marginBottom: 12,
+  },
+  paymentRetryIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  paymentRetryTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  paymentRetrySubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.muted,
+  },
+
   statusPill: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
@@ -1789,6 +2106,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
+
   mapWrap: {
     overflow: 'hidden',
     borderRadius: 18,
@@ -1797,8 +2115,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.cardAlt,
   },
   map: {
-    height: 260,
     width: '100%',
+    height: 260,
   },
   mapMetaWrap: {
     padding: 12,
@@ -1852,6 +2170,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },
+
   detailGrid: {
     gap: 10,
   },
@@ -1881,6 +2200,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: COLORS.muted,
   },
+
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1917,6 +2237,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.text,
   },
+
   timelineWrap: {
     marginTop: 4,
   },
@@ -1957,6 +2278,7 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: COLORS.text,
   },
+
   sheetButtonRow: {
     flexDirection: 'row',
     gap: 10,
