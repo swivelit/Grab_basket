@@ -59,13 +59,65 @@ function normalizeAppEnv(value) {
   return normalized;
 }
 
+function normalizeAppVariant(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+
+  if (normalized === 'customer') return 'consumer';
+  if (normalized === 'consumer') return 'consumer';
+
+  if (normalized === 'seller' || normalized === 'merchant') return 'partner';
+  if (normalized === 'partner') return 'partner';
+
+  if (normalized === 'delivery' || normalized === 'rider' || normalized === 'partner_delivery') {
+    return 'delivery';
+  }
+
+  return ['consumer', 'delivery', 'partner'].includes(normalized) ? normalized : 'consumer';
+}
+
 function isHttpUrl(value = '') {
   return /^http:\/\//i.test(String(value || '').trim());
 }
 
-const APP_NAME = readEnv('EXPO_PUBLIC_APP_NAME', 'Grab Basket');
-const APP_SLUG = readEnv('EXPO_PUBLIC_APP_SLUG', 'grab-basket-mobile');
-const APP_SCHEME = readEnv('EXPO_PUBLIC_APP_SCHEME', 'grabbasket');
+// --- 3-app defaults (consumer / delivery / partner) ---
+
+const APP_VARIANT = normalizeAppVariant(readEnv('EXPO_PUBLIC_APP_VARIANT', 'consumer'));
+
+// IMPORTANT:
+// - These are *defaults*.
+// - Any EXPO_PUBLIC_* env var still overrides them.
+// - Use different bundle identifiers/packages per app when publishing.
+const VARIANT_DEFAULTS = {
+  consumer: {
+    appName: 'Grab Basket',
+    slug: 'grab-basket',
+    scheme: 'grabbasket',
+    iosBundleId: 'com.grabbasket.consumer',
+    androidPackage: 'com.grabbasket.consumer',
+  },
+  delivery: {
+    appName: 'Grab Basket Delivery',
+    slug: 'grab-basket-delivery',
+    scheme: 'grabbasketdelivery',
+    iosBundleId: 'com.grabbasket.delivery',
+    androidPackage: 'com.grabbasket.delivery',
+  },
+  partner: {
+    appName: 'Grab Basket Partner',
+    slug: 'grab-basket-partner',
+    scheme: 'grabbasketpartner',
+    iosBundleId: 'com.grabbasket.partner',
+    androidPackage: 'com.grabbasket.partner',
+  },
+};
+
+const VARIANT = VARIANT_DEFAULTS[APP_VARIANT] || VARIANT_DEFAULTS.consumer;
+
+// --- App identity (override-able) ---
+
+const APP_NAME = readEnv('EXPO_PUBLIC_APP_NAME', VARIANT.appName);
+const APP_SLUG = readEnv('EXPO_PUBLIC_APP_SLUG', VARIANT.slug);
+const APP_SCHEME = readEnv('EXPO_PUBLIC_APP_SCHEME', VARIANT.scheme);
 const APP_VERSION = readEnv('EXPO_PUBLIC_APP_VERSION', pkg.version || '1.0.0');
 
 const APP_ENV = normalizeAppEnv(
@@ -75,40 +127,30 @@ const APP_ENV = normalizeAppEnv(
   )
 );
 
-const IOS_BUNDLE_IDENTIFIER = readEnv(
-  'EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER',
-  'com.grabbasket.mobile'
-);
+const IOS_BUNDLE_IDENTIFIER = readEnv('EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER', VARIANT.iosBundleId);
 
-const ANDROID_PACKAGE = readEnv(
-  'EXPO_PUBLIC_ANDROID_PACKAGE',
-  'com.grabbasket.mobile'
-);
+const ANDROID_PACKAGE = readEnv('EXPO_PUBLIC_ANDROID_PACKAGE', VARIANT.androidPackage);
 
-const ANDROID_VERSION_CODE = readInt(
-  'EXPO_PUBLIC_ANDROID_VERSION_CODE',
-  1,
-  { min: 1 }
-);
+const ANDROID_VERSION_CODE = readInt('EXPO_PUBLIC_ANDROID_VERSION_CODE', 1, { min: 1 });
 
 const EAS_PROJECT_ID = readEnv('EXPO_PUBLIC_EAS_PROJECT_ID', '');
 const EXPO_OWNER = readEnv('EXPO_PUBLIC_EXPO_OWNER', '');
+
+// --- Meta / Ads ---
 
 const META_APP_ID = readEnv('EXPO_PUBLIC_META_APP_ID', '');
 const META_CLIENT_TOKEN = readEnv('EXPO_PUBLIC_META_CLIENT_TOKEN', '');
 const META_AD_ACCOUNT_ID = readEnv('EXPO_PUBLIC_META_AD_ACCOUNT_ID', '');
 const HAS_META_CREDENTIALS = Boolean(META_APP_ID && META_CLIENT_TOKEN);
 
+// --- API config ---
+
 const API_BASE_URL = readEnv('EXPO_PUBLIC_API_BASE_URL', '');
 const API_HOST = readEnv('EXPO_PUBLIC_API_HOST', '');
 const API_PORT = readEnv('EXPO_PUBLIC_API_PORT', '8000');
 const API_SCHEME = readEnv('EXPO_PUBLIC_API_SCHEME', 'http').toLowerCase();
 
-const API_TIMEOUT_MS = readInt(
-  'EXPO_PUBLIC_API_TIMEOUT_MS',
-  15000,
-  { min: 1000 }
-);
+const API_TIMEOUT_MS = readInt('EXPO_PUBLIC_API_TIMEOUT_MS', 15000, { min: 1000 });
 
 const ENABLE_ADS = readBool('EXPO_PUBLIC_ENABLE_ADS', false);
 const ENABLE_NEW_ARCH = readBool('EXPO_PUBLIC_ENABLE_NEW_ARCH', true);
@@ -119,6 +161,8 @@ const ALLOW_CLEARTEXT = readBool(
   'EXPO_PUBLIC_ALLOW_CLEARTEXT',
   isHttpUrl(API_BASE_URL) || (HAS_API_HINT && API_SCHEME === 'http')
 );
+
+// --- Plugins ---
 
 const plugins = [
   'expo-router',
@@ -155,6 +199,8 @@ if (HAS_META_CREDENTIALS) {
     },
   ]);
 }
+
+// --- Expo config ---
 
 const expoConfig = {
   name: APP_NAME,
@@ -205,6 +251,7 @@ const expoConfig = {
   plugins,
   extra: {
     appEnv: APP_ENV,
+    appVariant: APP_VARIANT,
     apiBaseUrl: API_BASE_URL,
     apiHost: API_HOST,
     apiPort: API_PORT,

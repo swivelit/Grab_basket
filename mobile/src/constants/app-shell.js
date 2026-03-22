@@ -35,7 +35,21 @@ export function normalizeAppVariant(value = '') {
 }
 
 export function getAppVariant() {
-  return normalizeAppVariant(process.env.EXPO_PUBLIC_APP_VARIANT || 'consumer');
+  // Prefer EXPO_PUBLIC_* (works in dev + production), but fall back to app.config extra.
+  let value = process.env.EXPO_PUBLIC_APP_VARIANT;
+
+  if (!value) {
+    try {
+      // Lazy require to avoid issues in non-Expo runtimes.
+      // eslint-disable-next-line global-require
+      const Constants = require('expo-constants').default;
+      value = Constants?.expoConfig?.extra?.appVariant || Constants?.manifest2?.extra?.appVariant;
+    } catch {
+      // ignore
+    }
+  }
+
+  return normalizeAppVariant(value || 'consumer');
 }
 
 export function getAppShellConfig(variant = getAppVariant()) {
