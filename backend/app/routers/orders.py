@@ -13,7 +13,7 @@ from ..models import (
 )
 from ..schemas import OrderCreateIn, OrderOut, OrderTrackingOut
 from ..utils.geo import haversine_km
-from ..notifications import send_push
+from ..notifications import build_order_notification_data, send_push
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -131,7 +131,12 @@ def create_order(payload: OrderCreateIn, db: Session = Depends(get_db), user: Us
     db.refresh(order)
 
     if not is_online_payment:
-        send_push(_seller_tokens(db, vendor), "New order", f"Order #{order.id} placed", data={"order_id": str(order.id)})
+        send_push(
+            _seller_tokens(db, vendor),
+            "New order",
+            f"Order #{order.id} placed",
+            data=build_order_notification_data(order.id, status="CREATED", target_app="partner"),
+        )
     return order
 
 
@@ -191,10 +196,20 @@ def cancel_order(order_id: int, reason: str = "", db: Session = Depends(get_db),
 
     vendor = db.query(Vendor).filter(Vendor.id == order.vendor_id).first()
     if vendor:
-        send_push(_seller_tokens(db, vendor), "Order cancelled", f"Order #{order.id} cancelled", data={"order_id": str(order.id)})
+        send_push(
+            _seller_tokens(db, vendor),
+            "Order cancelled",
+            f"Order #{order.id} cancelled",
+            data=build_order_notification_data(order.id, status="CANCELLED_BY_CUSTOMER", target_app="partner"),
+        )
     if partner_id:
         ptokens = [t.token for t in db.query(FcmToken).filter(FcmToken.user_id == partner_id).all()]
-        send_push(ptokens, "Order cancelled", f"Order #{order.id} cancelled", data={"order_id": str(order.id)})
+        send_push(
+            ptokens,
+            "Order cancelled",
+            f"Order #{order.id} cancelled",
+            data=build_order_notification_data(order.id, status="CANCELLED_BY_CUSTOMER", target_app="delivery"),
+        )
 
     return order
 

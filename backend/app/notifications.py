@@ -28,6 +28,12 @@ EXPO_MAX_BATCH_SIZE = 100
 FCM_MAX_BATCH_SIZE = 500
 REQUEST_TIMEOUT_SECONDS = 10
 DEFAULT_CHANNEL_ID = "orders-updates"
+APP_ROUTE_BY_TARGET = {
+    "consumer": "/(tabs)/account",
+    "delivery": "/(delivery)/(tabs)/orders",
+    "partner": "/(partner)/(tabs)/orders",
+}
+
 
 
 def _load_service_account() -> Optional[dict]:
@@ -103,16 +109,65 @@ def _normalize_order_id(data: dict) -> str | None:
     return text or None
 
 
+def _normalize_target_app(value: str | None) -> str | None:
+    target = str(value or "").strip().lower()
+    if not target:
+        return None
+    if target in {"customer", "consumer", "user"}:
+        return "consumer"
+    if target in {"delivery", "rider", "partner_delivery"}:
+        return "delivery"
+    if target in {"partner", "seller", "merchant", "vendor"}:
+        return "partner"
+    return None
+
+
+def build_order_notification_data(
+    order_id: int | str,
+    *,
+    status: str | None = None,
+    target_app: str | None = None,
+    event_type: str = "order_update",
+    deep_link_path: str | None = None,
+    extra: Optional[dict] = None,
+) -> dict:
+    payload = dict(extra or {})
+    normalized_target = _normalize_target_app(target_app)
+
+    payload["order_id"] = str(order_id)
+    payload["type"] = str(event_type or "order_update").strip() or "order_update"
+
+    if status:
+        payload["status"] = str(status).strip().upper()
+
+    if normalized_target:
+        payload["target_app"] = normalized_target
+
+    link_path = str(deep_link_path or "").strip()
+    if not link_path and normalized_target:
+        link_path = APP_ROUTE_BY_TARGET.get(normalized_target, "")
+    if link_path:
+        payload["deep_link_path"] = link_path
+
+    return payload
+
+
 def _build_notification_data(data: Optional[dict]) -> dict[str, str]:
     incoming = dict(data or {})
     order_id = _normalize_order_id(incoming)
+    target_app = _normalize_target_app(incoming.get("target_app"))
 
     if order_id and not incoming.get("order_id"):
         incoming["order_id"] = order_id
 
+    if target_app:
+        incoming["target_app"] = target_app
+        incoming.setdefault("deep_link_path", APP_ROUTE_BY_TARGET.get(target_app, ""))
+
     incoming.setdefault("notification_id", uuid.uuid4().hex)
     incoming.setdefault("type", "order_update" if order_id else "generic")
     incoming.setdefault("sent_at", _now_iso())
+    incoming.setdefault("channel_id", DEFAULT_CHANNEL_ID)
 
     return _stringify_data(incoming)
 
