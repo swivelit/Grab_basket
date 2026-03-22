@@ -8,14 +8,14 @@ export const APP_SHELLS = {
   },
   delivery: {
     key: 'delivery',
-    appName: 'Grab Basket Delivery',
+    appName: 'Grab Basket Delivery App',
     href: '/(delivery)/(tabs)',
     role: 'PARTNER',
     description: 'Delivery partner app shell',
   },
   partner: {
     key: 'partner',
-    appName: 'Grab Basket Partner',
+    appName: 'Grab Basket Partner App',
     href: '/(partner)/(tabs)',
     role: 'SELLER',
     description: 'Seller app shell',
@@ -35,13 +35,10 @@ export function normalizeAppVariant(value = '') {
 }
 
 export function getAppVariant() {
-  // Prefer EXPO_PUBLIC_* (works in dev + production), but fall back to app.config extra.
   let value = process.env.EXPO_PUBLIC_APP_VARIANT;
 
   if (!value) {
     try {
-      // Lazy require to avoid issues in non-Expo runtimes.
-      // eslint-disable-next-line global-require
       const Constants = require('expo-constants').default;
       value = Constants?.expoConfig?.extra?.appVariant || Constants?.manifest2?.extra?.appVariant;
     } catch {
