@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
+from datetime import datetime, timezone
 from typing import Iterable, Optional
 
 import requests
@@ -25,6 +27,7 @@ EXPO_TOKEN_PREFIXES = ("ExpoPushToken[", "ExponentPushToken[")
 EXPO_MAX_BATCH_SIZE = 100
 FCM_MAX_BATCH_SIZE = 500
 REQUEST_TIMEOUT_SECONDS = 10
+DEFAULT_CHANNEL_ID = "orders-updates"
 
 
 def _load_service_account() -> Optional[dict]:
@@ -90,6 +93,30 @@ def _stringify_data(data: Optional[dict]) -> dict[str, str]:
     return {str(k): str(v) for k, v in (data or {}).items() if k is not None and v is not None}
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _normalize_order_id(data: dict) -> str | None:
+    raw = data.get("order_id") or data.get("orderId") or data.get("order")
+    text = str(raw or "").strip()
+    return text or None
+
+
+def _build_notification_data(data: Optional[dict]) -> dict[str, str]:
+    incoming = dict(data or {})
+    order_id = _normalize_order_id(incoming)
+
+    if order_id and not incoming.get("order_id"):
+        incoming["order_id"] = order_id
+
+    incoming.setdefault("notification_id", uuid.uuid4().hex)
+    incoming.setdefault("type", "order_update" if order_id else "generic")
+    incoming.setdefault("sent_at", _now_iso())
+
+    return _stringify_data(incoming)
+
+
 def _is_expo_push_token(token: str) -> bool:
     return token.startswith(EXPO_TOKEN_PREFIXES)
 
@@ -111,6 +138,7 @@ def _send_expo_push(tokens: list[str], title: str, body: str, data: dict[str, st
     if not tokens:
         return
 
+    channel_id = str(data.get("channel_id") or DEFAULT_CHANNEL_ID).strip() or DEFAULT_CHANNEL_ID
     payload = [
         {
             "to": token,
@@ -119,15 +147,15 @@ def _send_expo_push(tokens: list[str], title: str, body: str, data: dict[str, st
             "data": data,
             "sound": "default",
             "priority": "high",
-            "channelId": "orders-updates",
+            "channelId": channel_id,
         }
         for token in tokens
     ]
 
     headers = {
-      "Accept": "application/json",
-      "Accept-Encoding": "gzip, deflate",
-      "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip, deflate",
+        "Content-Type": "application/json",
     }
 
     for batch in _chunked(payload, EXPO_MAX_BATCH_SIZE):
@@ -145,9 +173,23 @@ def _send_expo_push(tokens: list[str], title: str, body: str, data: dict[str, st
             if not isinstance(result_items, list):
                 continue
 
-            failed_count = sum(1 for item in result_items if isinstance(item, dict) and item.get("status") != "ok")
-            if failed_count:
-                logger.warning("[PUSH][EXPO] %s ticket(s) failed for title=%s", failed_count, title)
+            failures: list[dict] = []
+            for item in result_items:
+                if isinstance(item, dict) and item.get("status") != "ok":
+                    failures.append(item)
+
+            if failures:
+                sample = failures[0]
+                logger.warning(
+                    "[PUSH][EXPO] %s ticket(s) failed for title=%s sample=%s",
+                    len(failures),
+                    title,
+                    {
+                        "status": sample.get("status"),
+                        "message": sample.get("message"),
+                        "details": sample.get("details"),
+                    },
+                )
         except Exception:
             logger.exception("[PUSH][EXPO][ERROR]")
 
@@ -179,7 +221,7 @@ def send_push(tokens: Iterable[str], title: str, body: str, data: Optional[dict]
     if not normalized_tokens:
         return
 
-    string_data = _stringify_data(data)
+    string_data = _build_notification_data(data)
     expo_tokens, native_tokens = _split_tokens(normalized_tokens)
 
     _send_expo_push(expo_tokens, title, body, string_data)
