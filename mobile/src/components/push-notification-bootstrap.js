@@ -6,7 +6,7 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 
-import { useGrabBasket } from '../../../App';
+import { useGrabBasket } from '../../App';
 import { buildApiUrl } from '../config';
 import { getAppVariant } from '../constants/app-shell';
 
@@ -20,7 +20,6 @@ function getSecureStoreModule() {
   if (secureStoreModuleCache !== undefined) return secureStoreModuleCache;
 
   try {
-    // eslint-disable-next-line global-require
     secureStoreModuleCache = require('expo-secure-store');
   } catch {
     secureStoreModuleCache = null;
@@ -94,7 +93,8 @@ Notifications.setNotificationHandler({
 
 export default function PushNotificationBootstrap() {
   const router = useRouter();
-  const { authToken, authEmail, isAuthenticated, sessionReady, loadOrders, appVariant } = useGrabBasket();
+  const { authToken, authEmail, isAuthenticated, sessionReady, loadOrders, appVariant } =
+    useGrabBasket();
   const tapHandledRef = useRef('');
 
   const syncOrders = useCallback(() => {
@@ -190,11 +190,13 @@ export default function PushNotificationBootstrap() {
       syncOrders();
     });
 
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response?.notification?.request?.content?.data || {};
-      openOrdersScreen(data);
-      Notifications.clearLastNotificationResponseAsync?.().catch(() => {});
-    });
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response?.notification?.request?.content?.data || {};
+        openOrdersScreen(data);
+        Notifications.clearLastNotificationResponseAsync?.().catch(() => {});
+      }
+    );
 
     Notifications.getLastNotificationResponseAsync()
       .then((response) => {

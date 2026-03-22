@@ -129,22 +129,22 @@ const VARIANT_DEFAULTS = {
     slug: 'grab-basket',
     scheme: 'grabbasket',
     iosBundleId: 'com.grabbasket.consumer',
-    androidPackage: 'com.grabbasket.consumer'
+    androidPackage: 'com.grabbasket.consumer',
   },
   delivery: {
     appName: 'Grab Basket Delivery App',
     slug: 'grab-basket-delivery',
     scheme: 'grabbasketdelivery',
     iosBundleId: 'com.grabbasket.delivery',
-    androidPackage: 'com.grabbasket.delivery'
+    androidPackage: 'com.grabbasket.delivery',
   },
   partner: {
     appName: 'Grab Basket Partner App',
     slug: 'grab-basket-partner',
     scheme: 'grabbasketpartner',
     iosBundleId: 'com.grabbasket.partner',
-    androidPackage: 'com.grabbasket.partner'
-  }
+    androidPackage: 'com.grabbasket.partner',
+  },
 };
 
 const VARIANT = VARIANT_DEFAULTS[APP_VARIANT] || VARIANT_DEFAULTS.consumer;
@@ -170,7 +170,7 @@ const ANDROID_PACKAGE = readEnv(
   VARIANT.androidPackage
 );
 const ANDROID_VERSION_CODE = readInt('EXPO_PUBLIC_ANDROID_VERSION_CODE', 1, {
-  min: 1
+  min: 1,
 });
 
 const EAS_PROJECT_ID = readEnv('EXPO_PUBLIC_EAS_PROJECT_ID', '');
@@ -187,7 +187,7 @@ const API_PORT = readEnv('EXPO_PUBLIC_API_PORT', '8000');
 const API_SCHEME = readEnv('EXPO_PUBLIC_API_SCHEME', 'http').toLowerCase();
 
 const API_TIMEOUT_MS = readInt('EXPO_PUBLIC_API_TIMEOUT_MS', 15000, {
-  min: 1000
+  min: 1000,
 });
 
 const ENABLE_ADS = readBool('EXPO_PUBLIC_ENABLE_ADS', false);
@@ -231,7 +231,17 @@ const SENTRY_ENABLED = readBool(
   'EXPO_PUBLIC_SENTRY_ENABLED',
   Boolean(SENTRY_DSN)
 );
-const SHOULD_ENABLE_SENTRY_PLUGIN = Boolean(SENTRY_ORG && SENTRY_PROJECT);
+
+const SENTRY_AUTH_TOKEN = readEnv('SENTRY_AUTH_TOKEN', '');
+const SENTRY_UPLOAD_ENABLED = readBool('EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED', false);
+
+const SHOULD_ENABLE_SENTRY_PLUGIN = Boolean(
+  SENTRY_ENABLED &&
+    SENTRY_UPLOAD_ENABLED &&
+    SENTRY_ORG &&
+    SENTRY_PROJECT &&
+    SENTRY_AUTH_TOKEN
+);
 
 const POSTHOG_API_KEY = readVariantEnv(
   'EXPO_PUBLIC_POSTHOG_API_KEY',
@@ -256,24 +266,24 @@ const plugins = [
         'Grab Basket uses your location in the background so customers and sellers can track active deliveries.',
       isAndroidBackgroundLocationEnabled: true,
       isAndroidForegroundServiceEnabled: true,
-      isIosBackgroundLocationEnabled: true
-    }
+      isIosBackgroundLocationEnabled: true,
+    },
   ],
   [
     'expo-build-properties',
     {
       android: {
-        usesCleartextTraffic: ALLOW_CLEARTEXT
-      }
-    }
+        usesCleartextTraffic: ALLOW_CLEARTEXT,
+      },
+    },
   ],
   [
     'expo-tracking-transparency',
     {
       userTrackingPermission:
-        'We use this data to improve measurement, attribution, and relevant sponsored content.'
-    }
-  ]
+        'We use this data to improve measurement, attribution, and relevant sponsored content.',
+    },
+  ],
 ];
 
 if (SHOULD_ENABLE_SENTRY_PLUGIN) {
@@ -283,8 +293,8 @@ if (SHOULD_ENABLE_SENTRY_PLUGIN) {
       url: SENTRY_URL,
       organization: SENTRY_ORG,
       project: SENTRY_PROJECT,
-      note: 'Uses SENTRY_AUTH_TOKEN from the environment to upload source maps during native builds.'
-    }
+      note: 'Enable EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED=true only in CI/release pipelines where you want source-map upload.',
+    },
   ]);
 }
 
@@ -300,8 +310,8 @@ if (HAS_META_CREDENTIALS) {
       autoLogAppEventsEnabled: true,
       isAutoInitEnabled: true,
       iosUserTrackingPermission:
-        'We use this identifier to improve attribution and personalize relevant sponsored content.'
-    }
+        'We use this identifier to improve attribution and personalize relevant sponsored content.',
+    },
   ]);
 }
 
@@ -310,8 +320,8 @@ plugins.push(
     ? [
         'react-native-maps',
         {
-          androidGoogleMapsApiKey: GOOGLE_MAPS_API_KEY
-        }
+          androidGoogleMapsApiKey: GOOGLE_MAPS_API_KEY,
+        },
       ]
     : 'react-native-maps'
 );
@@ -325,20 +335,20 @@ const expoConfig = {
   userInterfaceStyle: 'light',
   newArchEnabled: ENABLE_NEW_ARCH,
   experiments: {
-    typedRoutes: true
+    typedRoutes: true,
   },
   assetBundlePatterns: ['**/*'],
   icon: './assets/images/icon.png',
   splash: {
     image: './assets/images/splash-icon.png',
     resizeMode: 'contain',
-    backgroundColor: '#ffffff'
+    backgroundColor: '#ffffff',
   },
   updates: {
-    fallbackToCacheTimeout: 0
+    fallbackToCacheTimeout: 0,
   },
   runtimeVersion: {
-    policy: 'appVersion'
+    policy: 'appVersion',
   },
   ios: {
     bundleIdentifier: IOS_BUNDLE_IDENTIFIER,
@@ -352,8 +362,8 @@ const expoConfig = {
       NSLocationAlwaysAndWhenInUseUsageDescription:
         'Grab Basket uses your location in the background so customers and sellers can track active deliveries.',
       NSLocationAlwaysUsageDescription:
-        'Grab Basket uses your location in the background so customers and sellers can track active deliveries.'
-    }
+        'Grab Basket uses your location in the background so customers and sellers can track active deliveries.',
+    },
   },
   android: {
     package: ANDROID_PACKAGE,
@@ -362,12 +372,12 @@ const expoConfig = {
     adaptiveIcon: {
       foregroundImage: './assets/images/android-icon-foreground.png',
       backgroundImage: './assets/images/android-icon-background.png',
-      monochromeImage: './assets/images/android-icon-monochrome.png'
-    }
+      monochromeImage: './assets/images/android-icon-monochrome.png',
+    },
   },
   web: {
     bundler: 'metro',
-    favicon: './assets/images/favicon.png'
+    favicon: './assets/images/favicon.png',
   },
   plugins,
   extra: {
@@ -383,7 +393,7 @@ const expoConfig = {
       appId: META_APP_ID,
       adAccountId: META_AD_ACCOUNT_ID,
       hasCredentials: HAS_META_CREDENTIALS,
-      adsEnabled: ENABLE_ADS && HAS_META_CREDENTIALS
+      adsEnabled: ENABLE_ADS && HAS_META_CREDENTIALS,
     },
     telemetry: {
       sentry: {
@@ -394,21 +404,22 @@ const expoConfig = {
         profilesSampleRate: SENTRY_PROFILES_SAMPLE_RATE,
         url: SENTRY_URL,
         organization: SENTRY_ORG,
-        project: SENTRY_PROJECT
+        project: SENTRY_PROJECT,
+        uploadEnabled: SENTRY_UPLOAD_ENABLED,
       },
       posthog: {
         apiKey: POSTHOG_API_KEY,
         host: POSTHOG_HOST,
-        enabled: POSTHOG_ENABLED
-      }
+        enabled: POSTHOG_ENABLED,
+      },
     },
     eas: {
-      projectId: EAS_PROJECT_ID || undefined
+      projectId: EAS_PROJECT_ID || undefined,
     },
     googleMaps: {
-      apiKey: GOOGLE_MAPS_API_KEY
-    }
-  }
+      apiKey: GOOGLE_MAPS_API_KEY,
+    },
+  },
 };
 
 if (EXPO_OWNER) {
@@ -420,5 +431,5 @@ if (EAS_PROJECT_ID) {
 }
 
 module.exports = () => ({
-  expo: expoConfig
+  expo: expoConfig,
 });
