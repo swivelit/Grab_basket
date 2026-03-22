@@ -116,7 +116,7 @@ function normalizeAppVariant(value) {
 }
 
 function isHttpUrl(value = '') {
-  return /^http:\/\//i.test(String(value || '').trim());
+  return /^http:\/\/?/i.test(String(value || '').trim());
 }
 
 const APP_VARIANT = normalizeAppVariant(
@@ -148,6 +148,7 @@ const VARIANT_DEFAULTS = {
 };
 
 const VARIANT = VARIANT_DEFAULTS[APP_VARIANT] || VARIANT_DEFAULTS.consumer;
+const IS_DELIVERY_APP = APP_VARIANT === 'delivery';
 
 const APP_NAME = readEnv('EXPO_PUBLIC_APP_NAME', VARIANT.appName);
 const APP_SLUG = readEnv('EXPO_PUBLIC_APP_SLUG', VARIANT.slug);
@@ -254,19 +255,25 @@ const POSTHOG_ENABLED = readBool(
   Boolean(POSTHOG_API_KEY)
 );
 
+const pushPermissionLabel = `${APP_NAME} uses notifications for order updates, assignment alerts, and payment status changes.`;
+const deliveryLocationWhenInUsePermission = `${APP_NAME} uses your location while the app is open so riders can see pickup points and delivery routes.`;
+const deliveryLocationAlwaysPermission = `${APP_NAME} uses your location in the background so customers and sellers can track active deliveries.`;
+
 const plugins = [
-  'expo-router',
-  'expo-notifications',
   [
-    'expo-location',
+    'expo-notifications',
     {
-      locationWhenInUsePermission:
-        'Grab Basket uses your location to show nearby stores, pickup points, and delivery routes.',
-      locationAlwaysAndWhenInUsePermission:
-        'Grab Basket uses your location in the background so customers and sellers can track active deliveries.',
-      isAndroidBackgroundLocationEnabled: true,
-      isAndroidForegroundServiceEnabled: true,
-      isIosBackgroundLocationEnabled: true,
+      icon: './assets/images/android-icon-monochrome.png',
+      color: '#D97651',
+      sounds: [],
+      defaultChannel: 'orders-updates',
+    },
+  ],
+  'expo-router',
+  [
+    'expo-secure-store',
+    {
+      configureAndroidBackup: true,
     },
   ],
   [
@@ -285,6 +292,19 @@ const plugins = [
     },
   ],
 ];
+
+if (IS_DELIVERY_APP) {
+  plugins.splice(2, 0, [
+    'expo-location',
+    {
+      locationWhenInUsePermission: deliveryLocationWhenInUsePermission,
+      locationAlwaysAndWhenInUsePermission: deliveryLocationAlwaysPermission,
+      isAndroidBackgroundLocationEnabled: true,
+      isAndroidForegroundServiceEnabled: true,
+      isIosBackgroundLocationEnabled: true,
+    },
+  ]);
+}
 
 if (SHOULD_ENABLE_SENTRY_PLUGIN) {
   plugins.push([
@@ -326,6 +346,33 @@ plugins.push(
     : 'react-native-maps'
 );
 
+const iosInfoPlist = {
+  ITSAppUsesNonExemptEncryption: false,
+  NSUserTrackingUsageDescription:
+    'We use this identifier to improve attribution and personalize relevant sponsored content.',
+  UIBackgroundModes: IS_DELIVERY_APP ? ['location'] : undefined,
+};
+
+if (IS_DELIVERY_APP) {
+  iosInfoPlist.NSLocationWhenInUseUsageDescription = deliveryLocationWhenInUsePermission;
+  iosInfoPlist.NSLocationAlwaysAndWhenInUseUsageDescription = deliveryLocationAlwaysPermission;
+  iosInfoPlist.NSLocationAlwaysUsageDescription = deliveryLocationAlwaysPermission;
+}
+
+const androidPermissions = ['POST_NOTIFICATIONS'];
+
+if (IS_DELIVERY_APP) {
+  androidPermissions.push(
+    'ACCESS_COARSE_LOCATION',
+    'ACCESS_FINE_LOCATION',
+    'ACCESS_BACKGROUND_LOCATION',
+    'FOREGROUND_SERVICE',
+    'FOREGROUND_SERVICE_LOCATION',
+    'RECEIVE_BOOT_COMPLETED',
+    'WAKE_LOCK'
+  );
+}
+
 const expoConfig = {
   name: APP_NAME,
   slug: APP_SLUG,
@@ -350,33 +397,20 @@ const expoConfig = {
   runtimeVersion: {
     policy: 'appVersion',
   },
+  notification: {
+    icon: './assets/images/android-icon-monochrome.png',
+    color: '#D97651',
+    androidMode: 'default',
+    androidCollapsedTitle: APP_NAME,
+  },
   ios: {
     bundleIdentifier: IOS_BUNDLE_IDENTIFIER,
     supportsTablet: true,
-    infoPlist: {
-      ITSAppUsesNonExemptEncryption: false,
-      NSUserTrackingUsageDescription:
-        'We use this identifier to improve attribution and personalize relevant sponsored content.',
-      NSLocationWhenInUseUsageDescription:
-        'Grab Basket uses your location to show nearby stores, pickup points, and delivery routes.',
-      NSLocationAlwaysAndWhenInUseUsageDescription:
-        'Grab Basket uses your location in the background so customers and sellers can track active deliveries.',
-      NSLocationAlwaysUsageDescription:
-        'Grab Basket uses your location in the background so customers and sellers can track active deliveries.',
-    },
+    infoPlist: iosInfoPlist,
   },
   android: {
     package: ANDROID_PACKAGE,
-    permissions: [
-      'POST_NOTIFICATIONS',
-      'ACCESS_COARSE_LOCATION',
-      'ACCESS_FINE_LOCATION',
-      'ACCESS_BACKGROUND_LOCATION',
-      'FOREGROUND_SERVICE',
-      'FOREGROUND_SERVICE_LOCATION',
-      'RECEIVE_BOOT_COMPLETED',
-      'WAKE_LOCK',
-    ],
+    permissions: androidPermissions,
     versionCode: ANDROID_VERSION_CODE,
     adaptiveIcon: {
       foregroundImage: './assets/images/android-icon-foreground.png',
@@ -389,6 +423,7 @@ const expoConfig = {
     notification: {
       icon: './assets/images/android-icon-monochrome.png',
       color: '#D97651',
+      defaultChannel: 'orders-updates',
     },
   },
   web: {
@@ -405,6 +440,11 @@ const expoConfig = {
     apiScheme: API_SCHEME,
     apiTimeoutMs: API_TIMEOUT_MS,
     allowCleartextTraffic: ALLOW_CLEARTEXT,
+    permissions: {
+      notifications: pushPermissionLabel,
+      locationWhenInUse: IS_DELIVERY_APP ? deliveryLocationWhenInUsePermission : '',
+      backgroundLocation: IS_DELIVERY_APP ? deliveryLocationAlwaysPermission : '',
+    },
     meta: {
       appId: META_APP_ID,
       adAccountId: META_AD_ACCOUNT_ID,
