@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from typing import List
+from urllib.parse import urlparse
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -38,6 +39,14 @@ class Settings(BaseSettings):
 
     FCM_SERVICE_ACCOUNT_JSON: str | None = None
     FCM_SERVICE_ACCOUNT_FILE: str | None = None
+
+    PUBLIC_BASE_URL: str | None = None
+
+    RAZORPAY_KEY_ID: str | None = None
+    RAZORPAY_KEY_SECRET: str | None = None
+    RAZORPAY_WEBHOOK_SECRET: str | None = None
+    PAYMENT_LINK_EXPIRE_MINUTES: int = Field(default=30)
+    PAYMENT_LINK_REUSE_MINUTES: int = Field(default=15)
 
     @field_validator("APP_ENV", mode="before")
     @classmethod
@@ -104,9 +113,25 @@ class Settings(BaseSettings):
 
         return ["*"]
 
+    @field_validator("PUBLIC_BASE_URL", mode="before")
+    @classmethod
+    def _normalize_public_base_url(cls, v):
+        text = str(v or "").strip()
+        return text.rstrip("/") or None
+
+    @field_validator("RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET", mode="before")
+    @classmethod
+    def _normalize_optional_secret(cls, v):
+        text = str(v or "").strip()
+        return text or None
+
     @property
     def is_prod(self) -> bool:
         return self.APP_ENV == "production"
+
+    @property
+    def razorpay_enabled(self) -> bool:
+        return bool(self.RAZORPAY_KEY_ID and self.RAZORPAY_KEY_SECRET)
 
     @model_validator(mode="after")
     def _validate_prod_safety(self):
@@ -123,6 +148,23 @@ class Settings(BaseSettings):
             raise ValueError("REFRESH_TOKEN_MINUTES must be greater than ACCESS_TOKEN_MINUTES")
         if self.REFRESH_TOKEN_BYTES < 32:
             raise ValueError("REFRESH_TOKEN_BYTES must be at least 32")
+
+        if self.PAYMENT_LINK_EXPIRE_MINUTES < 15:
+            raise ValueError("PAYMENT_LINK_EXPIRE_MINUTES must be at least 15 minutes")
+        if self.PAYMENT_LINK_REUSE_MINUTES < 1:
+            raise ValueError("PAYMENT_LINK_REUSE_MINUTES must be at least 1 minute")
+        if self.PAYMENT_LINK_REUSE_MINUTES > self.PAYMENT_LINK_EXPIRE_MINUTES:
+            raise ValueError("PAYMENT_LINK_REUSE_MINUTES cannot exceed PAYMENT_LINK_EXPIRE_MINUTES")
+
+        if self.PUBLIC_BASE_URL:
+            parsed = urlparse(self.PUBLIC_BASE_URL)
+            if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+                raise ValueError("PUBLIC_BASE_URL must be a valid absolute http(s) URL")
+            if self.is_prod and parsed.scheme != "https":
+                raise ValueError("PUBLIC_BASE_URL must use HTTPS in production")
+
+        if self.is_prod and self.razorpay_enabled and not self.RAZORPAY_WEBHOOK_SECRET:
+            raise ValueError("RAZORPAY_WEBHOOK_SECRET must be configured in production when Razorpay is enabled")
 
         return self
 

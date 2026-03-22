@@ -189,6 +189,16 @@ class PaymentVerifyIn(BaseModel):
         return raw[-4:] if raw else None
 
 
+class PaymentCheckoutSessionIn(BaseModel):
+    return_url: Optional[str] = Field(default=None, max_length=1024)
+
+    @field_validator("return_url", mode="before")
+    @classmethod
+    def normalize_return_url(cls, value):
+        text = str(value or "").strip()
+        return text or None
+
+
 class PaymentVerifyOut(BaseModel):
     ok: bool
     payment_status: str
@@ -241,6 +251,28 @@ class OrderOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PaymentCheckoutSessionOut(BaseModel):
+    ok: bool
+    provider: str
+    checkout_url: str
+    provider_reference: str
+    payment_status: str
+    checkout_status: str
+    expires_at: Optional[datetime] = None
+    order: OrderOut
+
+
+class PaymentStatusOut(BaseModel):
+    ok: bool
+    provider: str
+    payment_status: str
+    checkout_status: str
+    should_retry: bool
+    provider_reference: Optional[str] = None
+    provider_payment_id: Optional[str] = None
+    order: OrderOut
 
 
 class OrderTrackingOut(BaseModel):
