@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -9,12 +11,17 @@ from ..db import get_db
 from ..models import FcmToken, Order, OrderEvent, PartnerLocation, User
 from ..notifications import send_push
 from ..schemas import OrderOut, PartnerLocationIn
+from ..utils.geo import haversine_km
 
 router = APIRouter(prefix="/partner", tags=["partner"])
 
 ACTIVE_PARTNER_ORDER_STATUSES = {"ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP", "PICKED_UP"}
 MAX_LOCATION_POINTS_PER_PARTNER = 500
 DEFAULT_ORDER_LIMIT = 100
+LOCATION_DEDUP_DISTANCE_METERS = 12
+LOCATION_DEDUP_WINDOW_SECONDS = 20
+LOCATION_DEDUP_HEADING_DELTA = 12
+LOCATION_DEDUP_SPEED_DELTA = 2.5
 
 
 def _user_tokens(db: Session, user_id: int) -> list[str]:
@@ -53,6 +60,51 @@ def _serialize_location(row: PartnerLocation | None) -> dict | None:
         "speed": row.speed,
         "created_at": row.created_at,
     }
+
+
+def _heading_delta(first: float | None, second: float | None) -> float:
+    if first is None or second is None:
+        return 0.0
+    direct = abs(float(first) - float(second))
+    return min(direct, 360.0 - direct)
+
+
+def _speed_delta(first: float | None, second: float | None) -> float:
+    if first is None or second is None:
+        return 0.0
+    return abs(float(first) - float(second))
+
+
+def _seconds_since(created_at: datetime | None) -> float:
+    if created_at is None:
+        return float("inf")
+
+    value = created_at
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+
+    return max(0.0, (datetime.now(timezone.utc) - value).total_seconds())
+
+
+def _should_reuse_latest_location(latest: PartnerLocation | None, payload: PartnerLocationIn) -> bool:
+    if not latest:
+        return False
+
+    age_seconds = _seconds_since(latest.created_at)
+    if age_seconds > LOCATION_DEDUP_WINDOW_SECONDS:
+        return False
+
+    distance_meters = haversine_km(latest.lat, latest.lng, payload.lat, payload.lng) * 1000
+    if distance_meters > LOCATION_DEDUP_DISTANCE_METERS:
+        return False
+
+    if _heading_delta(latest.heading, payload.heading) > LOCATION_DEDUP_HEADING_DELTA:
+        return False
+
+    if _speed_delta(latest.speed, payload.speed) > LOCATION_DEDUP_SPEED_DELTA:
+        return False
+
+    return True
 
 
 def _add_order_event(db: Session, order: Order, status: str, note: str, actor_user_id: int | None) -> None:
@@ -150,9 +202,9 @@ def set_availability(
         user.is_partner_available = False
         db.commit()
         return {
-          "ok": True,
-          "is_available": False,
-          "reason": "You already have an active order and cannot go online again right now.",
+            "ok": True,
+            "is_available": False,
+            "reason": "You already have an active order and cannot go online again right now.",
         }
 
     user.is_partner_available = bool(is_available)
@@ -171,6 +223,14 @@ def update_location(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    latest = _latest_location(db, user.id)
+    if _should_reuse_latest_location(latest, payload):
+        return {
+            "ok": True,
+            "deduplicated": True,
+            "location": _serialize_location(latest),
+        }
+
     row = PartnerLocation(partner_id=user.id, **payload.model_dump())
     db.add(row)
     db.flush()
@@ -192,6 +252,7 @@ def update_location(
 
     return {
         "ok": True,
+        "deduplicated": False,
         "location": _serialize_location(row),
     }
 
@@ -236,7 +297,11 @@ def pickup(order_id: int, db: Session = Depends(get_db), user: User = Depends(ge
         _user_tokens(db, order.customer_id),
         "Order picked up",
         f"Order #{order.id} is on the way",
-        data={"order_id": str(order.id)},
+        data={
+            "order_id": str(order.id),
+            "status": "PICKED_UP",
+            "type": "order_update",
+        },
     )
 
     return order
@@ -266,7 +331,11 @@ def deliver(order_id: int, db: Session = Depends(get_db), user: User = Depends(g
         _user_tokens(db, order.customer_id),
         "Delivered",
         f"Order #{order.id} has been delivered",
-        data={"order_id": str(order.id)},
+        data={
+            "order_id": str(order.id),
+            "status": "DELIVERED",
+            "type": "order_update",
+        },
     )
 
     return order
