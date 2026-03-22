@@ -166,6 +166,7 @@ const ALLOW_CLEARTEXT = readBool(
 
 const plugins = [
   'expo-router',
+  'expo-notifications',
   [
     'expo-build-properties',
     {
@@ -237,6 +238,7 @@ const expoConfig = {
   },
   android: {
     package: ANDROID_PACKAGE,
+    permissions: ['POST_NOTIFICATIONS'],
     versionCode: ANDROID_VERSION_CODE,
     adaptiveIcon: {
       foregroundImage: './assets/images/android-icon-foreground.png',
