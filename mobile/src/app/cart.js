@@ -6,16 +6,19 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 
 import { useGrabBasket } from '../../App';
 import { API_CONFIG_ERROR, API_TIMEOUT_MS, buildApiUrl } from '../config';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const COLORS = {
   bg: '#FFF9F3',
@@ -172,6 +175,67 @@ function EmptyState({ title, subtitle }) {
   );
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeGatewayStatus(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isOrderPaymentPending(order) {
+  return String(order?.status || '').toUpperCase() === 'PAYMENT_PENDING';
+}
+
+function hasSameItems(order, cartItems = []) {
+  const orderItems = Array.isArray(order?.items) ? order.items : [];
+  if (orderItems.length !== cartItems.length) return false;
+
+  const signature = (list, idKey) =>
+    [...list]
+      .map((item) => `${Number(item?.[idKey] || 0)}:${Number(item?.qty || 0)}`)
+      .sort()
+      .join('|');
+
+  return signature(orderItems, 'product_id') === signature(cartItems, 'id');
+}
+
+function findReusablePendingOrder(orders = [], { vendorId, paymentMethod, cartItems }) {
+  return (
+    (orders || []).find(
+      (order) =>
+        Number(order?.vendor_id || 0) === Number(vendorId || 0) &&
+        String(order?.payment_method || '').toUpperCase() === String(paymentMethod || '').toUpperCase() &&
+        isOrderPaymentPending(order) &&
+        hasSameItems(order, cartItems)
+    ) || null
+  );
+}
+
+async function pollGatewayStatus(orderId, authToken, { attempts = 4, delayMs = 1500 } = {}) {
+  let last = null;
+
+  for (let index = 0; index < attempts; index += 1) {
+    last = await apiRequest(`/payments/${orderId}/status`, {
+      method: 'GET',
+      token: authToken,
+    });
+
+    const checkoutStatus = normalizeGatewayStatus(last?.checkout_status);
+    const paymentStatus = String(last?.payment_status || '').toUpperCase();
+
+    if (paymentStatus === 'PAID') return last;
+    if (paymentStatus === 'FAILED') return last;
+    if (['cancelled', 'expired'].includes(checkoutStatus)) return last;
+
+    if (index < attempts - 1) {
+      await sleep(delayMs);
+    }
+  }
+
+  return last;
+}
+
 export default function CartScreen() {
   const router = useRouter();
   const {
@@ -196,66 +260,21 @@ export default function CartScreen() {
 
   const [paymentMethod, setPaymentMethod] = useState('COD');
   const [submitting, setSubmitting] = useState(false);
-  const [upiId, setUpiId] = useState('');
-  const [upiReference, setUpiReference] = useState('');
-  const [cardHolderName, setCardHolderName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
 
   const normalizedService = mapLegacyService(activeService);
   const isBooking = normalizedService === 'eatout' || normalizedService === 'scenes';
 
-  const cardLast4 = useMemo(() => String(cardNumber || '').replace(/\D/g, '').slice(-4), [cardNumber]);
-
   const paymentHelperText = useMemo(() => {
     if (paymentMethod === 'UPI') {
-      return 'The customer app will create the order first and then call your backend payment verification endpoint.';
+      return 'UPI payments now open a hosted Razorpay checkout from your backend. The app no longer collects or verifies UPI IDs manually.';
     }
 
     if (paymentMethod === 'CARD') {
-      return 'Only the card last 4 digits are sent to the server here. Replace this with a tokenized gateway in production.';
+      return 'Card payments now run on a hosted Razorpay checkout page, with server-side signature verification, callback handling, and webhook reconciliation.';
     }
 
     return 'Cash is collected on delivery. Delivery app and seller app will still see the correct payment status.';
   }, [paymentMethod]);
-
-  const validateOnlinePaymentInput = () => {
-    if (paymentMethod === 'UPI') {
-      const normalized = String(upiId || '').trim().toLowerCase();
-      if (!normalized || !normalized.includes('@')) {
-        throw new Error('Enter a valid UPI ID before placing the order.');
-      }
-      return {
-        payment_method: 'UPI',
-        upi_id: normalized,
-        reference: String(upiReference || `UPI-${Date.now()}`).trim().toUpperCase(),
-      };
-    }
-
-    if (paymentMethod === 'CARD') {
-      if (!String(cardHolderName || '').trim()) {
-        throw new Error('Enter the card holder name.');
-      }
-
-      const digits = String(cardNumber || '').replace(/\D/g, '');
-      if (digits.length < 12) {
-        throw new Error('Enter a valid card number.');
-      }
-
-      if (!/^\d{2}\/\d{2}$/.test(String(cardExpiry || '').trim())) {
-        throw new Error('Enter card expiry in MM/YY format.');
-      }
-
-      return {
-        payment_method: 'CARD',
-        card_holder_name: String(cardHolderName || '').trim(),
-        card_last4: digits.slice(-4),
-        reference: `CARD-${Date.now()}`,
-      };
-    }
-
-    return null;
-  };
 
   const submitCheckout = async () => {
     if (cartItems.length === 0) {
@@ -286,60 +305,121 @@ export default function CartScreen() {
       return;
     }
 
-    let createdOrderId = null;
+    const vendorId = Number(cartVendor?.id ?? cart?.vendorId);
+    const isOnlinePayment = paymentMethod !== 'COD';
+
+    let order = null;
+    let createdFreshPendingOrder = false;
+    let checkoutSessionOpened = false;
 
     try {
       setSubmitting(true);
 
-      const orderPayload = {
-        vendor_id: Number(cartVendor?.id ?? cart?.vendorId),
-        items: cartItems.map((item) => ({
-          product_id: Number(item.id),
-          qty: Number(item.qty || 1),
-        })),
-        payment_method: paymentMethod,
-        ...(deliveryAddressId ? { delivery_address_id: Number(deliveryAddressId) } : {}),
-      };
-
-      const order = await apiRequest('/orders', {
-        method: 'POST',
-        token: authToken,
-        body: JSON.stringify(orderPayload),
-      });
-
-      createdOrderId = order?.id || null;
-
-      let paymentRef = order?.payment_ref || '';
-
-      if (paymentMethod !== 'COD') {
-        const verifyPayload = {
-          ...validateOnlinePaymentInput(),
-          amount: Number(order?.total_amount || cartTotal || 0),
-        };
-
-        const paymentResult = await apiRequest(`/payments/${order.id}/verify`, {
-          method: 'POST',
+      if (isOnlinePayment) {
+        const existingOrders = await apiRequest('/orders/me', {
+          method: 'GET',
           token: authToken,
-          body: JSON.stringify(verifyPayload),
-        });
+        }).catch(() => []);
 
-        paymentRef = paymentResult?.payment_ref || paymentRef;
+        order = findReusablePendingOrder(existingOrders, {
+          vendorId,
+          paymentMethod,
+          cartItems,
+        });
       }
 
-      clearCart();
+      if (!order) {
+        const orderPayload = {
+          vendor_id: vendorId,
+          items: cartItems.map((item) => ({
+            product_id: Number(item.id),
+            qty: Number(item.qty || 1),
+          })),
+          payment_method: paymentMethod,
+          ...(deliveryAddressId ? { delivery_address_id: Number(deliveryAddressId) } : {}),
+        };
+
+        order = await apiRequest('/orders', {
+          method: 'POST',
+          token: authToken,
+          body: JSON.stringify(orderPayload),
+        });
+        createdFreshPendingOrder = isOnlinePayment;
+      }
+
+      if (!isOnlinePayment) {
+        clearCart();
+        await loadOrders().catch(() => {});
+
+        Alert.alert(
+          isBooking ? 'Booking confirmed' : 'Order placed',
+          'Your order has been created successfully.'
+        );
+
+        router.replace('/reorder');
+        return;
+      }
+
+      const returnUrl = Linking.createURL('/cart');
+      const session = await apiRequest(`/payments/${order.id}/checkout-session`, {
+        method: 'POST',
+        token: authToken,
+        body: JSON.stringify({ return_url: returnUrl }),
+      });
+
+      const checkoutUrl = String(session?.checkout_url || '').trim();
+      if (!checkoutUrl) {
+        throw new Error('The payment gateway did not return a checkout URL.');
+      }
+
+      checkoutSessionOpened = true;
+      const browserResult = await WebBrowser.openAuthSessionAsync(checkoutUrl, returnUrl);
+
+      const gatewayStatus = await pollGatewayStatus(order.id, authToken, {
+        attempts: browserResult?.type === 'success' ? 3 : 4,
+        delayMs: browserResult?.type === 'success' ? 1200 : 1800,
+      });
+
+      const paymentStatus = String(gatewayStatus?.payment_status || '').toUpperCase();
+      const checkoutStatus = normalizeGatewayStatus(gatewayStatus?.checkout_status);
+      const providerPaymentId = gatewayStatus?.provider_payment_id;
+
       await loadOrders().catch(() => {});
 
-      Alert.alert(
-        isBooking ? 'Booking confirmed' : 'Order placed',
-        paymentMethod === 'COD'
-          ? 'Your order has been created successfully.'
-          : `Payment verified on server. Reference: ${paymentRef}`
-      );
+      if (paymentStatus === 'PAID') {
+        clearCart();
+        Alert.alert(
+          isBooking ? 'Booking confirmed' : 'Payment successful',
+          providerPaymentId
+            ? `Payment captured and verified on the server. Payment ID: ${providerPaymentId}`
+            : 'Payment captured and verified on the server.'
+        );
+        router.replace('/reorder');
+        return;
+      }
 
-      router.replace('/reorder');
+      if (paymentStatus === 'FAILED' || ['cancelled', 'expired'].includes(checkoutStatus)) {
+        await apiRequest(`/orders/${order.id}/cancel?reason=Gateway%20payment%20not%20completed`, {
+          method: 'POST',
+          token: authToken,
+        }).catch(() => {});
+
+        await loadOrders().catch(() => {});
+
+        Alert.alert(
+          'Payment not completed',
+          'No amount was confirmed by the gateway. The pending order has been cancelled and your basket is still intact so you can retry safely.'
+        );
+        return;
+      }
+
+      Alert.alert(
+        'Payment still processing',
+        `Order #${order.id} is waiting for final gateway confirmation. Do not place the same basket again until this status settles in your Orders view.`
+      );
     } catch (error) {
-      if (createdOrderId && paymentMethod !== 'COD') {
-        await apiRequest(`/orders/${createdOrderId}/cancel?reason=Payment%20verification%20failed`, {
+      if (createdFreshPendingOrder && order?.id && isOnlinePayment && !checkoutSessionOpened) {
+        await apiRequest(`/orders/${order.id}/cancel?reason=Gateway%20session%20creation%20failed`, {
           method: 'POST',
           token: authToken,
         }).catch(() => {});
@@ -468,54 +548,17 @@ export default function CartScreen() {
                 />
               </View>
 
-              {paymentMethod === 'UPI' ? (
-                <View style={styles.formSection}>
-                  <TextInput
-                    value={upiId}
-                    onChangeText={setUpiId}
-                    placeholder="yourname@upi"
-                    placeholderTextColor={COLORS.subtle}
-                    autoCapitalize="none"
-                    style={styles.input}
-                  />
-                  <TextInput
-                    value={upiReference}
-                    onChangeText={setUpiReference}
-                    placeholder="Payment reference (optional)"
-                    placeholderTextColor={COLORS.subtle}
-                    autoCapitalize="characters"
-                    style={styles.input}
-                  />
-                </View>
-              ) : null}
-
-              {paymentMethod === 'CARD' ? (
-                <View style={styles.formSection}>
-                  <TextInput
-                    value={cardHolderName}
-                    onChangeText={setCardHolderName}
-                    placeholder="Card holder name"
-                    placeholderTextColor={COLORS.subtle}
-                    autoCapitalize="words"
-                    style={styles.input}
-                  />
-                  <TextInput
-                    value={cardNumber}
-                    onChangeText={setCardNumber}
-                    placeholder="Card number"
-                    placeholderTextColor={COLORS.subtle}
-                    keyboardType="number-pad"
-                    style={styles.input}
-                  />
-                  <TextInput
-                    value={cardExpiry}
-                    onChangeText={setCardExpiry}
-                    placeholder="MM/YY"
-                    placeholderTextColor={COLORS.subtle}
-                    keyboardType="numbers-and-punctuation"
-                    style={styles.input}
-                  />
-                  <Text style={styles.helperText}>Server verification stores only card last 4 digits: {cardLast4 || '----'}</Text>
+              {paymentMethod !== 'COD' ? (
+                <View style={styles.noticeCard}>
+                  <View style={styles.noticeIcon}>
+                    <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.peach600} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.noticeTitle}>Hosted secure checkout</Text>
+                    <Text style={styles.noticeSubtitle}>
+                      The app will open a secure gateway page and wait for your backend callback + webhook confirmation before the order is marked paid.
+                    </Text>
+                  </View>
                 </View>
               ) : null}
 
@@ -581,12 +624,12 @@ export default function CartScreen() {
                 {submitting
                   ? paymentMethod === 'COD'
                     ? 'Placing order...'
-                    : 'Verifying payment...'
+                    : 'Opening secure checkout...'
                   : isBooking
                     ? 'Confirm booking'
                     : paymentMethod === 'COD'
                       ? 'Place order'
-                      : 'Pay & place order'}
+                      : 'Pay securely'}
               </Text>
             </TouchableOpacity>
 
@@ -858,9 +901,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.black,
     borderRadius: 18,
     paddingVertical: 16,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
     gap: 10,
   },
   primaryButtonText: {
@@ -869,17 +912,17 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   secondaryButton: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
-    paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 18,
+    paddingVertical: 15,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   secondaryButtonText: {
-    fontSize: 14,
-    fontWeight: '800',
     color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
