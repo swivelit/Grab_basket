@@ -1,15 +1,33 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Stack } from 'expo-router';
-import * as Location from 'expo-location';
+import { Stack, useGlobalSearchParams, usePathname } from 'expo-router';
 import * as TaskManager from 'expo-task-manager';
+
 import { GrabBasketProvider } from '../../App';
 import PushNotificationBootstrap from '../components/push-notification-bootstrap';
+import { getAppVariant } from '../constants/app-shell';
 import { buildApiUrl } from '../config';
+import {
+  captureEvent,
+  captureException,
+  flushTelemetry,
+  identifyUser,
+  resetTelemetryUser,
+  trackScreen,
+  wrapWithSentry,
+} from '../lib/telemetry';
 
+const APP_VARIANT = getAppVariant();
 const DELIVERY_LOCATION_TASK_NAME = 'grab-basket-delivery-background-location';
-const STORAGE_AUTH_TOKEN = '@grab_basket/delivery/auth_token_v1';
-const STORAGE_LAST_BACKGROUND_LOCATION = '@grab_basket/delivery/background_location_last_v1';
+
+function buildScopedStorageKey(key: string) {
+  return `@grab_basket/${APP_VARIANT}/${key}`;
+}
+
+const STORAGE_AUTH_TOKEN = buildScopedStorageKey('auth_token_v1');
+const STORAGE_AUTH_EMAIL = buildScopedStorageKey('auth_email_v1');
+const STORAGE_AUTH_ROLE = buildScopedStorageKey('auth_role_v1');
+const STORAGE_LAST_BACKGROUND_LOCATION = buildScopedStorageKey('background_location_last_v1');
 
 let secureStoreModuleCache: any;
 
@@ -52,6 +70,35 @@ async function persistLastBackgroundLocation(payload: Record<string, any>) {
   }
 }
 
+async function hydrateTelemetryUser() {
+  try {
+    const [email, role] = await Promise.all([
+      readStoredValue(STORAGE_AUTH_EMAIL),
+      readStoredValue(STORAGE_AUTH_ROLE),
+    ]);
+
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      resetTelemetryUser();
+      return;
+    }
+
+    identifyUser(normalizedEmail, {
+      email: normalizedEmail,
+      role: String(role || '').trim().toUpperCase(),
+      app_variant: APP_VARIANT,
+    });
+  } catch (error) {
+    captureException(error, {
+      tags: {
+        area: 'telemetry',
+        operation: 'hydrate-user',
+      },
+    });
+  }
+}
+
 async function postPartnerLocation(token: string, payload: Record<string, any>) {
   const response = await fetch(buildApiUrl('/partner/location'), {
     method: 'POST',
@@ -71,6 +118,15 @@ async function postPartnerLocation(token: string, payload: Record<string, any>) 
 if (!TaskManager.isTaskDefined(DELIVERY_LOCATION_TASK_NAME)) {
   TaskManager.defineTask(DELIVERY_LOCATION_TASK_NAME, async ({ data, error }) => {
     if (error) {
+      captureException(error, {
+        tags: {
+          area: 'background-task',
+          operation: 'delivery-location',
+        },
+        extras: {
+          taskName: DELIVERY_LOCATION_TASK_NAME,
+        },
+      });
       return;
     }
 
@@ -109,15 +165,59 @@ if (!TaskManager.isTaskDefined(DELIVERY_LOCATION_TASK_NAME)) {
         created_at: new Date(latest.timestamp || Date.now()).toISOString(),
         source: 'background-task',
       });
-    } catch {
-      // Ignore background sync failures. The UI surfaces fresh state when the rider reopens the app.
+    } catch (taskError) {
+      captureException(taskError, {
+        tags: {
+          area: 'background-task',
+          operation: 'partner-location-sync',
+        },
+        extras: {
+          payload,
+        },
+      });
     }
   });
 }
 
-export default function RootLayout() {
+function TelemetryBootstrap() {
+  const pathname = usePathname();
+  const searchParams = useGlobalSearchParams();
+
+  useEffect(() => {
+    hydrateTelemetryUser();
+    captureEvent('app_opened', {
+      app_variant: APP_VARIANT,
+      initial_path: pathname || '/',
+    });
+
+    return () => {
+      flushTelemetry();
+    };
+  }, []);
+
+  useEffect(() => {
+    const params = Object.entries(searchParams || {}).reduce(
+      (accumulator, [key, value]) => {
+        if (value === undefined || value === null) {
+          return accumulator;
+        }
+
+        accumulator[key] = Array.isArray(value) ? value.join(',') : String(value);
+        return accumulator;
+      },
+      {} as Record<string, string>
+    );
+
+    trackScreen(pathname || '/', params);
+  }, [pathname, searchParams]);
+
+  return null;
+}
+
+function RootLayout() {
   return (
     <GrabBasketProvider>
+      <TelemetryBootstrap />
       <PushNotificationBootstrap />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -129,3 +229,5 @@ export default function RootLayout() {
     </GrabBasketProvider>
   );
 }
+
+export default wrapWithSentry(RootLayout);
