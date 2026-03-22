@@ -70,21 +70,52 @@ function normalizeError(error) {
   }
 }
 
-function getOptionalModule(name) {
+function getExpoApplicationModule() {
   try {
-    return require(name);
+    return require('expo-application');
   } catch {
     return null;
   }
 }
 
-function getOptionalDefaultExport(name) {
-  const module = getOptionalModule(name);
-  return module?.default || module;
+function getExpoDeviceModule() {
+  try {
+    return require('expo-device');
+  } catch {
+    return null;
+  }
+}
+
+function getExpoLocalizationModule() {
+  try {
+    return require('expo-localization');
+  } catch {
+    return null;
+  }
+}
+
+function getSentryModule() {
+  try {
+    return require('@sentry/react-native');
+  } catch {
+    return null;
+  }
+}
+
+function getPostHogClass() {
+  try {
+    const module = require('posthog-react-native');
+    return module?.default || module?.PostHog || module;
+  } catch {
+    return null;
+  }
 }
 
 const expoExtra =
-  Constants?.expoConfig?.extra || Constants?.manifest2?.extra || Constants?.manifest?.extra || {};
+  Constants?.expoConfig?.extra ||
+  Constants?.manifest2?.extra ||
+  Constants?.manifest?.extra ||
+  {};
 
 const APP_VARIANT = getAppVariant();
 const APP_SHELL = getAppShellConfig(APP_VARIANT);
@@ -140,50 +171,29 @@ const POSTHOG_ENABLED = parseBoolean(
   Boolean(POSTHOG_API_KEY)
 );
 
-let sentryModuleCache;
 let sentryInitialized = false;
 let posthogClientCache;
-
-function getApplicationModule() {
-  return getOptionalModule('expo-application');
-}
-
-function getDeviceModule() {
-  return getOptionalModule('expo-device');
-}
-
-function getLocalizationModule() {
-  return getOptionalModule('expo-localization');
-}
-
-function getSentry() {
-  if (sentryModuleCache !== undefined) {
-    return sentryModuleCache;
-  }
-
-  sentryModuleCache = getOptionalModule('@sentry/react-native');
-  return sentryModuleCache;
-}
 
 function isNativeRuntime() {
   return Platform.OS === 'android' || Platform.OS === 'ios';
 }
 
 function ensureSentryInitialized() {
+  const Sentry = getSentryModule();
+
   if (sentryInitialized) {
-    return getSentry();
+    return Sentry;
   }
 
   sentryInitialized = true;
 
-  const Sentry = getSentry();
   if (!Sentry || !isNativeRuntime() || !SENTRY_ENABLED || !SENTRY_DSN) {
     return Sentry;
   }
 
-  const Application = getApplicationModule();
-  const Device = getDeviceModule();
-  const Localization = getLocalizationModule();
+  const Application = getExpoApplicationModule();
+  const Device = getExpoDeviceModule();
+  const Localization = getExpoLocalizationModule();
 
   const appVersion =
     Application?.nativeApplicationVersion || Constants?.expoConfig?.version || '1.0.0';
@@ -198,7 +208,7 @@ function ensureSentryInitialized() {
     profilesSampleRate: SENTRY_PROFILES_SAMPLE_RATE,
     enableNativeFramesTracking: true,
     release: `${APP_VARIANT}@${appVersion}`,
-    dist: String(buildVersion)
+    dist: String(buildVersion),
   });
 
   if (typeof Sentry.setTags === 'function') {
@@ -206,7 +216,7 @@ function ensureSentryInitialized() {
       app_name: APP_SHELL.appName || 'Grab Basket',
       app_variant: APP_VARIANT,
       app_env: APP_ENV,
-      platform: Platform.OS
+      platform: Platform.OS,
     });
   }
 
@@ -220,7 +230,7 @@ function ensureSentryInitialized() {
       locale:
         Localization?.getLocales?.()?.[0]?.languageTag ||
         Localization?.locale ||
-        ''
+        '',
     });
   }
 
@@ -237,16 +247,16 @@ function getPostHogClient() {
     return posthogClientCache;
   }
 
-  const PostHog = getOptionalDefaultExport('posthog-react-native');
+  const PostHogClass = getPostHogClass();
 
-  if (!PostHog) {
+  if (!PostHogClass) {
     posthogClientCache = null;
     return posthogClientCache;
   }
 
-  posthogClientCache = new PostHog(POSTHOG_API_KEY, {
+  posthogClientCache = new PostHogClass(POSTHOG_API_KEY, {
     host: POSTHOG_HOST,
-    disable: false
+    disable: false,
   });
 
   if (typeof posthogClientCache.register === 'function') {
@@ -254,7 +264,7 @@ function getPostHogClient() {
       app_env: APP_ENV,
       app_name: APP_SHELL.appName || 'Grab Basket',
       app_variant: APP_VARIANT,
-      platform: Platform.OS
+      platform: Platform.OS,
     });
   }
 
@@ -273,7 +283,7 @@ function addNavigationBreadcrumb(screenName, params = {}) {
     type: 'navigation',
     level: 'info',
     message: screenName,
-    data: toPlainObject(params)
+    data: toPlainObject(params),
   });
 }
 
@@ -314,7 +324,7 @@ function captureException(error, context = {}) {
       message: normalizedError.message,
       name: normalizedError.name,
       ...toPlainObject(tags),
-      ...toPlainObject(extras)
+      ...toPlainObject(extras),
     });
   }
 }
@@ -330,7 +340,7 @@ function captureEvent(name, properties = {}) {
     app_name: APP_SHELL.appName || 'Grab Basket',
     app_variant: APP_VARIANT,
     platform: Platform.OS,
-    ...toPlainObject(properties)
+    ...toPlainObject(properties),
   });
 }
 
@@ -350,7 +360,7 @@ function trackScreen(pathname, params = {}) {
     app_name: APP_SHELL.appName || 'Grab Basket',
     app_variant: APP_VARIANT,
     platform: Platform.OS,
-    ...cleanedParams
+    ...cleanedParams,
   });
 }
 
@@ -368,7 +378,7 @@ function identifyUser(userId, traits = {}) {
       id: normalizedUserId,
       email: String(normalizedTraits.email || normalizedUserId || ''),
       app_variant: APP_VARIANT,
-      ...normalizedTraits
+      ...normalizedTraits,
     });
   }
 
@@ -378,7 +388,7 @@ function identifyUser(userId, traits = {}) {
       app_env: APP_ENV,
       app_name: APP_SHELL.appName || 'Grab Basket',
       app_variant: APP_VARIANT,
-      ...normalizedTraits
+      ...normalizedTraits,
     });
   }
 }
@@ -417,9 +427,6 @@ function wrapWithSentry(Component) {
   return Component;
 }
 
-ensureSentryInitialized();
-getPostHogClient();
-
 export {
   APP_VARIANT,
   captureEvent,
@@ -428,5 +435,5 @@ export {
   identifyUser,
   resetTelemetryUser,
   trackScreen,
-  wrapWithSentry
+  wrapWithSentry,
 };

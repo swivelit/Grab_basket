@@ -89,19 +89,25 @@ INPUT_API_BASE_URL="${INPUT_API_BASE_URL%/}"
 if [[ "$BUILD_TYPE" == "release" ]]; then
   case "$INPUT_API_BASE_URL" in
     http://10.0.2.2*|http://127.0.0.1*|http://localhost*|https://127.0.0.1*|https://localhost*)
-      fail "Release builds cannot use emulator/local URLs. Use your live backend URL, for example: https://grab-basket.onrender.com"
+      fail "Release builds cannot use emulator/local URLs. Use your live backend URL."
       ;;
   esac
 fi
 
 if [[ "$BUILD_TYPE" == "release" ]]; then
   DEFAULT_APP_ENV="production"
+  DEFAULT_NODE_ENV="production"
 else
   DEFAULT_APP_ENV="development"
+  DEFAULT_NODE_ENV="development"
 fi
 
+export NODE_ENV="${NODE_ENV:-$DEFAULT_NODE_ENV}"
 export EXPO_PUBLIC_APP_ENV="${EXPO_PUBLIC_APP_ENV:-$DEFAULT_APP_ENV}"
 export EXPO_PUBLIC_API_BASE_URL="$INPUT_API_BASE_URL"
+
+# Keep runtime crash reporting enabled, but disable source-map upload by default for local APK builds.
+export EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED="${EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED:-false}"
 
 APP_VARIANTS_RAW="${APP_VARIANTS:-consumer,delivery,partner}"
 APP_VARIANTS_RAW="${APP_VARIANTS_RAW// /,}"
@@ -193,6 +199,7 @@ find_apk_source() {
 
 info "Using mobile app at: $MOBILE_DIR"
 info "Build type: $BUILD_TYPE"
+info "Node env: $NODE_ENV"
 info "App env: $EXPO_PUBLIC_APP_ENV"
 info "API base URL: $EXPO_PUBLIC_API_BASE_URL"
 info "App variants: ${APP_VARIANTS[*]}"
@@ -254,7 +261,7 @@ echo "Examples:"
 echo "  ./build-apk.sh"
 echo "  BUILD_TYPE=debug ./build-apk.sh"
 echo "  APP_VARIANTS=consumer ./build-apk.sh"
-echo "  API_BASE_URL=https://grab-basket.onrender.com ./build-apk.sh"
+echo "  API_BASE_URL=https://your-api-domain.com ./build-apk.sh"
 echo ""
 echo "Install on device with:"
 echo "  adb install -r \"$DIST_DIR/grab-basket-${BUILD_TYPE}.apk\""
