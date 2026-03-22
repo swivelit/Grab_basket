@@ -57,12 +57,22 @@ function getOrdersRoute(variant = APP_VARIANT) {
   return '/(tabs)/account';
 }
 
+function sanitizeTargetApp(targetApp) {
+  const value = String(targetApp || '').trim().toLowerCase();
+  if (['customer', 'consumer', 'user'].includes(value)) return 'consumer';
+  if (['delivery', 'rider', 'partner_delivery'].includes(value)) return 'delivery';
+  if (['partner', 'seller', 'merchant', 'vendor'].includes(value)) return 'partner';
+  return '';
+}
+
 function sanitizeNotificationData(notificationData = {}) {
   return {
     notification_id: String(notificationData?.notification_id || '').trim(),
     order_id: String(notificationData?.order_id || '').trim(),
     status: String(notificationData?.status || '').trim(),
     type: String(notificationData?.type || '').trim(),
+    target_app: sanitizeTargetApp(notificationData?.target_app),
+    deep_link_path: String(notificationData?.deep_link_path || '').trim(),
   };
 }
 
@@ -123,7 +133,7 @@ export default function PushNotificationBootstrap() {
   const openOrdersScreen = useCallback(
     (notificationData = {}) => {
       const normalizedData = sanitizeNotificationData(notificationData);
-      const dedupeKey = `${normalizedData.notification_id}:${normalizedData.order_id}:${normalizedData.status}`;
+      const dedupeKey = `${normalizedData.notification_id}:${normalizedData.order_id}:${normalizedData.status}:${normalizedData.deep_link_path}`;
 
       if (dedupeKey && tapHandledRef.current === dedupeKey) {
         return;
@@ -139,7 +149,19 @@ export default function PushNotificationBootstrap() {
       });
 
       syncOrders();
-      router.push(getOrdersRoute(appVariant || APP_VARIANT));
+
+      const fallbackPath = getOrdersRoute(appVariant || APP_VARIANT);
+      const targetPath = normalizedData.deep_link_path || fallbackPath;
+
+      if (normalizedData.order_id) {
+        router.push({
+          pathname: targetPath,
+          params: { orderId: normalizedData.order_id },
+        });
+        return;
+      }
+
+      router.push(targetPath);
     },
     [appVariant, router, syncOrders]
   );

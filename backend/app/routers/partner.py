@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user, require_role
 from ..db import get_db
 from ..models import FcmToken, Order, OrderEvent, PartnerLocation, User
-from ..notifications import send_push
+from ..notifications import build_order_notification_data, send_push
 from ..schemas import OrderOut, PartnerLocationIn
 from ..utils.geo import haversine_km
 
@@ -297,11 +297,7 @@ def pickup(order_id: int, db: Session = Depends(get_db), user: User = Depends(ge
         _user_tokens(db, order.customer_id),
         "Order picked up",
         f"Order #{order.id} is on the way",
-        data={
-            "order_id": str(order.id),
-            "status": "PICKED_UP",
-            "type": "order_update",
-        },
+        data=build_order_notification_data(order.id, status="PICKED_UP", target_app="consumer"),
     )
 
     return order
@@ -331,11 +327,7 @@ def deliver(order_id: int, db: Session = Depends(get_db), user: User = Depends(g
         _user_tokens(db, order.customer_id),
         "Delivered",
         f"Order #{order.id} has been delivered",
-        data={
-            "order_id": str(order.id),
-            "status": "DELIVERED",
-            "type": "order_update",
-        },
+        data=build_order_notification_data(order.id, status="DELIVERED", target_app="consumer"),
     )
 
     return order

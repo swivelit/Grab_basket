@@ -16,7 +16,7 @@ from ..auth import get_current_user, require_role
 from ..config import settings
 from ..db import get_db
 from ..models import FcmToken, Order, OrderEvent, User, Vendor
-from ..notifications import send_push
+from ..notifications import build_order_notification_data, send_push
 from ..schemas import (
     PaymentCheckoutSessionIn,
     PaymentCheckoutSessionOut,
@@ -278,7 +278,7 @@ def _mark_order_paid(
             _seller_tokens(db, vendor),
             "New paid order",
             f"Order #{order.id} is ready for seller action",
-            data={"order_id": str(order.id)},
+            data=build_order_notification_data(order.id, status="PAYMENT_VERIFIED", target_app="partner"),
         )
 
 
@@ -697,7 +697,12 @@ def verify_payment(order_id: int, payload: PaymentVerifyIn, db: Session = Depend
     db.refresh(order)
 
     vendor = db.query(Vendor).filter(Vendor.id == order.vendor_id).first()
-    send_push(_seller_tokens(db, vendor), "New paid order", f"Order #{order.id} is ready for seller action", data={"order_id": str(order.id)})
+    send_push(
+        _seller_tokens(db, vendor),
+        "New paid order",
+        f"Order #{order.id} is ready for seller action",
+        data=build_order_notification_data(order.id, status="PAYMENT_VERIFIED", target_app="partner"),
+    )
 
     return {
         "ok": True,

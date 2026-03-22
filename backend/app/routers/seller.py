@@ -8,7 +8,7 @@ from ..auth import require_role, get_current_user
 from ..db import get_db
 from ..models import User, Vendor, Product, Order, OrderEvent, FcmToken, PartnerLocation
 from ..schemas import VendorUpdateIn, ProductCreateIn, ProductUpdateIn, ProductOut, OrderOut
-from ..notifications import send_push
+from ..notifications import build_order_notification_data, send_push
 from ..utils.geo import haversine_km
 
 router = APIRouter(prefix="/seller", tags=["seller"])
@@ -275,9 +275,19 @@ def accept_order(order_id: int, db: Session = Depends(get_db), user: User = Depe
     db.commit()
     db.refresh(order)
 
-    send_push(_user_tokens(db, order.customer_id), "Order accepted", f"Order #{order.id} accepted", data={"order_id": str(order.id)})
+    send_push(
+        _user_tokens(db, order.customer_id),
+        "Order accepted",
+        f"Order #{order.id} accepted",
+        data=build_order_notification_data(order.id, status="ACCEPTED_BY_SELLER", target_app="consumer"),
+    )
     if assigned_partner:
-        send_push(_user_tokens(db, assigned_partner.id), "New pickup", f"Order #{order.id} assigned", data={"order_id": str(order.id)})
+        send_push(
+            _user_tokens(db, assigned_partner.id),
+            "New pickup",
+            f"Order #{order.id} assigned",
+            data=build_order_notification_data(order.id, status="ASSIGNED_TO_PARTNER", target_app="delivery"),
+        )
 
     return order
 
@@ -307,9 +317,19 @@ def reject_order(order_id: int, reason: str = "", db: Session = Depends(get_db),
     db.commit()
     db.refresh(order)
 
-    send_push(_user_tokens(db, order.customer_id), "Order rejected", f"Order #{order.id} rejected", data={"order_id": str(order.id)})
+    send_push(
+        _user_tokens(db, order.customer_id),
+        "Order rejected",
+        f"Order #{order.id} rejected",
+        data=build_order_notification_data(order.id, status="REJECTED_BY_SELLER", target_app="consumer"),
+    )
     if partner_id:
-        send_push(_user_tokens(db, partner_id), "Order unassigned", f"Order #{order.id} was unassigned", data={"order_id": str(order.id)})
+        send_push(
+            _user_tokens(db, partner_id),
+            "Order unassigned",
+            f"Order #{order.id} was unassigned",
+            data=build_order_notification_data(order.id, status="REJECTED_BY_SELLER", target_app="delivery"),
+        )
 
     return order
 
@@ -333,10 +353,25 @@ def mark_ready(order_id: int, db: Session = Depends(get_db), user: User = Depend
     db.commit()
     db.refresh(order)
 
-    send_push(_user_tokens(db, order.customer_id), "Order ready", f"Order #{order.id} is ready", data={"order_id": str(order.id)})
+    send_push(
+        _user_tokens(db, order.customer_id),
+        "Order ready",
+        f"Order #{order.id} is ready",
+        data=build_order_notification_data(order.id, status="READY_FOR_PICKUP", target_app="consumer"),
+    )
     if order.partner_id:
-        send_push(_user_tokens(db, order.partner_id), "Pickup ready", f"Order #{order.id} ready for pickup", data={"order_id": str(order.id)})
+        send_push(
+            _user_tokens(db, order.partner_id),
+            "Pickup ready",
+            f"Order #{order.id} ready for pickup",
+            data=build_order_notification_data(order.id, status="READY_FOR_PICKUP", target_app="delivery"),
+        )
     if assigned_partner:
-        send_push(_user_tokens(db, assigned_partner.id), "New pickup", f"Order #{order.id} assigned", data={"order_id": str(order.id)})
+        send_push(
+            _user_tokens(db, assigned_partner.id),
+            "New pickup",
+            f"Order #{order.id} assigned",
+            data=build_order_notification_data(order.id, status="ASSIGNED_TO_PARTNER", target_app="delivery"),
+        )
 
     return order
