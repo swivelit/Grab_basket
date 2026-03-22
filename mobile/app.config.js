@@ -128,9 +128,7 @@ const APP_ENV = normalizeAppEnv(
 );
 
 const IOS_BUNDLE_IDENTIFIER = readEnv('EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER', VARIANT.iosBundleId);
-
 const ANDROID_PACKAGE = readEnv('EXPO_PUBLIC_ANDROID_PACKAGE', VARIANT.androidPackage);
-
 const ANDROID_VERSION_CODE = readInt('EXPO_PUBLIC_ANDROID_VERSION_CODE', 1, { min: 1 });
 
 const EAS_PROJECT_ID = readEnv('EXPO_PUBLIC_EAS_PROJECT_ID', '');
@@ -212,17 +210,18 @@ if (HAS_META_CREDENTIALS) {
         'We use this identifier to improve attribution and personalize relevant sponsored content.',
     },
   ]);
-  plugins.push(
-    GOOGLE_MAPS_API_KEY
-      ? [
-          'react-native-maps',
-          {
-            androidGoogleMapsApiKey: GOOGLE_MAPS_API_KEY,
-          },
-        ]
-      : 'react-native-maps'
-  );
 }
+
+plugins.push(
+  GOOGLE_MAPS_API_KEY
+    ? [
+        'react-native-maps',
+        {
+          androidGoogleMapsApiKey: GOOGLE_MAPS_API_KEY,
+        },
+      ]
+    : 'react-native-maps'
+);
 
 // --- Expo config ---
 
@@ -257,6 +256,12 @@ const expoConfig = {
       ITSAppUsesNonExemptEncryption: false,
       NSUserTrackingUsageDescription:
         'We use this identifier to improve attribution and personalize relevant sponsored content.',
+      NSLocationWhenInUseUsageDescription:
+        'Grab Basket uses your location to show nearby stores, pickup points, and delivery routes.',
+      NSLocationAlwaysAndWhenInUseUsageDescription:
+        'Grab Basket uses your location in the background so customers and sellers can track active deliveries.',
+      NSLocationAlwaysUsageDescription:
+        'Grab Basket uses your location in the background so customers and sellers can track active deliveries.',
     },
   },
   android: {
