@@ -1,22 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
-  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
-import * as Location from 'expo-location';
-import * as TaskManager from 'expo-task-manager';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,21 +19,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useGrabBasket } from '../../../../App';
 import { buildApiUrl } from '../../../config';
 
-const TASK_NAME = 'grab-basket-delivery-background-location';
-const LAST_BG_LOCATION_KEY = '@grab_basket/delivery/background_location_last_v1';
-const ACTIVE_STATUSES = ['ASSIGNED_TO_PARTNER', 'READY_FOR_PICKUP', 'PICKED_UP'];
-const DEFAULT_REGION = {
-  latitude: 12.9716,
-  longitude: 77.5946,
-  latitudeDelta: 0.08,
-  longitudeDelta: 0.08,
-};
-
 const COLORS = {
   page: '#FFF9F3',
-  card: '#FFFFFF',
-  border: '#F0D9C3',
+  surface: '#FFFFFF',
+  surfaceAlt: '#FFF6EC',
   line: '#F3E0CD',
+  border: '#F0D9C3',
   text: '#2F241C',
   muted: '#7A6758',
   subtle: '#A18B79',
@@ -46,31 +32,63 @@ const COLORS = {
   brandSoft: '#FFF0E7',
   success: '#1F8F5F',
   successSoft: '#EAF8F0',
-  info: '#2C69C9',
-  infoSoft: '#EBF2FF',
   warning: '#C57B12',
   warningSoft: '#FFF6DE',
+  info: '#2C69C9',
+  infoSoft: '#EBF2FF',
+  danger: '#D45454',
+  dangerSoft: '#FDECEC',
+  black: '#241A14',
 };
 
-function parseJson(raw) {
-  if (!raw) return null;
+const ACTIVE_STATUSES = ['ASSIGNED_TO_PARTNER', 'READY_FOR_PICKUP', 'PICKED_UP'];
+const CACHE_KEY = '@grab_basket/delivery_orders_query_cache_v1';
+const STALE_TIME_MS = 60 * 1000;
+const CACHE_TIME_MS = 20 * 60 * 1000;
+const DEBOUNCE_MS = 280;
+
+const FILTERS = [
+  { key: 'all', label: 'All', icon: 'apps-outline' },
+  { key: 'active', label: 'Active', icon: 'bicycle-outline' },
+  { key: 'pickup', label: 'Picked up', icon: 'bag-check-outline' },
+  { key: 'delivered', label: 'Delivered', icon: 'checkmark-circle-outline' },
+  { key: 'cod', label: 'COD', icon: 'cash-outline' },
+  { key: 'closed', label: 'Closed', icon: 'archive-outline' },
+];
+
+const SORT_OPTIONS = [
+  { key: 'relevance', label: 'Relevance' },
+  { key: 'latest', label: 'Latest' },
+  { key: 'amount', label: 'Amount' },
+  { key: 'status', label: 'Status' },
+];
+
+let memoryCache = {};
+let cacheHydrated = false;
+let cacheHydrationPromise = null;
+
+function safeJsonParse(raw, fallback = null) {
   try {
     return JSON.parse(raw);
   } catch {
-    return null;
+    return fallback;
   }
 }
 
-function buildQuery(query = {}) {
-  const pairs = Object.entries(query)
+function normalizeText(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+function buildQueryString(params = {}) {
+  const pairs = Object.entries(params)
     .filter(([, value]) => value !== undefined && value !== null && value !== '')
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
 
   return pairs.length ? `?${pairs.join('&')}` : '';
 }
 
-async function api(path, token, { method = 'GET', body, query } = {}) {
-  const response = await fetch(`${buildApiUrl(path)}${buildQuery(query)}`, {
+async function request(path, token, { method = 'GET', body, query } = {}) {
+  const response = await fetch(`${buildApiUrl(path)}${buildQueryString(query)}`, {
     method,
     headers: {
       Accept: 'application/json',
@@ -81,7 +99,7 @@ async function api(path, token, { method = 'GET', body, query } = {}) {
   });
 
   const raw = await response.text();
-  const payload = parseJson(raw);
+  const payload = safeJsonParse(raw, {});
 
   if (!response.ok) {
     const message =
@@ -94,6 +112,19 @@ async function api(path, token, { method = 'GET', body, query } = {}) {
   }
 
   return payload;
+}
+
+function money(value) {
+  return `₹${Number(value || 0).toFixed(0)}`;
+}
+
+function formatStatus(status = '') {
+  return (
+    String(status || '')
+      .replace(/_/g, ' ')
+      .toLowerCase()
+      .replace(/\b\w/g, (char) => char.toUpperCase()) || 'Unknown'
+  );
 }
 
 function formatDateTime(value) {
@@ -109,25 +140,6 @@ function formatDateTime(value) {
   });
 }
 
-function money(value) {
-  return `₹${Number(value || 0).toFixed(0)}`;
-}
-
-function formatDistance(meters) {
-  const value = Number(meters || 0);
-  if (!Number.isFinite(value) || value <= 0) return '—';
-  if (value >= 1000) return `${(value / 1000).toFixed(1)} km`;
-  return `${Math.round(value)} m`;
-}
-
-function formatDuration(seconds) {
-  const value = Number(seconds || 0);
-  if (!Number.isFinite(value) || value <= 0) return '—';
-  const hours = Math.floor(value / 3600);
-  const minutes = Math.max(1, Math.round((value % 3600) / 60));
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes} min`;
-}
-
 function summarizeOrder(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
   if (!items.length) return 'No items added yet';
@@ -137,561 +149,623 @@ function summarizeOrder(order) {
   return `${Number(first?.qty || 1)} x ${first?.name_snapshot || 'Item'}${extra ? ` +${extra} more` : ''}`;
 }
 
-function toCoordinate(lat, lng) {
-  const latitude = Number(lat);
-  const longitude = Number(lng);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-  return { latitude, longitude };
+function getLatestEvent(order) {
+  const events = Array.isArray(order?.events) ? order.events : [];
+  return events.length ? events[events.length - 1] : null;
 }
 
-function decodePolyline(encoded = '') {
-  const points = [];
-  let index = 0;
-  let lat = 0;
-  let lng = 0;
+function getStatusTone(status = '') {
+  const value = String(status || '').toUpperCase();
 
-  while (index < encoded.length) {
-    let result = 0;
-    let shift = 0;
-    let byte = null;
-
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
-
-    lat += result & 1 ? ~(result >> 1) : result >> 1;
-
-    result = 0;
-    shift = 0;
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
-
-    lng += result & 1 ? ~(result >> 1) : result >> 1;
-    points.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
+  if (value.includes('DELIVERED')) {
+    return { bg: COLORS.successSoft, text: COLORS.success, icon: 'checkmark-circle-outline' };
   }
-
-  return points;
+  if (value.includes('CANCEL') || value.includes('REJECT')) {
+    return { bg: COLORS.dangerSoft, text: COLORS.danger, icon: 'close-circle-outline' };
+  }
+  if (value.includes('PICK') || value.includes('READY') || value.includes('ASSIGNED')) {
+    return { bg: COLORS.infoSoft, text: COLORS.info, icon: 'bicycle-outline' };
+  }
+  return { bg: COLORS.warningSoft, text: COLORS.warning, icon: 'time-outline' };
 }
 
-function buildRegion(points = []) {
-  const valid = points.filter((item) => Number.isFinite(item?.latitude) && Number.isFinite(item?.longitude));
-  if (!valid.length) return DEFAULT_REGION;
-  if (valid.length === 1) {
-    return {
-      latitude: valid[0].latitude,
-      longitude: valid[0].longitude,
-      latitudeDelta: 0.02,
-      longitudeDelta: 0.02,
-    };
-  }
-
-  const lats = valid.map((item) => item.latitude);
-  const lngs = valid.map((item) => item.longitude);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-
-  return {
-    latitude: (minLat + maxLat) / 2,
-    longitude: (minLng + maxLng) / 2,
-    latitudeDelta: Math.max(0.02, (maxLat - minLat) * 1.6),
-    longitudeDelta: Math.max(0.02, (maxLng - minLng) * 1.6),
-  };
+function getOrderTimestamp(order) {
+  const latest = getLatestEvent(order);
+  const raw = latest?.created_at || order?.updated_at || order?.created_at;
+  const parsed = raw ? new Date(raw).getTime() : 0;
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
-async function getDirections(origin, destination, apiKey) {
-  if (!origin || !destination) {
-    return { coordinates: [], distanceMeters: null, durationSeconds: null, source: 'none' };
-  }
+function orderSearchText(order) {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  return [
+    `order ${order?.id ?? ''}`,
+    order?.status,
+    order?.payment_method,
+    order?.payment_status,
+    order?.vendor_id,
+    order?.partner_id,
+    summarizeOrder(order),
+    items.map((item) => item?.name_snapshot || item?.name || '').join(' '),
+    getLatestEvent(order)?.note,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
 
-  if (!apiKey) {
-    return {
-      coordinates: [origin, destination],
-      distanceMeters: null,
-      durationSeconds: null,
-      source: 'fallback',
-    };
-  }
+function getOrderScore(order, search) {
+  const query = normalizeText(search);
+  if (!query) return 1;
 
-  try {
-    const query = new URLSearchParams({
-      origin: `${origin.latitude},${origin.longitude}`,
-      destination: `${destination.latitude},${destination.longitude}`,
-      mode: 'driving',
-      key: apiKey,
+  let score = 0;
+  if (String(order?.id ?? '').includes(query)) score += 100;
+  if (normalizeText(order?.status).includes(query)) score += 50;
+  if (normalizeText(order?.payment_method).includes(query)) score += 16;
+  if (normalizeText(summarizeOrder(order)).includes(query)) score += 60;
+  if (orderSearchText(order).includes(query)) score += 10;
+  return score;
+}
+
+function matchesFilter(order, filterKey) {
+  const status = String(order?.status || '').toUpperCase();
+  const paymentMethod = String(order?.payment_method || '').toUpperCase();
+
+  switch (filterKey) {
+    case 'active':
+      return ACTIVE_STATUSES.includes(status);
+    case 'pickup':
+      return status === 'PICKED_UP';
+    case 'delivered':
+      return status === 'DELIVERED';
+    case 'cod':
+      return paymentMethod === 'COD';
+    case 'closed':
+      return !ACTIVE_STATUSES.includes(status);
+    default:
+      return true;
+  }
+}
+
+function sortOrders(list = [], sortBy = 'relevance') {
+  return [...list].sort((a, b) => {
+    if (sortBy === 'latest') return getOrderTimestamp(b) - getOrderTimestamp(a);
+    if (sortBy === 'amount') return Number(b?.total_amount || 0) - Number(a?.total_amount || 0);
+    if (sortBy === 'status') return String(a?.status || '').localeCompare(String(b?.status || ''));
+    return (b.__score || 0) - (a.__score || 0) || getOrderTimestamp(b) - getOrderTimestamp(a);
+  });
+}
+
+function computeQueryData(orders = [], search, filterKey, sortBy) {
+  const query = normalizeText(search);
+  const items = sortOrders(
+    (orders || [])
+      .map((order) => {
+        const score = getOrderScore(order, query);
+        const passesSearch = !query || score > 0 || orderSearchText(order).includes(query);
+        const passesFilter = matchesFilter(order, filterKey);
+        if (!passesSearch || !passesFilter) return null;
+        return { ...order, __score: score };
+      })
+      .filter(Boolean),
+    sortBy
+  );
+
+  return { items, totalMatches: items.length, empty: items.length === 0 };
+}
+
+function buildSourceSignature(orders = []) {
+  return (orders || [])
+    .slice(0, 40)
+    .map((order) => `${order?.id}-${order?.status}-${getOrderTimestamp(order)}`)
+    .join('|');
+}
+
+function buildQueryKey({ search, filterKey, sortBy, sourceSignature }) {
+  return ['delivery-orders', normalizeText(search), filterKey, sortBy, sourceSignature].join('::');
+}
+
+async function hydrateCache() {
+  if (cacheHydrated) return memoryCache;
+  if (cacheHydrationPromise) return cacheHydrationPromise;
+
+  cacheHydrationPromise = AsyncStorage.getItem(CACHE_KEY)
+    .then((raw) => {
+      memoryCache = safeJsonParse(raw, {}) || {};
+      cacheHydrated = true;
+      return memoryCache;
+    })
+    .catch(() => {
+      memoryCache = {};
+      cacheHydrated = true;
+      return memoryCache;
+    })
+    .finally(() => {
+      cacheHydrationPromise = null;
     });
 
-    const response = await fetch(`https://maps.googleapis.com/maps/api/directions/json?${query.toString()}`);
-    const payload = await response.json();
-    const route = Array.isArray(payload?.routes) ? payload.routes[0] : null;
-
-    if (!route?.overview_polyline?.points) {
-      return {
-        coordinates: [origin, destination],
-        distanceMeters: null,
-        durationSeconds: null,
-        source: 'fallback',
-      };
-    }
-
-    const legs = Array.isArray(route.legs) ? route.legs : [];
-    const totals = legs.reduce(
-      (acc, leg) => ({
-        distanceMeters: acc.distanceMeters + Number(leg?.distance?.value || 0),
-        durationSeconds: acc.durationSeconds + Number(leg?.duration?.value || 0),
-      }),
-      { distanceMeters: 0, durationSeconds: 0 }
-    );
-
-    return {
-      coordinates: decodePolyline(route.overview_polyline.points),
-      distanceMeters: totals.distanceMeters,
-      durationSeconds: totals.durationSeconds,
-      source: 'directions',
-    };
-  } catch {
-    return {
-      coordinates: [origin, destination],
-      distanceMeters: null,
-      durationSeconds: null,
-      source: 'fallback',
-    };
-  }
+  return cacheHydrationPromise;
 }
 
-function Card({ title, subtitle, right, children }) {
+function getCacheEntry(key) {
+  const entry = memoryCache?.[key];
+  if (!entry?.updatedAt) return null;
+  if (Date.now() - Number(entry.updatedAt) > CACHE_TIME_MS) {
+    delete memoryCache[key];
+    return null;
+  }
+  return entry;
+}
+
+async function writeCacheEntry(key, data) {
+  await hydrateCache();
+  const now = Date.now();
+  const next = { ...memoryCache, [key]: { data, updatedAt: now } };
+
+  Object.keys(next).forEach((cacheKey) => {
+    if (now - Number(next[cacheKey]?.updatedAt || 0) > CACHE_TIME_MS) {
+      delete next[cacheKey];
+    }
+  });
+
+  memoryCache = next;
+  AsyncStorage.setItem(CACHE_KEY, JSON.stringify(next)).catch(() => {});
+}
+
+function formatCacheAge(timestamp) {
+  if (!timestamp) return 'No cache yet';
+  const age = Date.now() - Number(timestamp || 0);
+  if (age < 15000) return 'Updated just now';
+  if (age < 60000) return 'Updated < 1 min ago';
+  if (age < 3600000) return `Updated ${Math.round(age / 60000)} mins ago`;
+  return 'Updated earlier';
+}
+
+function useDebouncedValue(value, delay = DEBOUNCE_MS) {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debounced;
+}
+
+function useOrderQuery({ orders, search, filterKey, sortBy }) {
+  const sourceSignature = useMemo(() => buildSourceSignature(orders), [orders]);
+  const queryKey = useMemo(
+    () => buildQueryKey({ search, filterKey, sortBy, sourceSignature }),
+    [search, filterKey, sortBy, sourceSignature]
+  );
+
+  const [state, setState] = useState({
+    data: { items: [], totalMatches: 0, empty: false },
+    isLoading: true,
+    isFetching: false,
+    isFromCache: false,
+    updatedAt: 0,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      const cached = getCacheEntry(queryKey);
+      const fresh = cached && Date.now() - Number(cached.updatedAt || 0) <= STALE_TIME_MS;
+
+      if (cached?.data) {
+        setState({
+          data: cached.data,
+          isLoading: false,
+          isFetching: !fresh,
+          isFromCache: true,
+          updatedAt: Number(cached.updatedAt || 0),
+        });
+      } else {
+        setState((current) => ({ ...current, isLoading: true, isFetching: true }));
+      }
+
+      await hydrateCache();
+      if (cancelled) return;
+
+      const hydrated = getCacheEntry(queryKey);
+      const hydratedFresh = hydrated && Date.now() - Number(hydrated.updatedAt || 0) <= STALE_TIME_MS;
+      if (hydrated?.data) {
+        setState({
+          data: hydrated.data,
+          isLoading: false,
+          isFetching: !hydratedFresh,
+          isFromCache: true,
+          updatedAt: Number(hydrated.updatedAt || 0),
+        });
+      }
+
+      const next = computeQueryData(orders, search, filterKey, sortBy);
+      await writeCacheEntry(queryKey, next);
+      if (cancelled) return;
+
+      setState({
+        data: next,
+        isLoading: false,
+        isFetching: false,
+        isFromCache: false,
+        updatedAt: Date.now(),
+      });
+    };
+
+    run().catch(() => {
+      if (cancelled) return;
+      const next = computeQueryData(orders, search, filterKey, sortBy);
+      setState({
+        data: next,
+        isLoading: false,
+        isFetching: false,
+        isFromCache: false,
+        updatedAt: Date.now(),
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [orders, queryKey, search, filterKey, sortBy]);
+
+  return state;
+}
+
+function SectionCard({ title, subtitle, children }) {
   return (
     <View style={styles.card}>
-      {(title || subtitle || right) && (
+      {title || subtitle ? (
         <View style={styles.cardHeader}>
-          <View style={{ flex: 1 }}>
-            {title ? <Text style={styles.cardTitle}>{title}</Text> : null}
-            {subtitle ? <Text style={styles.cardSubtitle}>{subtitle}</Text> : null}
-          </View>
-          {right || null}
+          {title ? <Text style={styles.cardTitle}>{title}</Text> : null}
+          {subtitle ? <Text style={styles.cardSubtitle}>{subtitle}</Text> : null}
         </View>
-      )}
+      ) : null}
       {children}
     </View>
   );
 }
 
-function Pill({ text, icon, tone = 'brand' }) {
-  const palette =
-    tone === 'success'
-      ? { bg: COLORS.successSoft, color: COLORS.success }
-      : tone === 'info'
-        ? { bg: COLORS.infoSoft, color: COLORS.info }
-        : tone === 'warning'
-          ? { bg: COLORS.warningSoft, color: COLORS.warning }
-          : { bg: COLORS.brandSoft, color: COLORS.brand };
-
+function Pill({ text, tone }) {
   return (
-    <View style={[styles.pill, { backgroundColor: palette.bg }]}>
-      <Ionicons name={icon} size={14} color={palette.color} />
-      <Text style={[styles.pillText, { color: palette.color }]}>{text}</Text>
+    <View style={[styles.pill, { backgroundColor: tone.bg }]}>
+      <Ionicons name={tone.icon} size={14} color={tone.text} />
+      <Text style={[styles.pillText, { color: tone.text }]}>{text}</Text>
     </View>
   );
 }
 
-function Button({ label, icon, onPress, disabled = false, tone = 'brand' }) {
+function MetaLine({ icon, label }) {
+  return (
+    <View style={styles.metaLine}>
+      <Ionicons name={icon} size={15} color={COLORS.subtle} />
+      <Text style={styles.metaLineText}>{label}</Text>
+    </View>
+  );
+}
+
+function PrimaryButton({ label, icon, onPress, disabled = false, tone = 'brand' }) {
   const palette =
-    tone === 'muted'
-      ? { bg: '#FFFFFF', color: COLORS.text, border: COLORS.border }
-      : tone === 'success'
-        ? { bg: COLORS.success, color: '#FFFFFF', border: COLORS.success }
-        : { bg: COLORS.brand, color: '#FFFFFF', border: COLORS.brand };
+    tone === 'success'
+      ? { bg: COLORS.success, text: '#FFFFFF', border: COLORS.success }
+      : tone === 'danger'
+        ? { bg: '#FFFFFF', text: COLORS.danger, border: '#F3C6C6' }
+        : tone === 'muted'
+          ? { bg: '#FFFFFF', text: COLORS.text, border: COLORS.border }
+          : { bg: COLORS.brand, text: '#FFFFFF', border: COLORS.brand };
 
   return (
     <TouchableOpacity
-      activeOpacity={0.92}
-      onPress={onPress}
+      activeOpacity={0.9}
       disabled={disabled}
+      onPress={onPress}
       style={[
-        styles.button,
-        {
-          backgroundColor: disabled ? '#E8DED5' : palette.bg,
-          borderColor: disabled ? '#E8DED5' : palette.border,
-        },
+        styles.primaryButton,
+        { backgroundColor: disabled ? '#E8DED5' : palette.bg, borderColor: disabled ? '#E8DED5' : palette.border },
       ]}>
-      {icon ? <Ionicons name={icon} size={16} color={disabled ? '#907E70' : palette.color} /> : null}
-      <Text style={[styles.buttonText, { color: disabled ? '#907E70' : palette.color }]}>{label}</Text>
+      {icon ? <Ionicons name={icon} size={16} color={disabled ? '#907E70' : palette.text} /> : null}
+      <Text style={[styles.primaryButtonText, { color: disabled ? '#907E70' : palette.text }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-function KeyValue({ icon, label, value }) {
+function EmptyState({ icon = 'search-outline', title, subtitle }) {
   return (
-    <View style={styles.keyValueRow}>
-      <View style={styles.keyValueLeft}>
-        <Ionicons name={icon} size={15} color={COLORS.subtle} />
-        <Text style={styles.keyValueLabel}>{label}</Text>
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIconWrap}>
+        <Ionicons name={icon} size={22} color={COLORS.brand} />
       </View>
-      <Text style={styles.keyValueValue}>{value}</Text>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptySubtitle}>{subtitle}</Text>
+    </View>
+  );
+}
+
+function Timeline({ events = [] }) {
+  if (!events.length) {
+    return (
+      <View style={styles.timelineEmpty}>
+        <Text style={styles.timelineEmptyTitle}>No timeline events yet</Text>
+        <Text style={styles.timelineEmptySubtitle}>This order will become easier to audit once more lifecycle updates are stored.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.timelineWrap}>
+      {events.map((event, index) => {
+        const tone = getStatusTone(event?.status);
+        const isLast = index === events.length - 1;
+
+        return (
+          <View key={`${event?.status}-${event?.created_at || index}`} style={styles.timelineRow}>
+            <View style={styles.timelineRail}>
+              <View style={[styles.timelineDot, { backgroundColor: tone.text }]} />
+              {!isLast ? <View style={styles.timelineLine} /> : null}
+            </View>
+            <View style={styles.timelineBody}>
+              <Text style={styles.timelineTitle}>{formatStatus(event?.status)}</Text>
+              <Text style={styles.timelineMeta}>{formatDateTime(event?.created_at)}</Text>
+              {event?.note ? <Text style={styles.timelineNote}>{event.note}</Text> : null}
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function OrderCard({ order, actions = [] }) {
+  const [expanded, setExpanded] = useState(false);
+  const tone = getStatusTone(order?.status);
+  const latestEvent = getLatestEvent(order);
+  const hasTimeline = Array.isArray(order?.events) && order.events.length > 0;
+
+  return (
+    <View style={styles.orderCard}>
+      <View style={styles.orderTopRow}>
+        <View style={styles.orderMetaWrap}>
+          <Text style={styles.orderTitle}>Order #{order?.id}</Text>
+          <Text style={styles.orderSubtitle}>{summarizeOrder(order)}</Text>
+        </View>
+        <Pill text={formatStatus(order?.status)} tone={tone} />
+      </View>
+
+      <View style={styles.metaList}>
+        <MetaLine icon="bag-handle-outline" label={`Vendor #${order?.vendor_id || '—'}`} />
+        <MetaLine icon="wallet-outline" label={`${money(order?.total_amount)} · ${String(order?.payment_method || '').toUpperCase()}`} />
+        <MetaLine icon="card-outline" label={`Payment ${formatStatus(order?.payment_status || 'PENDING')}`} />
+        <MetaLine icon="time-outline" label={latestEvent ? `${formatStatus(latestEvent.status)} · ${formatDateTime(latestEvent.created_at)}` : 'Timeline not available yet'} />
+        {order?.partner_id ? <MetaLine icon="person-outline" label={`Partner #${order.partner_id}`} /> : null}
+      </View>
+
+      {actions.length ? <View style={styles.buttonRow}>{actions}</View> : null}
+
+      {hasTimeline ? (
+        <TouchableOpacity activeOpacity={0.9} style={styles.expandRow} onPress={() => setExpanded((current) => !current)}>
+          <Ionicons name={expanded ? 'chevron-up-outline' : 'chevron-down-outline'} size={16} color={COLORS.muted} />
+          <Text style={styles.expandRowText}>{expanded ? 'Hide timeline' : 'Show timeline'}</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {expanded ? <Timeline events={order?.events || []} /> : null}
+    </View>
+  );
+}
+
+function QuerySearchBar({ value, onChangeText, onClear, onToggleFilters, filtersOpen, filterCount, placeholder }) {
+  return (
+    <View style={styles.querySearchBar}>
+      <Ionicons name="search-outline" size={18} color={COLORS.muted} />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={COLORS.subtle}
+        style={styles.querySearchInput}
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="search"
+      />
+      {value ? (
+        <TouchableOpacity activeOpacity={0.9} onPress={onClear} style={styles.queryIconButton}>
+          <Ionicons name="close-outline" size={17} color={COLORS.muted} />
+        </TouchableOpacity>
+      ) : null}
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={onToggleFilters}
+        style={[styles.queryFilterButton, filtersOpen && styles.queryFilterButtonActive]}>
+        <Ionicons name="options-outline" size={18} color={filtersOpen ? '#FFFFFF' : COLORS.brand} />
+        {filterCount > 0 ? (
+          <View style={styles.queryFilterBadge}>
+            <Text style={styles.queryFilterBadgeText}>{filterCount}</Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function QueryMetaBanner({ isFetching, isFromCache, updatedAt }) {
+  const title = isFetching
+    ? isFromCache
+      ? 'Showing cached results while refreshing'
+      : 'Refreshing results'
+    : isFromCache
+      ? 'Showing cached results'
+      : 'Showing fresh results';
+
+  return (
+    <View style={styles.queryMetaBanner}>
+      <View style={styles.queryMetaLeft}>
+        {isFetching ? <ActivityIndicator size="small" color={COLORS.brand} /> : <Ionicons name={isFromCache ? 'cloud-outline' : 'sparkles-outline'} size={16} color={COLORS.brand} />}
+        <Text style={styles.queryMetaText}>{title}</Text>
+      </View>
+      <Text style={styles.queryMetaTime}>{formatCacheAge(updatedAt)}</Text>
+    </View>
+  );
+}
+
+function QueryChip({ label, icon, active, onPress }) {
+  return (
+    <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={[styles.queryChip, active && styles.queryChipActive]}>
+      <Ionicons name={icon} size={15} color={active ? '#FFFFFF' : COLORS.muted} />
+      <Text style={[styles.queryChipText, active && styles.queryChipTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function QuerySortChip({ label, active, onPress }) {
+  return (
+    <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={[styles.querySortChip, active && styles.querySortChipActive]}>
+      <Text style={[styles.querySortChipText, active && styles.querySortChipTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function QueryControlsPanel({ filterKey, setFilterKey, sortBy, setSortBy }) {
+  return (
+    <View style={styles.queryControlsPanel}>
+      <Text style={styles.queryPanelTitle}>Quick filters</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.queryChipRow}>
+        {FILTERS.map((item) => (
+          <QueryChip key={item.key} label={item.label} icon={item.icon} active={filterKey === item.key} onPress={() => setFilterKey(item.key)} />
+        ))}
+      </ScrollView>
+
+      <Text style={styles.queryPanelTitle}>Sort by</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.queryChipRow}>
+        {SORT_OPTIONS.map((item) => (
+          <QuerySortChip key={item.key} label={item.label} active={sortBy === item.key} onPress={() => setSortBy(item.key)} />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function QuerySummaryCard({ totalMatches, search, filterLabel, sortLabel, onReset }) {
+  return (
+    <View style={styles.querySummaryCard}>
+      <View style={styles.querySummaryRow}>
+        <Text style={styles.querySummaryTitle}>{totalMatches} result{totalMatches === 1 ? '' : 's'} found</Text>
+        <TouchableOpacity activeOpacity={0.9} onPress={onReset}>
+          <Text style={styles.querySummaryAction}>Reset</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.querySummaryChipRow}>
+        {search ? <View style={styles.querySummaryChip}><Text style={styles.querySummaryChipText}>Search: “{search}”</Text></View> : null}
+        {filterLabel && filterLabel !== 'All' ? <View style={styles.querySummaryChip}><Text style={styles.querySummaryChipText}>Filter: {filterLabel}</Text></View> : null}
+        {sortLabel && sortLabel !== 'Relevance' ? <View style={styles.querySummaryChip}><Text style={styles.querySummaryChipText}>Sort: {sortLabel}</Text></View> : null}
+      </View>
     </View>
   );
 }
 
 export default function DeliveryOrdersScreen() {
-  const { sessionReady, isAuthenticated, authToken, logout, appVariantName } = useGrabBasket();
+  const { authToken, sessionReady, isAuthenticated, logout, appVariantName } = useGrabBasket();
   const tabBarHeight = useBottomTabBarHeight();
-  const mapRef = useRef(null);
-  const watchRef = useRef(null);
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [acting, setActing] = useState(false);
-  const [taskAvailable, setTaskAvailable] = useState(false);
-  const [trackingOn, setTrackingOn] = useState(false);
-  const [partnerStatus, setPartnerStatus] = useState(null);
   const [orders, setOrders] = useState([]);
-  const [vendors, setVendors] = useState({});
-  const [selectedOrderId, setSelectedOrderId] = useState(null);
-  const [currentLocation, setCurrentLocation] = useState(null);
-  const [lastBackgroundLocation, setLastBackgroundLocation] = useState(null);
-  const [route, setRoute] = useState({ coordinates: [], distanceMeters: null, durationSeconds: null, source: 'none' });
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingAction, setLoadingAction] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filterKey, setFilterKey] = useState('all');
+  const [sortBy, setSortBy] = useState('relevance');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const googleMapsApiKey =
-    Constants?.expoConfig?.extra?.googleMaps?.apiKey ||
-    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
-    '';
+  const debouncedSearch = useDebouncedValue(search);
 
-  const activeOrders = useMemo(
-    () => orders.filter((item) => ACTIVE_STATUSES.includes(String(item?.status || '').toUpperCase())),
-    [orders]
+  const loadData = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!authToken) return;
+      try {
+        if (!silent) setRefreshing(true);
+        const response = await request('/partner/orders', authToken, { query: { limit: 100 } });
+        setOrders(Array.isArray(response) ? response : []);
+      } catch (error) {
+        Alert.alert(`${appVariantName} sync failed`, error?.message || 'Could not load delivery orders.');
+        if (error?.status === 401) {
+          logout().catch(() => {});
+        }
+      } finally {
+        if (!silent) setRefreshing(false);
+      }
+    },
+    [appVariantName, authToken, logout]
   );
-
-  const selectedOrder = useMemo(() => {
-    if (!activeOrders.length) return null;
-    return activeOrders.find((item) => item.id === selectedOrderId) || activeOrders[0] || null;
-  }, [activeOrders, selectedOrderId]);
-
-  const pickup = useMemo(() => {
-    const vendor = selectedOrder ? vendors[selectedOrder.vendor_id] : null;
-    return toCoordinate(vendor?.lat, vendor?.lng);
-  }, [selectedOrder, vendors]);
-
-  const drop = useMemo(
-    () => toCoordinate(selectedOrder?.delivery_lat, selectedOrder?.delivery_lng),
-    [selectedOrder]
-  );
-
-  const rider = useMemo(
-    () => toCoordinate(currentLocation?.lat, currentLocation?.lng),
-    [currentLocation]
-  );
-
-  const mapPoints = useMemo(
-    () => [pickup, drop, rider, ...(Array.isArray(route.coordinates) ? route.coordinates : [])].filter(Boolean),
-    [drop, pickup, rider, route.coordinates]
-  );
-
-  const fitMap = useCallback(() => {
-    if (!mapRef.current || !mapPoints.length) return;
-    if (mapPoints.length === 1) {
-      mapRef.current.animateToRegion(buildRegion(mapPoints), 300);
-      return;
-    }
-
-    mapRef.current.fitToCoordinates(mapPoints, {
-      animated: true,
-      edgePadding: { top: 70, right: 40, bottom: 70, left: 40 },
-    });
-  }, [mapPoints]);
-
-  useEffect(() => {
-    const timer = setTimeout(fitMap, 200);
-    return () => clearTimeout(timer);
-  }, [fitMap]);
-
-  const syncTaskState = useCallback(async () => {
-    if (Platform.OS === 'web') {
-      setTaskAvailable(false);
-      setTrackingOn(false);
-      return;
-    }
-
-    try {
-      const available = await TaskManager.isAvailableAsync();
-      setTaskAvailable(Boolean(available));
-      if (!available) {
-        setTrackingOn(false);
-        return;
-      }
-      setTrackingOn(await Location.hasStartedLocationUpdatesAsync(TASK_NAME));
-    } catch {
-      setTaskAvailable(false);
-      setTrackingOn(false);
-    }
-  }, []);
-
-  const loadLastBackgroundPoint = useCallback(async () => {
-    try {
-      const raw = await AsyncStorage.getItem(LAST_BG_LOCATION_KEY);
-      const saved = parseJson(raw);
-      if (saved?.lat != null && saved?.lng != null) {
-        setLastBackgroundLocation(saved);
-        setCurrentLocation((prev) => prev || saved);
-      }
-    } catch {
-      // ignore storage issues
-    }
-  }, []);
-
-  const startForegroundWatcher = useCallback(async () => {
-    if (Platform.OS === 'web') return;
-
-    const permission = await Location.getForegroundPermissionsAsync();
-    if (permission.status !== 'granted') return;
-
-    if (watchRef.current?.remove) {
-      watchRef.current.remove();
-      watchRef.current = null;
-    }
-
-    watchRef.current = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: 5000,
-        distanceInterval: 8,
-      },
-      (update) => {
-        if (!update?.coords) return;
-        setCurrentLocation({
-          lat: Number(update.coords.latitude),
-          lng: Number(update.coords.longitude),
-          heading:
-            Number.isFinite(Number(update.coords.heading)) && Number(update.coords.heading) >= 0
-              ? Number(update.coords.heading)
-              : null,
-          speed:
-            Number.isFinite(Number(update.coords.speed)) && Number(update.coords.speed) >= 0
-              ? Number(update.coords.speed)
-              : null,
-          created_at: new Date(update.timestamp || Date.now()).toISOString(),
-        });
-      }
-    );
-  }, []);
-
-  const loadData = useCallback(async ({ silent = false } = {}) => {
-    if (!authToken) return;
-    if (!silent) setRefreshing(true);
-
-    try {
-      const [statusResponse, orderResponse] = await Promise.all([
-        api('/partner/status', authToken),
-        api('/partner/orders', authToken, { query: { active_only: true, limit: 50 } }),
-      ]);
-
-      const nextOrders = Array.isArray(orderResponse) ? orderResponse : [];
-      setPartnerStatus(statusResponse || null);
-      setOrders(nextOrders);
-
-      if (statusResponse?.latest_location) {
-        setCurrentLocation((prev) => prev || statusResponse.latest_location);
-      }
-
-      const vendorIds = Array.from(new Set(nextOrders.map((item) => item?.vendor_id).filter(Boolean)));
-      const vendorRows = await Promise.all(
-        vendorIds.map(async (vendorId) => {
-          try {
-            return [vendorId, await api(`/vendors/${vendorId}`, '')];
-          } catch {
-            return [vendorId, null];
-          }
-        })
-      );
-      setVendors(Object.fromEntries(vendorRows.filter(([, row]) => row)));
-
-      setSelectedOrderId((prev) => {
-        const ids = nextOrders.map((item) => item.id);
-        if (prev && ids.includes(prev)) return prev;
-        return ids[0] || null;
-      });
-    } catch (error) {
-      Alert.alert(`${appVariantName} sync failed`, error?.message || 'Could not load rider operations.');
-      if (error?.status === 401) logout().catch(() => {});
-    } finally {
-      if (!silent) {
-        setRefreshing(false);
-        setLoading(false);
-      }
-    }
-  }, [appVariantName, authToken, logout]);
-
-  const withAction = useCallback(async (work, successMessage = '') => {
-    try {
-      setActing(true);
-      await work();
-      if (successMessage) Alert.alert('Done', successMessage);
-      await loadData({ silent: true });
-      await syncTaskState();
-    } catch (error) {
-      Alert.alert('Action failed', error?.message || 'Please try again.');
-      if (error?.status === 401) logout().catch(() => {});
-    } finally {
-      setActing(false);
-    }
-  }, [loadData, logout, syncTaskState]);
-
-  const syncNow = useCallback(async () => {
-    if (Platform.OS === 'web') {
-      Alert.alert('Not supported', 'Live location needs a native Android or iOS build.');
-      return;
-    }
-
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (permission.status !== 'granted') {
-      Alert.alert('Location permission needed', 'Allow location access and try again.');
-      return;
-    }
-
-    const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation });
-    const payload = {
-      lat: Number(position.coords.latitude),
-      lng: Number(position.coords.longitude),
-      heading:
-        Number.isFinite(Number(position.coords.heading)) && Number(position.coords.heading) >= 0
-          ? Number(position.coords.heading)
-          : undefined,
-      speed:
-        Number.isFinite(Number(position.coords.speed)) && Number(position.coords.speed) >= 0
-          ? Number(position.coords.speed)
-          : undefined,
-    };
-
-    await withAction(async () => {
-      await api('/partner/location', authToken, { method: 'POST', body: JSON.stringify(payload) });
-      const saved = { ...payload, created_at: new Date(position.timestamp || Date.now()).toISOString() };
-      setCurrentLocation(saved);
-      setLastBackgroundLocation(saved);
-      await AsyncStorage.setItem(LAST_BG_LOCATION_KEY, JSON.stringify(saved));
-      await startForegroundWatcher();
-    }, 'Rider location synced.');
-  }, [authToken, startForegroundWatcher, withAction]);
-
-  const startBackgroundTracking = useCallback(async () => {
-    if (Platform.OS === 'web') {
-      Alert.alert('Not supported', 'Background tracking needs a native Android or iOS build.');
-      return;
-    }
-
-    const available = await TaskManager.isAvailableAsync();
-    if (!available) {
-      Alert.alert(
-        'Development build required',
-        'Background location is not available in this runtime. Use a dev build or release build instead of Expo Go.'
-      );
-      return;
-    }
-
-    const foreground = await Location.requestForegroundPermissionsAsync();
-    if (foreground.status !== 'granted') {
-      Alert.alert('Foreground location denied', 'Allow location access first.');
-      return;
-    }
-
-    const background = await Location.requestBackgroundPermissionsAsync();
-    if (background.status !== 'granted') {
-      Alert.alert('Background location denied', 'Please allow always-on location in system settings.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open settings', onPress: () => Linking.openSettings().catch(() => {}) },
-      ]);
-      return;
-    }
-
-    const started = await Location.hasStartedLocationUpdatesAsync(TASK_NAME);
-    if (!started) {
-      await Location.startLocationUpdatesAsync(TASK_NAME, {
-        accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: 15000,
-        distanceInterval: 20,
-        pausesUpdatesAutomatically: false,
-        showsBackgroundLocationIndicator: true,
-        activityType: Location.ActivityType.AutomotiveNavigation,
-        foregroundService: {
-          notificationTitle: 'Grab Basket delivery tracking is on',
-          notificationBody: 'Your live rider location is being shared for active orders.',
-          killServiceOnDestroy: false,
-        },
-      });
-    }
-
-    await startForegroundWatcher();
-    await syncTaskState();
-    await syncNow();
-  }, [startForegroundWatcher, syncNow, syncTaskState]);
-
-  const stopBackgroundTracking = useCallback(async () => {
-    await withAction(async () => {
-      const started = await Location.hasStartedLocationUpdatesAsync(TASK_NAME);
-      if (started) await Location.stopLocationUpdatesAsync(TASK_NAME);
-      if (watchRef.current?.remove) {
-        watchRef.current.remove();
-        watchRef.current = null;
-      }
-    }, 'Background tracking stopped.');
-  }, [withAction]);
-
-  const pickupOrder = useCallback((orderId) => {
-    withAction(
-      () => api(`/partner/orders/${orderId}/pickup`, authToken, { method: 'POST' }),
-      `Order #${orderId} marked as picked up.`
-    );
-  }, [authToken, withAction]);
-
-  const deliverOrder = useCallback((orderId) => {
-    withAction(
-      () => api(`/partner/orders/${orderId}/deliver`, authToken, { method: 'POST' }),
-      `Order #${orderId} marked as delivered.`
-    );
-  }, [authToken, withAction]);
-
-  useEffect(() => {
-    loadLastBackgroundPoint().catch(() => {});
-  }, [loadLastBackgroundPoint]);
 
   useEffect(() => {
     if (!sessionReady || !isAuthenticated || !authToken) return;
     loadData({ silent: false }).catch(() => {});
-    syncTaskState().catch(() => {});
-    startForegroundWatcher().catch(() => {});
-  }, [authToken, isAuthenticated, loadData, sessionReady, startForegroundWatcher, syncTaskState]);
+  }, [authToken, isAuthenticated, loadData, sessionReady]);
 
-  useEffect(() => {
-    let active = true;
-    getDirections(pickup, drop, googleMapsApiKey).then((nextRoute) => {
-      if (active) setRoute(nextRoute);
-    });
-    return () => {
-      active = false;
-    };
-  }, [drop, googleMapsApiKey, pickup]);
+  const refresh = useCallback(() => loadData({ silent: false }), [loadData]);
 
-  useEffect(() => {
-    return () => {
-      if (watchRef.current?.remove) {
-        watchRef.current.remove();
-        watchRef.current = null;
+  const runAction = useCallback(
+    async (work, successMessage) => {
+      try {
+        setLoadingAction(true);
+        await work();
+        if (successMessage) Alert.alert('Done', successMessage);
+        await loadData({ silent: true });
+      } catch (error) {
+        Alert.alert('Action failed', error?.message || 'Please try again.');
+        if (error?.status === 401) {
+          logout().catch(() => {});
+        }
+      } finally {
+        setLoadingAction(false);
       }
-    };
-  }, []);
+    },
+    [loadData, logout]
+  );
 
-  if (!sessionReady || loading) {
+  const pickup = useCallback(
+    (orderId) => {
+      runAction(async () => {
+        await request(`/partner/orders/${orderId}/pickup`, authToken, { method: 'POST' });
+      }, `Order #${orderId} marked as picked up.`);
+    },
+    [authToken, runAction]
+  );
+
+  const deliver = useCallback(
+    (orderId) => {
+      runAction(async () => {
+        await request(`/partner/orders/${orderId}/deliver`, authToken, { method: 'POST' });
+      }, `Order #${orderId} marked as delivered.`);
+    },
+    [authToken, runAction]
+  );
+
+  const queryState = useOrderQuery({ orders, search: debouncedSearch, filterKey, sortBy });
+
+  const activeOrders = useMemo(
+    () => queryState.data.items.filter((item) => ACTIVE_STATUSES.includes(String(item.status || '').toUpperCase())),
+    [queryState.data.items]
+  );
+
+  const completedOrders = useMemo(
+    () => queryState.data.items.filter((item) => !ACTIVE_STATUSES.includes(String(item.status || '').toUpperCase())),
+    [queryState.data.items]
+  );
+
+  const isQueryActive = Boolean(normalizeText(debouncedSearch)) || filterKey !== 'all' || sortBy !== 'relevance';
+  const activeControlCount = Number(filterKey !== 'all') + Number(sortBy !== 'relevance');
+  const activeFilterDef = FILTERS.find((item) => item.key === filterKey) || FILTERS[0];
+  const activeSortDef = SORT_OPTIONS.find((item) => item.key === sortBy) || SORT_OPTIONS[0];
+
+  if (!sessionReady) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="dark-content" backgroundColor={COLORS.page} />
-        <View style={styles.center}>
+        <View style={styles.centerState}>
           <ActivityIndicator color={COLORS.brand} />
           <Text style={styles.centerTitle}>Preparing {appVariantName}</Text>
-          <Text style={styles.centerSub}>Loading live rider operations.</Text>
+          <Text style={styles.centerSubtitle}>Loading the latest authenticated state.</Text>
         </View>
       </SafeAreaView>
     );
@@ -701,191 +775,97 @@ export default function DeliveryOrdersScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="dark-content" backgroundColor={COLORS.page} />
-        <View style={styles.center}>
+        <View style={styles.centerState}>
           <Ionicons name="lock-closed-outline" size={28} color={COLORS.brand} />
           <Text style={styles.centerTitle}>Sign in required</Text>
-          <Text style={styles.centerSub}>Use the delivery login flow before opening rider tracking.</Text>
+          <Text style={styles.centerSubtitle}>Use the delivery account flow before opening rider orders.</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  const latestPoint = partnerStatus?.latest_location || lastBackgroundLocation || currentLocation;
-  const selectedVendor = selectedOrder ? vendors[selectedOrder.vendor_id] : null;
-  const pickedUp = String(selectedOrder?.status || '').toUpperCase() === 'PICKED_UP';
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.page} />
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight + 24 }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadData({ silent: false })} />}>
-        <Card
-          title="Live rider tracking"
-          subtitle="Background GPS + pickup to drop map for the delivery app."
-          right={
-            trackingOn
-              ? <Pill text="Tracking on" icon="radio-outline" tone="success" />
-              : <Pill text="Tracking off" icon="pause-circle-outline" tone="warning" />
-          }>
-          {!taskAvailable ? (
-            <View style={styles.warningBox}>
-              <Ionicons name="construct-outline" size={16} color={COLORS.warning} />
-              <Text style={styles.warningText}>
-                Background location will not work in Expo Go. Use a dev build or release build.
-              </Text>
-            </View>
-          ) : null}
-
-          <View style={styles.buttonRow}>
-            <Button
-              label={trackingOn ? 'Tracking enabled' : 'Enable background tracking'}
-              icon={trackingOn ? 'checkmark-circle-outline' : 'navigate-outline'}
-              onPress={startBackgroundTracking}
-              disabled={acting || trackingOn}
-            />
-            <Button
-              label="Stop tracking"
-              icon="pause-circle-outline"
-              tone="muted"
-              onPress={stopBackgroundTracking}
-              disabled={acting || !trackingOn}
-            />
-            <Button
-              label="Sync now"
-              icon="locate-outline"
-              tone="muted"
-              onPress={syncNow}
-              disabled={acting}
-            />
-          </View>
-
-          <View style={styles.statRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{activeOrders.length}</Text>
-              <Text style={styles.statLabel}>Active trips</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{partnerStatus?.summary?.delivered_order_count ?? 0}</Text>
-              <Text style={styles.statLabel}>Delivered</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{money(partnerStatus?.summary?.cod_cash_collected)}</Text>
-              <Text style={styles.statLabel}>COD collected</Text>
-            </View>
-          </View>
-
-          <KeyValue icon="time-outline" label="Latest sync" value={formatDateTime(latestPoint?.created_at)} />
-          <KeyValue
-            icon="navigate-outline"
-            label="Coordinates"
-            value={
-              latestPoint?.lat != null && latestPoint?.lng != null
-                ? `${Number(latestPoint.lat).toFixed(5)}, ${Number(latestPoint.lng).toFixed(5)}`
-                : '—'
-            }
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: tabBarHeight + 20 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+        <SectionCard
+          title="Search delivery queue"
+          subtitle="Search by order id, item names, status, or payment mode. Cached results stay visible while the list refreshes.">
+          <QuerySearchBar
+            value={search}
+            onChangeText={setSearch}
+            onClear={() => setSearch('')}
+            onToggleFilters={() => setFiltersOpen((current) => !current)}
+            filtersOpen={filtersOpen}
+            filterCount={activeControlCount}
+            placeholder="Search order id, item, COD, delivered"
           />
-        </Card>
 
-        <Card
-          title="Pickup → drop map"
-          subtitle={selectedOrder ? `Order #${selectedOrder.id}` : 'No active trip right now'}>
-          {selectedOrder && !drop ? (
-            <View style={styles.warningBox}>
-              <Ionicons name="alert-circle-outline" size={16} color={COLORS.warning} />
-              <Text style={styles.warningText}>
-                Drop coordinates are missing in the order response. Add `delivery_lat` and `delivery_lng` to the backend schema below.
-              </Text>
-            </View>
-          ) : null}
+          <QueryMetaBanner isFetching={queryState.isFetching} isFromCache={queryState.isFromCache} updatedAt={queryState.updatedAt} />
 
-          <View style={styles.mapWrap}>
-            <MapView
-              ref={mapRef}
-              style={styles.map}
-              initialRegion={buildRegion(mapPoints)}
-              provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}>
-              {pickup ? <Marker coordinate={pickup} title="Pickup" pinColor={COLORS.info} /> : null}
-              {drop ? <Marker coordinate={drop} title="Drop" pinColor={COLORS.success} /> : null}
-              {rider ? <Marker coordinate={rider} title="Rider" pinColor={COLORS.brand} /> : null}
-              {route.coordinates.length > 1 ? (
-                <Polyline coordinates={route.coordinates} strokeWidth={5} strokeColor={COLORS.brand} />
-              ) : null}
-            </MapView>
-          </View>
+          {filtersOpen ? <QueryControlsPanel filterKey={filterKey} setFilterKey={setFilterKey} sortBy={sortBy} setSortBy={setSortBy} /> : null}
 
-          <View style={styles.pillRow}>
-            <Pill
-              text={route.source === 'directions' ? 'Road route' : route.source === 'fallback' ? 'Straight line fallback' : 'Waiting for route'}
-              icon={route.source === 'directions' ? 'git-network-outline' : 'analytics-outline'}
-              tone={route.source === 'directions' ? 'info' : 'warning'}
+          {isQueryActive ? (
+            <QuerySummaryCard
+              totalMatches={queryState.data.totalMatches}
+              search={debouncedSearch}
+              filterLabel={activeFilterDef?.label}
+              sortLabel={activeSortDef?.label}
+              onReset={() => {
+                setSearch('');
+                setFilterKey('all');
+                setSortBy('relevance');
+              }}
             />
-            <Pill text={`Distance ${formatDistance(route.distanceMeters)}`} icon="resize-outline" tone="brand" />
-            <Pill text={`ETA ${formatDuration(route.durationSeconds)}`} icon="time-outline" tone="success" />
-          </View>
-
-          {selectedOrder ? (
-            <View style={styles.activeOrderBox}>
-              <Text style={styles.activeOrderTitle}>Order #{selectedOrder.id}</Text>
-              <Text style={styles.activeOrderSub}>{summarizeOrder(selectedOrder)}</Text>
-              <KeyValue icon="storefront-outline" label="Pickup store" value={selectedVendor?.name || `Vendor #${selectedOrder.vendor_id}`} />
-              <KeyValue icon="cash-outline" label="Order total" value={money(selectedOrder.total_amount)} />
-              <KeyValue icon="location-outline" label="Pickup" value={pickup ? `${pickup.latitude.toFixed(5)}, ${pickup.longitude.toFixed(5)}` : '—'} />
-              <KeyValue icon="flag-outline" label="Drop" value={drop ? `${drop.latitude.toFixed(5)}, ${drop.longitude.toFixed(5)}` : '—'} />
-              <View style={styles.buttonRow}>
-                <Button
-                  label={pickedUp ? 'Mark delivered' : 'Mark picked up'}
-                  icon={pickedUp ? 'checkmark-done-outline' : 'bag-check-outline'}
-                  tone={pickedUp ? 'success' : 'brand'}
-                  onPress={() => (pickedUp ? deliverOrder(selectedOrder.id) : pickupOrder(selectedOrder.id))}
-                  disabled={acting}
-                />
-              </View>
-            </View>
           ) : null}
-        </Card>
+        </SectionCard>
 
-        <Card title="Active order queue" subtitle="Tap any trip to switch the map above.">
-          {activeOrders.length ? activeOrders.map((order) => {
-            const selected = order.id === selectedOrder?.id;
-            const orderPickedUp = String(order.status || '').toUpperCase() === 'PICKED_UP';
-            const vendor = vendors[order.vendor_id] || null;
-
-            return (
-              <TouchableOpacity
-                key={order.id}
-                activeOpacity={0.92}
-                onPress={() => setSelectedOrderId(order.id)}
-                style={[styles.orderCard, selected && styles.orderCardSelected]}>
-                <View style={styles.orderHead}>
-                  <View>
-                    <Text style={styles.orderTitle}>Order #{order.id}</Text>
-                    <Text style={styles.orderSub}>{vendor?.name || `Vendor #${order.vendor_id}`}</Text>
-                  </View>
-                  <Pill
-                    text={String(order.status || '').replace(/_/g, ' ')}
-                    icon={orderPickedUp ? 'checkmark-circle-outline' : 'bicycle-outline'}
-                    tone={orderPickedUp ? 'success' : 'info'}
-                  />
-                </View>
-                <Text style={styles.orderSummary}>{summarizeOrder(order)}</Text>
-                <View style={styles.orderMeta}>
-                  <Text style={styles.orderMetaText}>Total {money(order.total_amount)}</Text>
-                  <Text style={styles.orderMetaText}>
-                    Drop {order.delivery_lat != null && order.delivery_lng != null ? 'available' : 'missing'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          }) : (
-            <View style={styles.emptyBox}>
-              <Ionicons name="map-outline" size={24} color={COLORS.brand} />
-              <Text style={styles.emptyTitle}>No active deliveries</Text>
-              <Text style={styles.emptySub}>Assigned delivery trips will appear here automatically.</Text>
-            </View>
+        <SectionCard title="Assigned orders" subtitle="Fast rider actions matter more than decorative screens.">
+          {queryState.isLoading ? (
+            <EmptyState icon="refresh-outline" title="Loading delivery queue" subtitle="Preparing cached search results for the rider app." />
+          ) : activeOrders.length ? (
+            activeOrders.map((order) => {
+              const isPickedUp = String(order.status || '').toUpperCase() === 'PICKED_UP';
+              return (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  actions={[
+                    <PrimaryButton
+                      key={isPickedUp ? 'deliver' : 'pickup'}
+                      label={isPickedUp ? 'Complete delivery' : 'Confirm pickup'}
+                      icon={isPickedUp ? 'checkmark-circle-outline' : 'bag-check-outline'}
+                      onPress={() => (isPickedUp ? deliver(order.id) : pickup(order.id))}
+                      disabled={loadingAction}
+                      tone={isPickedUp ? 'success' : 'brand'}
+                    />,
+                  ]}
+                />
+              );
+            })
+          ) : (
+            <EmptyState
+              icon={isQueryActive ? 'search-outline' : 'time-outline'}
+              title={isQueryActive ? 'No active matches' : 'Nothing assigned'}
+              subtitle={isQueryActive ? 'Try a broader search term or reset the active filters.' : 'Your dispatch queue is empty right now.'}
+            />
           )}
-        </Card>
+        </SectionCard>
+
+        <SectionCard title="Recent completed / closed orders" subtitle="Delivered and cancelled orders stay visible here so the rider can verify history.">
+          {!queryState.isLoading && completedOrders.length ? (
+            completedOrders.slice(0, 12).map((order) => <OrderCard key={order.id} order={order} />)
+          ) : !queryState.isLoading ? (
+            <EmptyState
+              icon={isQueryActive ? 'search-outline' : 'checkmark-done-outline'}
+              title={isQueryActive ? 'No completed matches' : 'No completed history yet'}
+              subtitle={isQueryActive ? 'The current search and filters do not match any completed orders.' : 'Delivered or closed orders will appear here.'}
+            />
+          ) : null}
+        </SectionCard>
       </ScrollView>
     </SafeAreaView>
   );
@@ -893,98 +873,175 @@ export default function DeliveryOrdersScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.page },
-  scroll: { flex: 1, backgroundColor: COLORS.page },
-  content: { padding: 16, gap: 14 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 10 },
-  centerTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text },
-  centerSub: { fontSize: 14, lineHeight: 20, textAlign: 'center', color: COLORS.muted },
+  centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, gap: 8 },
+  centerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text },
+  centerSubtitle: { fontSize: 13, lineHeight: 19, textAlign: 'center', color: COLORS.muted },
   card: {
-    backgroundColor: COLORS.card,
-    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
+    padding: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 16,
-    gap: 12,
+    marginBottom: 14,
   },
-  cardHeader: { flexDirection: 'row', gap: 12, justifyContent: 'space-between' },
-  cardTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text },
-  cardSubtitle: { marginTop: 4, fontSize: 13, lineHeight: 18, color: COLORS.muted },
-  warningBox: {
+  cardHeader: { gap: 4, marginBottom: 14 },
+  cardTitle: { fontSize: 17, fontWeight: '800', color: COLORS.text },
+  cardSubtitle: { fontSize: 13, lineHeight: 19, color: COLORS.muted },
+  querySearchBar: {
+    minHeight: 54,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceAlt,
+    paddingHorizontal: 14,
     flexDirection: 'row',
-    gap: 8,
-    alignItems: 'flex-start',
-    backgroundColor: COLORS.warningSoft,
+    alignItems: 'center',
+    gap: 10,
+  },
+  querySearchInput: { flex: 1, fontSize: 14, color: COLORS.text, fontWeight: '600' },
+  queryIconButton: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  queryFilterButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.brandSoft,
+    position: 'relative',
+  },
+  queryFilterButtonActive: { backgroundColor: COLORS.brand },
+  queryFilterBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: COLORS.black,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  queryFilterBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  queryMetaBanner: {
+    marginTop: 12,
+    minHeight: 42,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#F5DEB6',
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.surfaceAlt,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  queryMetaLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  queryMetaText: { flex: 1, fontSize: 12, fontWeight: '800', color: COLORS.text },
+  queryMetaTime: { fontSize: 11, fontWeight: '700', color: COLORS.muted },
+  queryControlsPanel: {
+    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: '#FFFDFC',
     padding: 12,
   },
-  warningText: { flex: 1, fontSize: 13, lineHeight: 18, color: COLORS.text },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7 },
-  pillText: { fontSize: 12, fontWeight: '800' },
-  buttonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  button: {
-    minHeight: 44,
-    borderRadius: 14,
+  queryPanelTitle: { fontSize: 12, fontWeight: '800', color: COLORS.text, marginBottom: 10 },
+  queryChipRow: { gap: 10, paddingBottom: 8 },
+  queryChip: {
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 18,
     borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  queryChipActive: { backgroundColor: COLORS.brand, borderColor: COLORS.brand },
+  queryChipText: { fontSize: 12, fontWeight: '800', color: COLORS.text },
+  queryChipTextActive: { color: '#FFFFFF' },
+  querySortChip: {
+    minHeight: 34,
+    paddingHorizontal: 12,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    justifyContent: 'center',
+  },
+  querySortChipActive: { backgroundColor: COLORS.info, borderColor: COLORS.info },
+  querySortChipText: { fontSize: 12, fontWeight: '800', color: COLORS.text },
+  querySortChipTextActive: { color: '#FFFFFF' },
+  querySummaryCard: {
+    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.surfaceAlt,
+    padding: 12,
+    gap: 10,
+  },
+  querySummaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  querySummaryTitle: { flex: 1, fontSize: 15, fontWeight: '800', color: COLORS.text },
+  querySummaryAction: { fontSize: 12, fontWeight: '800', color: COLORS.brand },
+  querySummaryChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  querySummaryChip: {
+    minHeight: 30,
+    paddingHorizontal: 10,
+    borderRadius: 15,
+    backgroundColor: COLORS.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  querySummaryChipText: { fontSize: 11, fontWeight: '800', color: COLORS.text },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
+  pillText: { fontSize: 12, fontWeight: '700' },
+  primaryButton: {
+    minHeight: 42,
+    borderRadius: 14,
     paddingHorizontal: 14,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
-  buttonText: { fontSize: 14, fontWeight: '800' },
-  statRow: { flexDirection: 'row', gap: 10 },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#FFF6EC',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.line,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-  },
-  statValue: { fontSize: 20, fontWeight: '800', color: COLORS.text },
-  statLabel: { marginTop: 4, fontSize: 12, color: COLORS.muted },
-  keyValueRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  keyValueLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  keyValueLabel: { fontSize: 13, color: COLORS.muted },
-  keyValueValue: { flex: 1, fontSize: 13, fontWeight: '700', textAlign: 'right', color: COLORS.text },
-  mapWrap: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: '#F7F1EB',
-  },
-  map: { width: '100%', height: 320 },
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  activeOrderBox: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.line,
-    backgroundColor: '#FFF6EC',
-    padding: 14,
-    gap: 10,
-  },
-  activeOrderTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text },
-  activeOrderSub: { fontSize: 13, color: COLORS.muted },
+  primaryButtonText: { fontSize: 13, fontWeight: '800' },
   orderCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
+    borderRadius: 18,
     padding: 14,
-    gap: 10,
+    backgroundColor: COLORS.surfaceAlt,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    marginBottom: 10,
   },
-  orderCardSelected: { borderColor: COLORS.brand, backgroundColor: COLORS.brandSoft },
-  orderHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  orderTitle: { fontSize: 16, fontWeight: '800', color: COLORS.text },
-  orderSub: { marginTop: 4, fontSize: 13, color: COLORS.muted },
-  orderSummary: { fontSize: 13, lineHeight: 18, color: COLORS.text },
-  orderMeta: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  orderMetaText: { fontSize: 12, color: COLORS.subtle },
-  emptyBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 18, gap: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: COLORS.text },
-  emptySub: { fontSize: 13, textAlign: 'center', lineHeight: 18, color: COLORS.muted },
+  orderTopRow: { flexDirection: 'row', gap: 10, justifyContent: 'space-between', alignItems: 'flex-start' },
+  orderMetaWrap: { flex: 1, gap: 4, paddingRight: 8 },
+  orderTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text },
+  orderSubtitle: { fontSize: 13, lineHeight: 19, color: COLORS.muted },
+  metaList: { gap: 9, marginTop: 12 },
+  metaLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  metaLineText: { flex: 1, fontSize: 13, lineHeight: 19, color: COLORS.muted },
+  buttonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 14 },
+  expandRow: { marginTop: 12, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4 },
+  expandRowText: { fontSize: 12, fontWeight: '700', color: COLORS.muted },
+  timelineWrap: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.line },
+  timelineRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, minHeight: 58 },
+  timelineRail: { width: 18, alignItems: 'center' },
+  timelineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 5 },
+  timelineLine: { width: 2, flex: 1, marginTop: 6, backgroundColor: COLORS.line },
+  timelineBody: { flex: 1, paddingBottom: 12 },
+  timelineTitle: { fontSize: 13, fontWeight: '800', color: COLORS.text },
+  timelineMeta: { marginTop: 2, fontSize: 12, color: COLORS.muted },
+  timelineNote: { marginTop: 4, fontSize: 12, lineHeight: 18, color: COLORS.text },
+  timelineEmpty: { marginTop: 14, borderRadius: 14, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.line, padding: 14 },
+  timelineEmptyTitle: { fontSize: 13, fontWeight: '800', color: COLORS.text },
+  timelineEmptySubtitle: { marginTop: 4, fontSize: 12, lineHeight: 18, color: COLORS.muted },
+  emptyState: { alignItems: 'center', gap: 8, paddingVertical: 22 },
+  emptyIconWrap: { width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.brandSoft, alignItems: 'center', justifyContent: 'center' },
+  emptyTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text },
+  emptySubtitle: { fontSize: 13, lineHeight: 19, textAlign: 'center', color: COLORS.muted },
 });
