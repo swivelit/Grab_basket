@@ -154,6 +154,7 @@ const API_TIMEOUT_MS = readInt('EXPO_PUBLIC_API_TIMEOUT_MS', 15000, { min: 1000 
 
 const ENABLE_ADS = readBool('EXPO_PUBLIC_ENABLE_ADS', false);
 const ENABLE_NEW_ARCH = readBool('EXPO_PUBLIC_ENABLE_NEW_ARCH', true);
+const GOOGLE_MAPS_API_KEY = readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY', '');
 
 const HAS_API_HINT = Boolean(API_BASE_URL || API_HOST || APP_ENV !== 'production');
 
@@ -167,6 +168,18 @@ const ALLOW_CLEARTEXT = readBool(
 const plugins = [
   'expo-router',
   'expo-notifications',
+  [
+    'expo-location',
+    {
+      locationWhenInUsePermission:
+        'Grab Basket uses your location to show nearby stores, pickup points, and delivery routes.',
+      locationAlwaysAndWhenInUsePermission:
+        'Grab Basket uses your location in the background so customers and sellers can track active deliveries.',
+      isAndroidBackgroundLocationEnabled: true,
+      isAndroidForegroundServiceEnabled: true,
+      isIosBackgroundLocationEnabled: true,
+    },
+  ],
   [
     'expo-build-properties',
     {
@@ -199,6 +212,16 @@ if (HAS_META_CREDENTIALS) {
         'We use this identifier to improve attribution and personalize relevant sponsored content.',
     },
   ]);
+  plugins.push(
+    GOOGLE_MAPS_API_KEY
+      ? [
+          'react-native-maps',
+          {
+            androidGoogleMapsApiKey: GOOGLE_MAPS_API_KEY,
+          },
+        ]
+      : 'react-native-maps'
+  );
 }
 
 // --- Expo config ---
@@ -268,6 +291,9 @@ const expoConfig = {
     },
     eas: {
       projectId: EAS_PROJECT_ID || undefined,
+    },
+    googleMaps: {
+      apiKey: GOOGLE_MAPS_API_KEY,
     },
   },
 };
