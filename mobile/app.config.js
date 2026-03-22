@@ -367,12 +367,28 @@ const expoConfig = {
   },
   android: {
     package: ANDROID_PACKAGE,
-    permissions: ['POST_NOTIFICATIONS'],
+    permissions: [
+      'POST_NOTIFICATIONS',
+      'ACCESS_COARSE_LOCATION',
+      'ACCESS_FINE_LOCATION',
+      'ACCESS_BACKGROUND_LOCATION',
+      'FOREGROUND_SERVICE',
+      'FOREGROUND_SERVICE_LOCATION',
+      'RECEIVE_BOOT_COMPLETED',
+      'WAKE_LOCK',
+    ],
     versionCode: ANDROID_VERSION_CODE,
     adaptiveIcon: {
       foregroundImage: './assets/images/android-icon-foreground.png',
       backgroundImage: './assets/images/android-icon-background.png',
       monochromeImage: './assets/images/android-icon-monochrome.png',
+    },
+    config: {
+      googleMaps: GOOGLE_MAPS_API_KEY ? { apiKey: GOOGLE_MAPS_API_KEY } : undefined,
+    },
+    notification: {
+      icon: './assets/images/android-icon-monochrome.png',
+      color: '#D97651',
     },
   },
   web: {

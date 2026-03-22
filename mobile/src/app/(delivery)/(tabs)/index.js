@@ -1,6 +1,6 @@
 import React from 'react';
-import OperationsScreen from '../../../components/operations-screen';
+import DeliveryControlCenter from '../../../components/delivery-control-center';
 
 export default function DeliveryHomeScreen() {
-  return <OperationsScreen variant="delivery" screen="index" />;
+  return <DeliveryControlCenter />;
 }
