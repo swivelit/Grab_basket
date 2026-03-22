@@ -52,6 +52,7 @@ const COLORS = {
 
 const ORDER_FILTERS = [
   { key: 'all', label: 'All' },
+  { key: 'payment_pending', label: 'Payment pending' },
   { key: 'food', label: 'Food' },
   { key: 'warehouse', label: 'Instamart' },
   { key: 'eatout', label: 'Dineout' },
@@ -370,6 +371,7 @@ function getDetailOrderSearchText(order, vendor) {
 
 function matchesOrderFilter(order, filterKey) {
   if (filterKey === 'all') return true;
+  if (filterKey === 'payment_pending') return canRetryGatewayPayment(order);
   return normalizeService(order?.service) === filterKey;
 }
 
@@ -1037,6 +1039,14 @@ export default function AccountScreen() {
     };
   }, [addresses.length, orderHistory]);
 
+  const pendingPaymentOrdersCount = useMemo(
+    () =>
+      (Array.isArray(orderHistory) ? orderHistory : []).filter((order) =>
+        canRetryGatewayPayment(order)
+      ).length,
+    [orderHistory]
+  );
+
   const filteredOrders = useMemo(() => {
     const query = normalizeText(search);
 
@@ -1455,7 +1465,9 @@ export default function AccountScreen() {
               </View>
             </SectionCard>
 
-            <SectionCard title="My orders" subtitle="Search, filter, and open live tracking for any order">
+            <SectionCard
+              title="My orders"
+              subtitle={`Search, filter, and open live tracking for any order${pendingPaymentOrdersCount ? ` · ${pendingPaymentOrdersCount} payment pending` : ''}`}>
               <View style={styles.searchWrap}>
                 <Ionicons name="search-outline" size={18} color={COLORS.subtle} />
                 <TextInput
@@ -1482,6 +1494,9 @@ export default function AccountScreen() {
                       onPress={() => setFilterKey(filter.key)}>
                       <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
                         {filter.label}
+                        {filter.key === 'payment_pending' && pendingPaymentOrdersCount
+                          ? ` (${pendingPaymentOrdersCount})`
+                          : ''}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -1516,6 +1531,7 @@ export default function AccountScreen() {
               <Text style={styles.checkText}>• Customer app can open a live tracking map for order details.</Text>
               <Text style={styles.checkText}>• Search + filters work inside the order list in this screen.</Text>
               <Text style={styles.checkText}>• Online payments can now be retried from Account for unpaid UPI/card orders.</Text>
+              <Text style={styles.checkText}>• A dedicated Payment pending filter chip now isolates unpaid UPI/card orders quickly.</Text>
             </SectionCard>
           </>
         )}
