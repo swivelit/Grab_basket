@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
+  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -15,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 
 import { useGrabBasket } from '../../../../App';
 import { buildApiUrl } from '../../../config';
@@ -486,6 +489,225 @@ function EmptyState({ icon = 'search-outline', title, subtitle }) {
   );
 }
 
+function hasCoordinate(value) {
+  return Boolean(
+    value &&
+      Number.isFinite(Number(value.latitude)) &&
+      Number.isFinite(Number(value.longitude))
+  );
+}
+
+function normalizeCoordinate(lat, lng) {
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return { latitude, longitude };
+}
+
+function buildMapRegion(points = []) {
+  const usable = points.filter(hasCoordinate);
+  if (!usable.length) {
+    return {
+      latitude: 12.9716,
+      longitude: 77.5946,
+      latitudeDelta: 0.08,
+      longitudeDelta: 0.08,
+    };
+  }
+
+  const latitudes = usable.map((point) => point.latitude);
+  const longitudes = usable.map((point) => point.longitude);
+  const minLat = Math.min(...latitudes);
+  const maxLat = Math.max(...latitudes);
+  const minLng = Math.min(...longitudes);
+  const maxLng = Math.max(...longitudes);
+
+  return {
+    latitude: (minLat + maxLat) / 2,
+    longitude: (minLng + maxLng) / 2,
+    latitudeDelta: Math.max(0.02, (maxLat - minLat) * 1.7 || 0.02),
+    longitudeDelta: Math.max(0.02, (maxLng - minLng) * 1.7 || 0.02),
+  };
+}
+
+function getTrackingStop({ orderStatus, pickupPoint, dropPoint }) {
+  return String(orderStatus || '').toUpperCase() === 'PICKED_UP' ? dropPoint : pickupPoint || dropPoint;
+}
+
+function buildRouteUrl(destination, { pickup } = {}) {
+  if (!hasCoordinate(destination)) return '';
+
+  const destinationLat = Number(destination.latitude).toFixed(6);
+  const destinationLng = Number(destination.longitude).toFixed(6);
+  const destinationParam = `${destinationLat},${destinationLng}`;
+
+  const origin = hasCoordinate(pickup)
+    ? `${Number(pickup.latitude).toFixed(6)},${Number(pickup.longitude).toFixed(6)}`
+    : '';
+
+  if (Platform.OS === 'ios') {
+    return `http://maps.apple.com/?${origin ? `saddr=${origin}&` : ''}daddr=${destinationParam}&dirflg=d`;
+  }
+
+  return `https://www.google.com/maps/dir/?api=1&destination=${destinationParam}${
+    origin ? `&origin=${origin}` : ''
+  }&travelmode=driving`;
+}
+
+function SellerLiveTrackingCard({ order, vendor, tracking, loading, onRefresh }) {
+  const pickupPoint = normalizeCoordinate(vendor?.lat, vendor?.lng);
+  const dropPoint = normalizeCoordinate(order?.delivery_lat, order?.delivery_lng);
+  const riderPoint = normalizeCoordinate(
+    tracking?.has_location ? tracking?.lat : null,
+    tracking?.has_location ? tracking?.lng : null
+  );
+  const routePoint = getTrackingStop({
+    orderStatus: order?.status,
+    pickupPoint,
+    dropPoint,
+  });
+
+  const region = useMemo(
+    () => buildMapRegion([pickupPoint, dropPoint, riderPoint]),
+    [pickupPoint, dropPoint, riderPoint]
+  );
+
+  const polylineCoordinates = useMemo(() => {
+    const points = [pickupPoint];
+
+    if (hasCoordinate(riderPoint)) {
+      points.push(riderPoint);
+    }
+
+    if (hasCoordinate(dropPoint)) {
+      points.push(dropPoint);
+    }
+
+    return points.filter(hasCoordinate);
+  }, [pickupPoint, riderPoint, dropPoint]);
+
+  const openRoute = useCallback(async () => {
+    const url = buildRouteUrl(routePoint, { pickup: pickupPoint });
+
+    if (!url) {
+      Alert.alert('Route unavailable', 'Pickup or drop coordinates are not available for this order yet.');
+      return;
+    }
+
+    const supported = await Linking.canOpenURL(url).catch(() => false);
+    if (!supported) {
+      Alert.alert('Maps unavailable', 'No maps app was found to open the route.');
+      return;
+    }
+
+    await Linking.openURL(url);
+  }, [pickupPoint, routePoint]);
+
+  if (loading) {
+    return (
+      <View style={styles.liveTrackingLoading}>
+        <ActivityIndicator color={COLORS.brand} />
+        <Text style={styles.liveTrackingLoadingText}>Loading live rider tracking…</Text>
+      </View>
+    );
+  }
+
+  if (!hasCoordinate(pickupPoint) && !hasCoordinate(dropPoint) && !hasCoordinate(riderPoint)) {
+    return (
+      <View style={styles.liveTrackingEmpty}>
+        <Text style={styles.liveTrackingEmptyTitle}>Tracking map will appear after geo setup</Text>
+        <Text style={styles.liveTrackingEmptySubtitle}>
+          Add vendor coordinates and an order delivery address to see pickup, rider, and drop on the seller app.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.liveTrackingWrap}>
+      <View style={styles.liveTrackingTopRow}>
+        <View style={styles.liveTrackingBadge}>
+          <Ionicons name="navigate-outline" size={14} color={COLORS.info} />
+          <Text style={styles.liveTrackingBadgeText}>Order #{order?.id} · {formatStatus(order?.status)}</Text>
+        </View>
+
+        <TouchableOpacity activeOpacity={0.9} onPress={onRefresh}>
+          <Text style={styles.querySummaryAction}>Refresh</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.liveTrackingMapCard}>
+        {Platform.OS === 'web' ? (
+          <View style={styles.liveTrackingWebFallback}>
+            <Text style={styles.liveTrackingEmptyTitle}>Map preview is only available on iOS and Android.</Text>
+          </View>
+        ) : (
+          <MapView style={styles.liveTrackingMap} initialRegion={region} region={region}>
+            {hasCoordinate(pickupPoint) ? (
+              <Marker coordinate={pickupPoint} title="Pickup" description={vendor?.name || 'Store'} />
+            ) : null}
+
+            {hasCoordinate(dropPoint) ? (
+              <Marker coordinate={dropPoint} title="Drop" description="Customer delivery address" pinColor={COLORS.success} />
+            ) : null}
+
+            {hasCoordinate(riderPoint) ? (
+              <Marker
+                coordinate={riderPoint}
+                title="Rider"
+                description={`Updated ${formatDateTime(tracking?.ts || tracking?.created_at)}`}
+                pinColor={COLORS.brand}
+              />
+            ) : null}
+
+            {polylineCoordinates.length >= 2 ? (
+              <Polyline coordinates={polylineCoordinates} strokeWidth={4} strokeColor={COLORS.black} />
+            ) : null}
+          </MapView>
+        )}
+      </View>
+
+      <View style={styles.metaList}>
+        <MetaLine icon="storefront-outline" label={vendor?.name || 'Vendor setup not loaded yet'} />
+        <MetaLine
+          icon="bicycle-outline"
+          label={
+            tracking?.assigned
+              ? tracking?.has_location
+                ? `Rider live at ${Number(tracking?.lat).toFixed(4)} · ${Number(tracking?.lng).toFixed(4)}`
+                : 'Partner assigned, waiting for first live location'
+              : 'No partner assigned to this order yet'
+          }
+        />
+        <MetaLine
+          icon="time-outline"
+          label={
+            tracking?.has_location
+              ? `Last rider ping ${formatDateTime(tracking?.ts || tracking?.created_at)}`
+              : 'No rider location synced yet'
+          }
+        />
+        <MetaLine
+          icon="navigate-outline"
+          label={
+            hasCoordinate(dropPoint)
+              ? `Drop ${Number(dropPoint.latitude).toFixed(4)} · ${Number(dropPoint.longitude).toFixed(4)}`
+              : 'Drop coordinates unavailable'
+          }
+        />
+      </View>
+
+      <View style={styles.buttonRow}>
+        <PrimaryButton label="Open route" icon="navigate-outline" tone="muted" onPress={openRoute} />
+      </View>
+    </View>
+  );
+}
+
 function Timeline({ events = [] }) {
   if (!events.length) {
     return (
@@ -678,6 +900,9 @@ export default function PartnerOrdersScreen() {
   const [filterKey, setFilterKey] = useState('all');
   const [sortBy, setSortBy] = useState('relevance');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [vendorProfile, setVendorProfile] = useState(null);
+  const [trackingSnapshot, setTrackingSnapshot] = useState(null);
+  const [trackingLoading, setTrackingLoading] = useState(false);
 
   const debouncedSearch = useDebouncedValue(search);
 
@@ -708,7 +933,67 @@ export default function PartnerOrdersScreen() {
     loadData({ silent: false }).catch(() => {});
   }, [authToken, isAuthenticated, loadData, sessionReady]);
 
-  const refresh = useCallback(() => loadData({ silent: false }), [loadData]);
+  const activeTrackingOrder = useMemo(
+    () =>
+      orders.find((item) =>
+        ['ASSIGNED_TO_PARTNER', 'READY_FOR_PICKUP', 'PICKED_UP'].includes(
+          String(item?.status || '').toUpperCase()
+        )
+      ) || null,
+    [orders]
+  );
+
+  const loadTrackingSnapshot = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!authToken) return;
+
+      if (!activeTrackingOrder?.id) {
+        setVendorProfile(null);
+        setTrackingSnapshot(null);
+        if (!silent) setTrackingLoading(false);
+        return;
+      }
+
+      try {
+        if (!silent) setTrackingLoading(true);
+
+        const [vendorResponse, trackingResponse] = await Promise.all([
+          request('/seller/vendor', authToken).catch((error) => {
+            if (error?.status === 404) return null;
+            throw error;
+          }),
+          request(`/tracking/order/${activeTrackingOrder.id}/partner_latest`, authToken).catch((error) => {
+            if (error?.status === 404) return { assigned: false, has_location: false };
+            throw error;
+          }),
+        ]);
+
+        setVendorProfile(vendorResponse || null);
+        setTrackingSnapshot(trackingResponse || null);
+      } catch (error) {
+        setTrackingSnapshot(null);
+        if (!silent) {
+          Alert.alert('Tracking unavailable', error?.message || 'Could not load live delivery tracking.');
+        }
+        if (error?.status === 401) {
+          logout().catch(() => {});
+        }
+      } finally {
+        if (!silent) setTrackingLoading(false);
+      }
+    },
+    [activeTrackingOrder?.id, authToken, logout]
+  );
+
+  useEffect(() => {
+    if (!sessionReady || !isAuthenticated || !authToken) return;
+    loadTrackingSnapshot({ silent: false }).catch(() => {});
+  }, [authToken, isAuthenticated, loadTrackingSnapshot, sessionReady]);
+
+  const refresh = useCallback(
+    () => Promise.all([loadData({ silent: false }), loadTrackingSnapshot({ silent: false })]),
+    [loadData, loadTrackingSnapshot]
+  );
 
   const runAction = useCallback(
     async (work, successMessage) => {
@@ -716,7 +1001,7 @@ export default function PartnerOrdersScreen() {
         setLoadingAction(true);
         await work();
         if (successMessage) Alert.alert('Done', successMessage);
-        await loadData({ silent: true });
+        await Promise.all([loadData({ silent: true }), loadTrackingSnapshot({ silent: true })]);
       } catch (error) {
         Alert.alert('Action failed', error?.message || 'Please try again.');
         if (error?.status === 401) {
@@ -726,7 +1011,7 @@ export default function PartnerOrdersScreen() {
         setLoadingAction(false);
       }
     },
-    [loadData, logout]
+    [loadData, loadTrackingSnapshot, logout]
   );
 
   const acceptOrder = useCallback(
@@ -857,6 +1142,26 @@ export default function PartnerOrdersScreen() {
           ) : null}
         </SectionCard>
 
+        <SectionCard
+          title="Live delivery tracking"
+          subtitle="Seller visibility for pickup → rider → drop using the same backend tracking feed consumed by the customer and delivery apps.">
+          {activeTrackingOrder ? (
+            <SellerLiveTrackingCard
+              order={activeTrackingOrder}
+              vendor={vendorProfile}
+              tracking={trackingSnapshot}
+              loading={trackingLoading}
+              onRefresh={() => loadTrackingSnapshot({ silent: false })}
+            />
+          ) : (
+            <EmptyState
+              icon="navigate-outline"
+              title="No tracked delivery in progress"
+              subtitle="Once an order is assigned to a rider, the seller app will show the live route and last rider ping here."
+            />
+          )}
+        </SectionCard>
+
         <SectionCard title="New orders" subtitle="Accept or reject the queue quickly.">
           {queryState.isLoading ? (
             <EmptyState icon="refresh-outline" title="Loading seller queue" subtitle="Preparing cached order search results for the partner app." />
@@ -985,4 +1290,16 @@ const styles = StyleSheet.create({
   emptyIconWrap: { width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.brandSoft, alignItems: 'center', justifyContent: 'center' },
   emptyTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text },
   emptySubtitle: { fontSize: 13, lineHeight: 19, textAlign: 'center', color: COLORS.muted },
+  liveTrackingWrap: { gap: 12 },
+  liveTrackingTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  liveTrackingBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, backgroundColor: COLORS.infoSoft },
+  liveTrackingBadgeText: { fontSize: 12, fontWeight: '800', color: COLORS.info },
+  liveTrackingMapCard: { borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.surfaceAlt },
+  liveTrackingMap: { width: '100%', height: 220 },
+  liveTrackingWebFallback: { minHeight: 140, padding: 18, alignItems: 'center', justifyContent: 'center' },
+  liveTrackingEmpty: { borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.surfaceAlt, padding: 16, gap: 6 },
+  liveTrackingEmptyTitle: { fontSize: 14, fontWeight: '800', color: COLORS.text, textAlign: 'center' },
+  liveTrackingEmptySubtitle: { fontSize: 12, lineHeight: 18, color: COLORS.muted, textAlign: 'center' },
+  liveTrackingLoading: { minHeight: 140, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  liveTrackingLoadingText: { fontSize: 13, color: COLORS.muted, fontWeight: '700' },
 });
