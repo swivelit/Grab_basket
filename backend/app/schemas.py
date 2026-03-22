@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, time
 from typing import Optional, List
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 # ---------- Auth ----------
@@ -138,7 +138,63 @@ class OrderCreateIn(BaseModel):
     vendor_id: int
     items: List[OrderItemIn]
     delivery_address_id: Optional[int] = None
-    payment_method: str = Field(default="COD", max_length=16)  # COD / UPI
+    payment_method: str = Field(default="COD", max_length=16)  # COD / UPI / CARD
+
+    @field_validator("payment_method", mode="before")
+    @classmethod
+    def validate_payment_method(cls, value):
+        normalized = str(value or "COD").strip().upper()
+        allowed = {"COD", "UPI", "CARD"}
+        if normalized not in allowed:
+            raise ValueError(f"payment_method must be one of: {', '.join(sorted(allowed))}")
+        return normalized
+
+
+class PaymentVerifyIn(BaseModel):
+    payment_method: str = Field(max_length=16)
+    reference: str = Field(min_length=4, max_length=128)
+    amount: Optional[float] = Field(default=None, gt=0)
+    upi_id: Optional[str] = Field(default=None, max_length=120)
+    card_holder_name: Optional[str] = Field(default=None, max_length=120)
+    card_last4: Optional[str] = Field(default=None, min_length=4, max_length=4)
+
+    @field_validator("payment_method", mode="before")
+    @classmethod
+    def validate_payment_method(cls, value):
+        normalized = str(value or "").strip().upper()
+        allowed = {"UPI", "CARD"}
+        if normalized not in allowed:
+            raise ValueError(f"payment_method must be one of: {', '.join(sorted(allowed))}")
+        return normalized
+
+    @field_validator("reference", mode="before")
+    @classmethod
+    def normalize_reference(cls, value):
+        return str(value or "").strip().upper()
+
+    @field_validator("upi_id", mode="before")
+    @classmethod
+    def normalize_upi_id(cls, value):
+        return str(value or "").strip().lower() or None
+
+    @field_validator("card_holder_name", mode="before")
+    @classmethod
+    def normalize_card_holder_name(cls, value):
+        return str(value or "").strip() or None
+
+    @field_validator("card_last4", mode="before")
+    @classmethod
+    def normalize_card_last4(cls, value):
+        raw = ''.join(ch for ch in str(value or '') if ch.isdigit())
+        return raw[-4:] if raw else None
+
+
+class PaymentVerifyOut(BaseModel):
+    ok: bool
+    payment_status: str
+    payment_ref: Optional[str] = None
+    verification_token: str
+    order: "OrderOut"
 
 
 class OrderItemOut(BaseModel):

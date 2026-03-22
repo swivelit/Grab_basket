@@ -19,6 +19,7 @@ router = APIRouter(prefix="/orders", tags=["orders"])
 
 # Partner order states that mean the partner is currently busy.
 ACTIVE_PARTNER_ORDER_STATUSES = {"ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP", "PICKED_UP"}
+ONLINE_PAYMENT_METHODS = {"UPI", "CARD"}
 
 
 def add_event(db: Session, order: Order, status: str, note: str = "", actor_user_id: int | None = None) -> None:
@@ -77,15 +78,20 @@ def create_order(payload: OrderCreateIn, db: Session = Depends(get_db), user: Us
             if distance_km > float(vendor.delivery_radius_km):
                 raise HTTPException(status_code=400, detail="Address outside delivery radius")
 
+    payment_method = str(payload.payment_method or "COD").strip().upper()
+    is_online_payment = payment_method in ONLINE_PAYMENT_METHODS
+    payment_status = "PENDING_VERIFICATION" if is_online_payment else "PENDING"
+    initial_status = "PAYMENT_PENDING" if is_online_payment else "CREATED"
+
     order = Order(
         vendor_id=vendor.id,
         customer_id=user.id,
-        status="CREATED",
+        status=initial_status,
         delivery_address_id=payload.delivery_address_id,
         delivery_lat=delivery_lat,
         delivery_lng=delivery_lng,
-        payment_method=payload.payment_method,
-        payment_status="PENDING",
+        payment_method=payment_method,
+        payment_status=payment_status,
     )
     db.add(order)
     db.flush()
@@ -112,15 +118,20 @@ def create_order(payload: OrderCreateIn, db: Session = Depends(get_db), user: Us
         order.delivery_fee = round(max(20.0, 10.0 + (distance_km * 5.0)), 2)
 
     order.total_amount = round(order.subtotal_amount + order.delivery_fee, 2)
-    add_event(db, order, "CREATED", "Order created", actor_user_id=user.id)
-
-    if order.payment_method == "UPI":
-        order.payment_ref = f"UPI-DEMO-{order.id}-{int(datetime.utcnow().timestamp())}"
+    order.payment_ref = f"PAY-{payment_method}-{order.id}-{int(datetime.utcnow().timestamp())}"
+    add_event(
+        db,
+        order,
+        initial_status,
+        "Awaiting payment verification" if is_online_payment else "Order created",
+        actor_user_id=user.id,
+    )
 
     db.commit()
     db.refresh(order)
 
-    send_push(_seller_tokens(db, vendor), "New order", f"Order #{order.id} placed", data={"order_id": str(order.id)})
+    if not is_online_payment:
+        send_push(_seller_tokens(db, vendor), "New order", f"Order #{order.id} placed", data={"order_id": str(order.id)})
     return order
 
 
