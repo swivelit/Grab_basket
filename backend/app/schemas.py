@@ -168,6 +168,10 @@ class OrderOut(BaseModel):
     partner_id: Optional[int]
     status: str
 
+    delivery_address_id: Optional[int] = None
+    delivery_lat: Optional[float] = None
+    delivery_lng: Optional[float] = None
+
     delivery_fee: float
     subtotal_amount: float
     total_amount: float
