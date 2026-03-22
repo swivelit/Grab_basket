@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useGlobalSearchParams, usePathname } from 'expo-router';
 import * as TaskManager from 'expo-task-manager';
@@ -18,7 +19,32 @@ import {
 } from '../lib/telemetry';
 
 const APP_VARIANT = getAppVariant();
+const IS_NATIVE_RUNTIME = Platform.OS === 'android' || Platform.OS === 'ios';
+const IS_DELIVERY_APP = APP_VARIANT === 'delivery';
 const DELIVERY_LOCATION_TASK_NAME = 'grab-basket-delivery-background-location';
+
+type StoredLocationPayload = {
+  lat: number;
+  lng: number;
+  heading?: number;
+  speed?: number;
+  created_at?: string;
+  source?: string;
+};
+
+type BackgroundLocation = {
+  coords?: {
+    latitude?: number;
+    longitude?: number;
+    heading?: number;
+    speed?: number;
+  };
+  timestamp?: number;
+};
+
+type DeliveryLocationTaskPayload = {
+  locations?: BackgroundLocation[];
+};
 
 function buildScopedStorageKey(key: string) {
   return `@grab_basket/${APP_VARIANT}/${key}`;
@@ -29,10 +55,17 @@ const STORAGE_AUTH_EMAIL = buildScopedStorageKey('auth_email_v1');
 const STORAGE_AUTH_ROLE = buildScopedStorageKey('auth_role_v1');
 const STORAGE_LAST_BACKGROUND_LOCATION = buildScopedStorageKey('background_location_last_v1');
 
-let secureStoreModuleCache: any;
+let secureStoreModuleCache:
+  | {
+      getItemAsync?: (key: string) => Promise<string | null>;
+    }
+  | null
+  | undefined;
 
 function getSecureStoreModule() {
-  if (secureStoreModuleCache !== undefined) return secureStoreModuleCache;
+  if (secureStoreModuleCache !== undefined) {
+    return secureStoreModuleCache;
+  }
 
   try {
     secureStoreModuleCache = require('expo-secure-store');
@@ -49,9 +82,11 @@ async function readStoredValue(key: string) {
   if (secureStoreModule?.getItemAsync) {
     try {
       const secureValue = await secureStoreModule.getItemAsync(key);
-      if (secureValue) return secureValue;
+      if (secureValue) {
+        return secureValue;
+      }
     } catch {
-      // fall back to AsyncStorage
+      // Fall back to AsyncStorage.
     }
   }
 
@@ -62,12 +97,44 @@ async function readStoredValue(key: string) {
   }
 }
 
-async function persistLastBackgroundLocation(payload: Record<string, any>) {
+async function persistLastBackgroundLocation(payload: StoredLocationPayload) {
   try {
     await AsyncStorage.setItem(STORAGE_LAST_BACKGROUND_LOCATION, JSON.stringify(payload));
   } catch {
-    // best effort only
+    // Best effort only.
   }
+}
+
+function toFiniteNumber(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function buildLocationPayload(location: BackgroundLocation) {
+  const latitude = toFiniteNumber(location?.coords?.latitude);
+  const longitude = toFiniteNumber(location?.coords?.longitude);
+
+  if (latitude === null || longitude === null) {
+    return null;
+  }
+
+  const heading = toFiniteNumber(location?.coords?.heading);
+  const speed = toFiniteNumber(location?.coords?.speed);
+
+  const payload: StoredLocationPayload = {
+    lat: latitude,
+    lng: longitude,
+  };
+
+  if (heading !== null && heading >= 0) {
+    payload.heading = heading;
+  }
+
+  if (speed !== null && speed >= 0) {
+    payload.speed = speed;
+  }
+
+  return payload;
 }
 
 async function hydrateTelemetryUser() {
@@ -99,7 +166,7 @@ async function hydrateTelemetryUser() {
   }
 }
 
-async function postPartnerLocation(token: string, payload: Record<string, any>) {
+async function postPartnerLocation(token: string, payload: StoredLocationPayload) {
   const response = await fetch(buildApiUrl('/partner/location'), {
     method: 'POST',
     headers: {
@@ -115,69 +182,92 @@ async function postPartnerLocation(token: string, payload: Record<string, any>) 
   }
 }
 
-if (!TaskManager.isTaskDefined(DELIVERY_LOCATION_TASK_NAME)) {
-  TaskManager.defineTask(DELIVERY_LOCATION_TASK_NAME, async ({ data, error }) => {
-    if (error) {
-      captureException(error, {
-        tags: {
-          area: 'background-task',
-          operation: 'delivery-location',
-        },
-        extras: {
-          taskName: DELIVERY_LOCATION_TASK_NAME,
-        },
-      });
+function registerDeliveryLocationTask() {
+  if (!IS_DELIVERY_APP || !IS_NATIVE_RUNTIME) {
+    return;
+  }
+
+  try {
+    if (TaskManager.isTaskDefined(DELIVERY_LOCATION_TASK_NAME)) {
       return;
     }
 
-    const locations = Array.isArray((data as any)?.locations) ? (data as any).locations : [];
-    const latest = locations[locations.length - 1];
+    TaskManager.defineTask(
+      DELIVERY_LOCATION_TASK_NAME,
+      async ({
+        data,
+        error,
+      }: {
+        data?: DeliveryLocationTaskPayload;
+        error?: Error | null;
+      }) => {
+        if (!IS_DELIVERY_APP) {
+          return;
+        }
 
-    if (!latest?.coords) {
-      return;
-    }
+        if (error) {
+          captureException(error, {
+            tags: {
+              area: 'background-task',
+              operation: 'delivery-location',
+            },
+            extras: {
+              taskName: DELIVERY_LOCATION_TASK_NAME,
+            },
+          });
+          return;
+        }
 
-    const token = String((await readStoredValue(STORAGE_AUTH_TOKEN)) || '').trim();
-    if (!token) {
-      return;
-    }
+        const locations = Array.isArray(data?.locations) ? data.locations : [];
+        const latestLocation = locations[locations.length - 1];
+        const payload = latestLocation ? buildLocationPayload(latestLocation) : null;
 
-    const heading = Number(latest.coords.heading);
-    const speed = Number(latest.coords.speed);
+        if (!payload) {
+          return;
+        }
 
-    const payload: Record<string, any> = {
-      lat: Number(latest.coords.latitude),
-      lng: Number(latest.coords.longitude),
-    };
+        const token = String((await readStoredValue(STORAGE_AUTH_TOKEN)) || '').trim();
+        if (!token) {
+          return;
+        }
 
-    if (Number.isFinite(heading) && heading >= 0) {
-      payload.heading = heading;
-    }
-
-    if (Number.isFinite(speed) && speed >= 0) {
-      payload.speed = speed;
-    }
-
-    try {
-      await postPartnerLocation(token, payload);
-      await persistLastBackgroundLocation({
-        ...payload,
-        created_at: new Date(latest.timestamp || Date.now()).toISOString(),
-        source: 'background-task',
-      });
-    } catch (taskError) {
-      captureException(taskError, {
-        tags: {
-          area: 'background-task',
-          operation: 'partner-location-sync',
-        },
-        extras: {
-          payload,
-        },
-      });
-    }
-  });
+        try {
+          await postPartnerLocation(token, payload);
+          await persistLastBackgroundLocation({
+            ...payload,
+            created_at: new Date(latestLocation?.timestamp || Date.now()).toISOString(),
+            source: 'background-task',
+          });
+        } catch (taskError) {
+          captureException(taskError, {
+            tags: {
+              area: 'background-task',
+              operation: 'partner-location-sync',
+            },
+            extras: {
+              payload,
+              taskName: DELIVERY_LOCATION_TASK_NAME,
+            },
+          });
+        }
+      }
+    );
+  } catch (error) {
+    captureException(error, {
+      tags: {
+        area: 'background-task',
+        operation: 'register-delivery-location-task',
+      },
+      extras: {
+        taskName: DELIVERY_LOCATION_TASK_NAME,
+        appVariant: APP_VARIANT,
+        platform: Platform.OS,
+      },
+    });
+  }
 }
+
+registerDeliveryLocationTask();
 
 function TelemetryBootstrap() {
   const pathname = usePathname();
@@ -191,12 +281,14 @@ function TelemetryBootstrap() {
     });
 
     return () => {
-      flushTelemetry();
+      flushTelemetry().catch(() => {
+        // Best effort only.
+      });
     };
   }, []);
 
   useEffect(() => {
-    const params = Object.entries(searchParams || {}).reduce(
+    const params = Object.entries(searchParams || {}).reduce<Record<string, string>>(
       (accumulator, [key, value]) => {
         if (value === undefined || value === null) {
           return accumulator;
@@ -205,7 +297,7 @@ function TelemetryBootstrap() {
         accumulator[key] = Array.isArray(value) ? value.join(',') : String(value);
         return accumulator;
       },
-      {} as Record<string, string>
+      {}
     );
 
     trackScreen(pathname || '/', params);
