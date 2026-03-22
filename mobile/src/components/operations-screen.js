@@ -4,6 +4,7 @@ import {
   Alert,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Switch,
   Text,
@@ -40,15 +41,22 @@ const COLORS = {
   black: '#241A14',
 };
 
+const DELIVERY_ACTIVE_STATUSES = ['ASSIGNED_TO_PARTNER', 'READY_FOR_PICKUP', 'PICKED_UP'];
+const SELLER_PENDING_STATUSES = ['CREATED'];
+const SELLER_PREP_STATUSES = ['ACCEPTED_BY_SELLER', 'ASSIGNED_TO_PARTNER'];
+const SELLER_READY_STATUSES = ['READY_FOR_PICKUP'];
+
 function money(value) {
   return `₹${Number(value || 0).toFixed(0)}`;
 }
 
 function formatStatus(status = '') {
-  return String(status || '')
-    .replace(/_/g, ' ')
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return (
+    String(status || '')
+      .replace(/_/g, ' ')
+      .toLowerCase()
+      .replace(/\b\w/g, (char) => char.toUpperCase()) || 'Unknown'
+  );
 }
 
 function formatDateTime(value) {
@@ -80,12 +88,13 @@ function formatDate(value) {
 
 function summarizeOrder(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  const first = items[0];
-  if (!first) return 'No items';
+  if (!items.length) return 'No items added yet';
 
+  const first = items[0];
   const extraCount = Math.max(0, items.length - 1);
-  const qty = Number(first.qty || 1);
-  return `${qty} x ${first.name_snapshot || 'Item'}${extraCount ? ` +${extraCount} more` : ''}`;
+  const qty = Number(first?.qty || 1);
+
+  return `${qty} x ${first?.name_snapshot || 'Item'}${extraCount ? ` +${extraCount} more` : ''}`;
 }
 
 function getLatestEvent(order) {
@@ -97,15 +106,15 @@ function getLatestEvent(order) {
 function getStatusTone(status = '') {
   const value = String(status || '').toUpperCase();
 
-  if (value.includes('DELIVERED')) {
+  if (value.includes('DELIVERED') || value.includes('AVAILABLE') || value.includes('OPEN')) {
     return { bg: COLORS.successSoft, text: COLORS.success, icon: 'checkmark-circle-outline' };
   }
 
-  if (value.includes('REJECT') || value.includes('CANCEL')) {
+  if (value.includes('REJECT') || value.includes('CANCEL') || value.includes('CLOSED')) {
     return { bg: COLORS.dangerSoft, text: COLORS.danger, icon: 'close-circle-outline' };
   }
 
-  if (value.includes('READY') || value.includes('PICK')) {
+  if (value.includes('READY') || value.includes('PICK') || value.includes('ASSIGNED')) {
     return { bg: COLORS.infoSoft, text: COLORS.info, icon: 'bicycle-outline' };
   }
 
@@ -114,6 +123,7 @@ function getStatusTone(status = '') {
 
 function safeJsonParse(raw) {
   if (!raw) return null;
+
   try {
     return JSON.parse(raw);
   } catch {
@@ -177,19 +187,21 @@ function SectionCard({ title, subtitle, right, children }) {
 }
 
 function KpiTile({ icon, label, value, tone = 'brand' }) {
-  const toneStyle =
+  const palette =
     tone === 'success'
       ? { bg: COLORS.successSoft, color: COLORS.success }
       : tone === 'info'
         ? { bg: COLORS.infoSoft, color: COLORS.info }
         : tone === 'warning'
           ? { bg: COLORS.warningSoft, color: COLORS.warning }
-          : { bg: COLORS.brandSoft, color: COLORS.brand };
+          : tone === 'danger'
+            ? { bg: COLORS.dangerSoft, color: COLORS.danger }
+            : { bg: COLORS.brandSoft, color: COLORS.brand };
 
   return (
     <View style={styles.kpiTile}>
-      <View style={[styles.kpiIconWrap, { backgroundColor: toneStyle.bg }]}>
-        <Ionicons name={icon} size={18} color={toneStyle.color} />
+      <View style={[styles.kpiIconWrap, { backgroundColor: palette.bg }]}>
+        <Ionicons name={icon} size={18} color={palette.color} />
       </View>
       <Text style={styles.kpiValue}>{value}</Text>
       <Text style={styles.kpiLabel}>{label}</Text>
@@ -236,7 +248,14 @@ function PrimaryButton({ label, icon, onPress, disabled = false, tone = 'brand' 
   );
 }
 
-function TextField({ label, value, onChangeText, placeholder, keyboardType = 'default', multiline = false }) {
+function TextField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = 'default',
+  multiline = false,
+}) {
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -253,6 +272,15 @@ function TextField({ label, value, onChangeText, placeholder, keyboardType = 'de
   );
 }
 
+function MetaLine({ icon, label }) {
+  return (
+    <View style={styles.metaLine}>
+      <Ionicons name={icon} size={15} color={COLORS.subtle} />
+      <Text style={styles.metaLineText}>{label}</Text>
+    </View>
+  );
+}
+
 function EmptyState({ icon = 'sparkles-outline', title, subtitle }) {
   return (
     <View style={styles.emptyState}>
@@ -265,9 +293,48 @@ function EmptyState({ icon = 'sparkles-outline', title, subtitle }) {
   );
 }
 
-function OrderCard({ order, actions = [] }) {
+function Timeline({ events = [] }) {
+  if (!events.length) {
+    return (
+      <View style={styles.timelineEmpty}>
+        <Text style={styles.timelineEmptyTitle}>No timeline events yet</Text>
+        <Text style={styles.timelineEmptySubtitle}>
+          This order will become easier to audit once more lifecycle updates are stored.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.timelineWrap}>
+      {events.map((event, index) => {
+        const tone = getStatusTone(event?.status);
+        const isLast = index === events.length - 1;
+
+        return (
+          <View key={`${event?.status}-${event?.created_at || index}`} style={styles.timelineRow}>
+            <View style={styles.timelineRail}>
+              <View style={[styles.timelineDot, { backgroundColor: tone.text }]} />
+              {!isLast ? <View style={styles.timelineLine} /> : null}
+            </View>
+
+            <View style={styles.timelineBody}>
+              <Text style={styles.timelineTitle}>{formatStatus(event?.status)}</Text>
+              <Text style={styles.timelineMeta}>{formatDateTime(event?.created_at)}</Text>
+              {event?.note ? <Text style={styles.timelineNote}>{event.note}</Text> : null}
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function OrderCard({ order, actions = [], children, defaultExpanded = false }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const tone = getStatusTone(order?.status);
   const latestEvent = getLatestEvent(order);
+  const hasTimeline = Array.isArray(order?.events) && order.events.length > 0;
 
   return (
     <View style={styles.orderCard}>
@@ -281,57 +348,69 @@ function OrderCard({ order, actions = [] }) {
 
       <View style={styles.metaList}>
         <MetaLine icon="bag-handle-outline" label={`Vendor #${order?.vendor_id || '—'}`} />
+        <MetaLine icon="wallet-outline" label={`${money(order?.total_amount)} · ${String(order?.payment_method || '').toUpperCase()}`} />
         <MetaLine
-          icon="wallet-outline"
-          label={`${money(order?.total_amount)} · ${String(order?.payment_method || '').toUpperCase()}`}
+          icon="card-outline"
+          label={`Payment ${formatStatus(order?.payment_status || 'PENDING')}`}
         />
         <MetaLine
           icon="time-outline"
           label={
             latestEvent
               ? `${formatStatus(latestEvent.status)} · ${formatDateTime(latestEvent.created_at)}`
-              : formatDateTime(order?.created_at)
+              : 'Timeline not available yet'
           }
         />
         {order?.partner_id ? <MetaLine icon="person-outline" label={`Partner #${order.partner_id}`} /> : null}
       </View>
 
       {actions.length ? <View style={styles.buttonRow}>{actions}</View> : null}
+
+      {hasTimeline ? (
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={styles.expandRow}
+          onPress={() => setExpanded((current) => !current)}>
+          <Ionicons
+            name={expanded ? 'chevron-up-outline' : 'chevron-down-outline'}
+            size={16}
+            color={COLORS.muted}
+          />
+          <Text style={styles.expandRowText}>{expanded ? 'Hide timeline' : 'Show timeline'}</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {expanded ? <Timeline events={order?.events || []} /> : null}
+      {children}
     </View>
   );
 }
 
-function MetaLine({ icon, label }) {
-  return (
-    <View style={styles.metaLine}>
-      <Ionicons name={icon} size={15} color={COLORS.subtle} />
-      <Text style={styles.metaLineText}>{label}</Text>
-    </View>
+function DeliveryIndexScreen({
+  state,
+  setAvailability,
+  saveLocation,
+  setLocationForm,
+  refresh,
+  loadingAction,
+}) {
+  const summary = state.partnerStatus?.summary || {};
+  const latestLocation = state.partnerStatus?.latest_location || null;
+  const isAvailable = Boolean(
+    state.partnerStatus?.partner?.is_available ?? state.profile?.is_partner_available
   );
-}
-
-function DeliveryIndexScreen({ state, setAvailability, refresh, loadingAction }) {
-  const { profile, orders } = state;
 
   const activeOrders = useMemo(
     () =>
-      orders.filter((item) =>
-        ['ASSIGNED_TO_PARTNER', 'READY_FOR_PICKUP', 'PICKED_UP'].includes(
-          String(item.status || '').toUpperCase()
-        )
+      state.orders.filter((item) =>
+        DELIVERY_ACTIVE_STATUSES.includes(String(item.status || '').toUpperCase())
       ),
-    [orders]
+    [state.orders]
   );
+
   const deliveredOrders = useMemo(
-    () => orders.filter((item) => String(item.status || '').toUpperCase() === 'DELIVERED'),
-    [orders]
-  );
-  const codCash = useMemo(
-    () =>
-      deliveredOrders
-        .filter((item) => String(item.payment_method || '').toUpperCase() === 'COD')
-        .reduce((sum, item) => sum + Number(item.total_amount || 0), 0),
-    [deliveredOrders]
+    () => state.orders.filter((item) => String(item.status || '').toUpperCase() === 'DELIVERED'),
+    [state.orders]
   );
 
   return (
@@ -339,61 +418,148 @@ function DeliveryIndexScreen({ state, setAvailability, refresh, loadingAction })
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
       <SectionCard
-        title="Go online and pick your next trip"
-        subtitle="This replaces the placeholder shell with a working operations dashboard."
+        title="Go online and manage your active trips"
+        subtitle="This version upgrades the rider app from a shell into an operational dashboard with status, trip counts, and location sync."
         right={
           <View style={styles.switchWrap}>
-            <Text style={styles.switchLabel}>{profile?.is_partner_available ? 'Online' : 'Offline'}</Text>
+            <Text style={styles.switchLabel}>{isAvailable ? 'Online' : 'Offline'}</Text>
             <Switch
-              value={Boolean(profile?.is_partner_available)}
+              value={isAvailable}
               onValueChange={setAvailability}
               trackColor={{ false: '#DCCFC2', true: '#F0B99F' }}
-              thumbColor={profile?.is_partner_available ? COLORS.brand : '#FFFFFF'}
+              thumbColor={isAvailable ? COLORS.brand : '#FFFFFF'}
             />
           </View>
         }>
         <View style={styles.kpiGrid}>
-          <KpiTile icon="navigate-outline" label="Active trips" value={String(activeOrders.length)} tone="brand" />
+          <KpiTile
+            icon="navigate-outline"
+            label="Active trips"
+            value={String(summary.active_order_count ?? activeOrders.length)}
+            tone="brand"
+          />
           <KpiTile
             icon="checkmark-done-outline"
             label="Delivered"
-            value={String(deliveredOrders.length)}
+            value={String(summary.delivered_order_count ?? deliveredOrders.length)}
             tone="success"
           />
-          <KpiTile icon="cash-outline" label="COD in hand" value={money(codCash)} tone="info" />
-          <KpiTile icon="calendar-outline" label="Joined" value={formatDate(profile?.created_at)} tone="warning" />
+          <KpiTile
+            icon="cash-outline"
+            label="COD collected"
+            value={money(summary.cod_cash_collected)}
+            tone="info"
+          />
+          <KpiTile
+            icon="cube-outline"
+            label="Assigned / ready"
+            value={String(summary.assigned_order_count ?? 0)}
+            tone="warning"
+          />
         </View>
       </SectionCard>
 
-      <SectionCard title="Pickup queue" subtitle="Orders assigned to this rider right now.">
-        {activeOrders.length ? (
-          activeOrders.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              actions={[
-                String(order.status || '').toUpperCase() !== 'PICKED_UP' ? (
-                  <PrimaryButton
-                    key="pickup"
-                    label="Mark picked up"
-                    icon="hand-left-outline"
-                    onPress={() => state.pickup(order.id)}
-                    disabled={loadingAction}
-                    tone="brand"
-                  />
-                ) : (
-                  <PrimaryButton
-                    key="deliver"
-                    label="Mark delivered"
-                    icon="checkmark-circle-outline"
-                    onPress={() => state.deliver(order.id)}
-                    disabled={loadingAction}
-                    tone="success"
-                  />
-                ),
-              ]}
+      <SectionCard
+        title="Location sync"
+        subtitle="Swiggy-grade rider apps use background GPS. Until you add that stack, this gives you a working manual location sync against the backend.">
+        {latestLocation ? (
+          <View style={styles.inlineBanner}>
+            <Ionicons name="locate-outline" size={16} color={COLORS.info} />
+            <Text style={styles.inlineBannerText}>
+              Last location update: {formatDateTime(latestLocation.created_at)}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.inlineBannerWarning}>
+            <Ionicons name="alert-circle-outline" size={16} color={COLORS.warning} />
+            <Text style={styles.inlineBannerText}>No rider location has been synced yet.</Text>
+          </View>
+        )}
+
+        <View style={styles.twoColRow}>
+          <View style={styles.flexOne}>
+            <TextField
+              label="Latitude"
+              value={state.locationForm.lat}
+              onChangeText={(value) => setLocationForm((current) => ({ ...current, lat: value }))}
+              placeholder="12.9716"
+              keyboardType="decimal-pad"
             />
-          ))
+          </View>
+          <View style={styles.gapCol} />
+          <View style={styles.flexOne}>
+            <TextField
+              label="Longitude"
+              value={state.locationForm.lng}
+              onChangeText={(value) => setLocationForm((current) => ({ ...current, lng: value }))}
+              placeholder="77.5946"
+              keyboardType="decimal-pad"
+            />
+          </View>
+        </View>
+
+        <View style={styles.twoColRow}>
+          <View style={styles.flexOne}>
+            <TextField
+              label="Heading (optional)"
+              value={state.locationForm.heading}
+              onChangeText={(value) => setLocationForm((current) => ({ ...current, heading: value }))}
+              placeholder="180"
+              keyboardType="decimal-pad"
+            />
+          </View>
+          <View style={styles.gapCol} />
+          <View style={styles.flexOne}>
+            <TextField
+              label="Speed (optional)"
+              value={state.locationForm.speed}
+              onChangeText={(value) => setLocationForm((current) => ({ ...current, speed: value }))}
+              placeholder="24"
+              keyboardType="decimal-pad"
+            />
+          </View>
+        </View>
+
+        <PrimaryButton
+          label="Sync rider location"
+          icon="locate-outline"
+          onPress={saveLocation}
+          disabled={loadingAction}
+          tone="brand"
+        />
+      </SectionCard>
+
+      <SectionCard
+        title="Live pickup / delivery queue"
+        subtitle="These are the orders a rider should be able to act on without opening another screen.">
+        {activeOrders.length ? (
+          activeOrders.map((order) => {
+            const isPickedUp = String(order.status || '').toUpperCase() === 'PICKED_UP';
+
+            return (
+              <OrderCard
+                key={order.id}
+                order={order}
+                actions={[
+                  <PrimaryButton
+                    key={isPickedUp ? 'deliver' : 'pickup'}
+                    label={isPickedUp ? 'Mark delivered' : 'Mark picked up'}
+                    icon={isPickedUp ? 'checkmark-circle-outline' : 'bag-check-outline'}
+                    onPress={() => (isPickedUp ? state.deliver(order.id) : state.pickup(order.id))}
+                    disabled={loadingAction}
+                    tone={isPickedUp ? 'success' : 'brand'}
+                  />,
+                ]}>
+                {latestLocation ? (
+                  <View style={styles.infoStrip}>
+                    <Text style={styles.infoStripText}>
+                      Latest rider ping at {formatDateTime(latestLocation.created_at)}
+                    </Text>
+                  </View>
+                ) : null}
+              </OrderCard>
+            );
+          })
         ) : (
           <EmptyState
             icon="bicycle-outline"
@@ -407,26 +573,31 @@ function DeliveryIndexScreen({ state, setAvailability, refresh, loadingAction })
 }
 
 function DeliveryOrdersScreen({ state, refresh, loadingAction }) {
-  const active = state.orders.filter((item) =>
-    ['ASSIGNED_TO_PARTNER', 'READY_FOR_PICKUP', 'PICKED_UP'].includes(
-      String(item.status || '').toUpperCase()
-    )
+  const activeOrders = useMemo(
+    () =>
+      state.orders.filter((item) =>
+        DELIVERY_ACTIVE_STATUSES.includes(String(item.status || '').toUpperCase())
+      ),
+    [state.orders]
   );
-  const completed = state.orders.filter(
-    (item) =>
-      !['ASSIGNED_TO_PARTNER', 'READY_FOR_PICKUP', 'PICKED_UP'].includes(
-        String(item.status || '').toUpperCase()
-      )
+
+  const completedOrders = useMemo(
+    () =>
+      state.orders.filter(
+        (item) => !DELIVERY_ACTIVE_STATUSES.includes(String(item.status || '').toUpperCase())
+      ),
+    [state.orders]
   );
 
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
-      <SectionCard title="Assigned orders" subtitle="Fast action buttons matter for rider-side speed.">
-        {active.length ? (
-          active.map((order) => {
+      <SectionCard title="Assigned orders" subtitle="Fast rider actions matter more than decorative screens.">
+        {activeOrders.length ? (
+          activeOrders.map((order) => {
             const isPickedUp = String(order.status || '').toUpperCase() === 'PICKED_UP';
+
             return (
               <OrderCard
                 key={order.id}
@@ -445,15 +616,19 @@ function DeliveryOrdersScreen({ state, refresh, loadingAction }) {
             );
           })
         ) : (
-          <EmptyState icon="time-outline" title="Nothing assigned" subtitle="Your dispatch queue is empty right now." />
+          <EmptyState
+            icon="time-outline"
+            title="Nothing assigned"
+            subtitle="Your dispatch queue is empty right now."
+          />
         )}
       </SectionCard>
 
       <SectionCard
         title="Recent completed / closed orders"
-        subtitle="Use this to verify handoff flow and state transitions.">
-        {completed.length ? (
-          completed.slice(0, 10).map((order) => <OrderCard key={order.id} order={order} />)
+        subtitle="Delivered and cancelled orders stay visible here so the rider can verify history.">
+        {completedOrders.length ? (
+          completedOrders.slice(0, 12).map((order) => <OrderCard key={order.id} order={order} />)
         ) : (
           <EmptyState
             icon="checkmark-done-outline"
@@ -467,13 +642,22 @@ function DeliveryOrdersScreen({ state, refresh, loadingAction }) {
 }
 
 function DeliveryEarningsScreen({ state, refresh }) {
-  const deliveredOrders = state.orders.filter((item) => String(item.status || '').toUpperCase() === 'DELIVERED');
+  const deliveredOrders = useMemo(
+    () => state.orders.filter((item) => String(item.status || '').toUpperCase() === 'DELIVERED'),
+    [state.orders]
+  );
+
   const codCash = deliveredOrders
     .filter((item) => String(item.payment_method || '').toUpperCase() === 'COD')
     .reduce((sum, item) => sum + Number(item.total_amount || 0), 0);
-  const upiCount = deliveredOrders.filter((item) => String(item.payment_method || '').toUpperCase() === 'UPI').length;
+
+  const upiCount = deliveredOrders.filter(
+    (item) => String(item.payment_method || '').toUpperCase() === 'UPI'
+  ).length;
+
   const avgBasket = deliveredOrders.length
-    ? deliveredOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0) / deliveredOrders.length
+    ? deliveredOrders.reduce((sum, item) => sum + Number(item.total_amount || 0), 0) /
+      deliveredOrders.length
     : 0;
 
   return (
@@ -482,15 +666,15 @@ function DeliveryEarningsScreen({ state, refresh }) {
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
       <SectionCard
         title="Earnings & cash summary"
-        subtitle="This tab is operationally useful now, but true Swiggy-level payouts still need a settlement ledger in the backend.">
+        subtitle="This is much more useful than a placeholder tab, but Swiggy-level payouts still need a real settlement ledger, incentives, and bank transfer records.">
         <View style={styles.kpiGrid}>
           <KpiTile
             icon="checkmark-circle-outline"
-            label="Delivered today"
+            label="Delivered"
             value={String(deliveredOrders.length)}
             tone="success"
           />
-          <KpiTile icon="cash-outline" label="COD to settle" value={money(codCash)} tone="warning" />
+          <KpiTile icon="cash-outline" label="COD in hand" value={money(codCash)} tone="warning" />
           <KpiTile icon="phone-portrait-outline" label="UPI orders" value={String(upiCount)} tone="info" />
           <KpiTile icon="stats-chart-outline" label="Avg basket" value={money(avgBasket)} tone="brand" />
         </View>
@@ -498,14 +682,14 @@ function DeliveryEarningsScreen({ state, refresh }) {
 
       <SectionCard
         title="Delivered order log"
-        subtitle="Use this to reconcile orders while you add partner payout APIs later.">
+        subtitle="Use this while you build a proper rider settlement and payout module in the backend.">
         {deliveredOrders.length ? (
           deliveredOrders.map((order) => <OrderCard key={order.id} order={order} />)
         ) : (
           <EmptyState
             icon="cash-outline"
             title="No delivered orders yet"
-            subtitle="Once deliveries are completed, a usable settlement trail will appear here."
+            subtitle="Once deliveries are completed, a usable payout trail will appear here."
           />
         )}
       </SectionCard>
@@ -514,16 +698,22 @@ function DeliveryEarningsScreen({ state, refresh }) {
 }
 
 function DeliveryAccountScreen({ state, setAvailability, refresh, logout, loadingAction }) {
+  const latestLocation = state.partnerStatus?.latest_location || null;
+  const isAvailable = Boolean(
+    state.partnerStatus?.partner?.is_available ?? state.profile?.is_partner_available
+  );
+
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
-      <SectionCard title="Partner account" subtitle="Separate rider account flows are mandatory for a Swiggy-like experience.">
+      <SectionCard title="Partner account" subtitle="Separate rider identity is mandatory for a Swiggy-like experience.">
         <View style={styles.profileRow}>
           <View style={styles.avatarWrap}>
             <Ionicons name="person-outline" size={26} color={COLORS.brand} />
           </View>
-          <View style={{ flex: 1 }}>
+
+          <View style={styles.flexOne}>
             <Text style={styles.profileTitle}>{state.profile?.email || 'Delivery partner'}</Text>
             <Text style={styles.profileSubtitle}>Role: {formatStatus(state.profile?.role)}</Text>
           </View>
@@ -532,17 +722,24 @@ function DeliveryAccountScreen({ state, setAvailability, refresh, logout, loadin
         <View style={styles.preferenceRow}>
           <Text style={styles.preferenceLabel}>Availability</Text>
           <Switch
-            value={Boolean(state.profile?.is_partner_available)}
+            value={isAvailable}
             onValueChange={setAvailability}
             trackColor={{ false: '#DCCFC2', true: '#F0B99F' }}
-            thumbColor={state.profile?.is_partner_available ? COLORS.brand : '#FFFFFF'}
+            thumbColor={isAvailable ? COLORS.brand : '#FFFFFF'}
           />
         </View>
 
         <View style={styles.metaList}>
           <MetaLine icon="mail-outline" label={state.profile?.email || '—'} />
           <MetaLine icon="calendar-outline" label={`Joined ${formatDate(state.profile?.created_at)}`} />
-          <MetaLine icon="shield-checkmark-outline" label="Operational access is separated from customer checkout." />
+          <MetaLine
+            icon="locate-outline"
+            label={
+              latestLocation
+                ? `Last location ${formatDateTime(latestLocation.created_at)}`
+                : 'No location synced yet'
+            }
+          />
         </View>
 
         <View style={styles.buttonRow}>
@@ -553,7 +750,13 @@ function DeliveryAccountScreen({ state, setAvailability, refresh, logout, loadin
             disabled={loadingAction}
             tone="muted"
           />
-          <PrimaryButton label="Logout" icon="log-out-outline" onPress={logout} disabled={loadingAction} tone="danger" />
+          <PrimaryButton
+            label="Logout"
+            icon="log-out-outline"
+            onPress={logout}
+            disabled={loadingAction}
+            tone="danger"
+          />
         </View>
       </SectionCard>
     </ScrollView>
@@ -561,8 +764,9 @@ function DeliveryAccountScreen({ state, setAvailability, refresh, logout, loadin
 }
 
 function PartnerIndexScreen({ state, refresh, toggleStoreOpen }) {
-  const created = state.orders.filter((item) => String(item.status || '').toUpperCase() === 'CREATED');
-  const ready = state.orders.filter((item) => String(item.status || '').toUpperCase() === 'READY_FOR_PICKUP');
+  const created = state.orders.filter((item) => SELLER_PENDING_STATUSES.includes(String(item.status || '').toUpperCase()));
+  const prep = state.orders.filter((item) => SELLER_PREP_STATUSES.includes(String(item.status || '').toUpperCase()));
+  const ready = state.orders.filter((item) => SELLER_READY_STATUSES.includes(String(item.status || '').toUpperCase()));
   const delivered = state.orders.filter((item) => String(item.status || '').toUpperCase() === 'DELIVERED');
   const activeProducts = state.products.filter((item) => item.is_available).length;
 
@@ -572,7 +776,10 @@ function PartnerIndexScreen({ state, refresh, toggleStoreOpen }) {
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
       <SectionCard
         title={state.vendor?.name || 'Create your outlet profile'}
-        subtitle={state.vendor?.description || 'This screen replaces the placeholder dashboard with real seller controls.'}
+        subtitle={
+          state.vendor?.description ||
+          'This screen now behaves like a real seller dashboard instead of a static shell.'
+        }
         right={
           state.vendor ? (
             <View style={styles.switchWrap}>
@@ -588,15 +795,15 @@ function PartnerIndexScreen({ state, refresh, toggleStoreOpen }) {
         }>
         <View style={styles.kpiGrid}>
           <KpiTile icon="receipt-outline" label="New orders" value={String(created.length)} tone="brand" />
-          <KpiTile icon="cube-outline" label="Ready for pickup" value={String(ready.length)} tone="info" />
+          <KpiTile icon="flame-outline" label="Preparing" value={String(prep.length)} tone="warning" />
+          <KpiTile icon="cube-outline" label="Ready" value={String(ready.length)} tone="info" />
           <KpiTile icon="restaurant-outline" label="Live products" value={String(activeProducts)} tone="success" />
-          <KpiTile icon="checkmark-done-outline" label="Delivered" value={String(delivered.length)} tone="warning" />
         </View>
       </SectionCard>
 
       <SectionCard
         title="Store health"
-        subtitle="These are the minimum controls a seller app needs before you add ads, ratings, and item insights.">
+        subtitle="This is still not full Swiggy standard, but it gives the seller app real operational controls.">
         {state.vendor ? (
           <View style={styles.metaList}>
             <MetaLine icon="location-outline" label={state.vendor.address || 'Add a business address in Account.'} />
@@ -607,6 +814,10 @@ function PartnerIndexScreen({ state, refresh, toggleStoreOpen }) {
             <MetaLine
               icon="time-outline"
               label={state.vendor.is_open ? 'Currently accepting orders' : 'Temporarily paused'}
+            />
+            <MetaLine
+              icon="checkmark-done-outline"
+              label={`${delivered.length} delivered orders recorded`}
             />
           </View>
         ) : (
@@ -619,15 +830,15 @@ function PartnerIndexScreen({ state, refresh, toggleStoreOpen }) {
       </SectionCard>
 
       <SectionCard
-        title="Latest order queue"
-        subtitle="Sellers need fast accept / ready actions without bouncing across placeholder screens.">
+        title="Latest queue"
+        subtitle="Sellers need quick visibility into new, preparing, and ready orders.">
         {state.orders.slice(0, 5).length ? (
           state.orders.slice(0, 5).map((order) => <OrderCard key={order.id} order={order} />)
         ) : (
           <EmptyState
             icon="receipt-outline"
             title="No orders yet"
-            subtitle="Create a customer order and it will show up here instantly."
+            subtitle="Create a customer order and it will show up here."
           />
         )}
       </SectionCard>
@@ -639,6 +850,7 @@ function PartnerCatalogScreen({
   state,
   setProductForm,
   saveProduct,
+  toggleProductAvailability,
   startEditProduct,
   deleteProduct,
   refresh,
@@ -696,9 +908,7 @@ function PartnerCatalogScreen({
             <PrimaryButton
               label="Cancel edit"
               icon="close-outline"
-              onPress={() =>
-                setProductForm({ id: null, name: '', description: '', price: '', is_available: true })
-              }
+              onPress={() => setProductForm({ id: null, name: '', description: '', price: '', is_available: true })}
               disabled={loadingAction}
               tone="muted"
             />
@@ -706,14 +916,16 @@ function PartnerCatalogScreen({
         </View>
       </SectionCard>
 
-      <SectionCard title="Catalog" subtitle="You now have working CRUD instead of a static placeholder screen.">
+      <SectionCard title="Catalog" subtitle="You now have working CRUD plus fast availability toggles.">
         {products.length ? (
           products.map((product) => (
             <View key={product.id} style={styles.catalogCard}>
               <View style={styles.catalogTopRow}>
-                <View style={{ flex: 1 }}>
+                <View style={styles.flexOne}>
                   <Text style={styles.catalogName}>{product.name}</Text>
-                  <Text style={styles.catalogDescription}>{product.description || 'No description added'}</Text>
+                  <Text style={styles.catalogDescription}>
+                    {product.description || 'No description added'}
+                  </Text>
                 </View>
                 <Pill
                   text={product.is_available ? 'Available' : 'Unavailable'}
@@ -732,6 +944,13 @@ function PartnerCatalogScreen({
                     tone="muted"
                   />
                   <PrimaryButton
+                    label={product.is_available ? 'Pause' : 'Enable'}
+                    icon={product.is_available ? 'pause-outline' : 'play-outline'}
+                    onPress={() => toggleProductAvailability(product)}
+                    disabled={loadingAction}
+                    tone="brand"
+                  />
+                  <PrimaryButton
                     label="Delete"
                     icon="trash-outline"
                     onPress={() => deleteProduct(product.id)}
@@ -743,7 +962,11 @@ function PartnerCatalogScreen({
             </View>
           ))
         ) : (
-          <EmptyState icon="restaurant-outline" title="No menu yet" subtitle="Add your first product above and it will appear here." />
+          <EmptyState
+            icon="restaurant-outline"
+            title="No menu yet"
+            subtitle="Add your first product above and it will appear here."
+          />
         )}
       </SectionCard>
     </ScrollView>
@@ -751,14 +974,12 @@ function PartnerCatalogScreen({
 }
 
 function PartnerOrdersScreen({ state, refresh, acceptOrder, readyOrder, rejectOrder, loadingAction }) {
-  const created = state.orders.filter((item) => String(item.status || '').toUpperCase() === 'CREATED');
-  const accepted = state.orders.filter((item) =>
-    ['ACCEPTED_BY_SELLER', 'ASSIGNED_TO_PARTNER'].includes(String(item.status || '').toUpperCase())
-  );
-  const ready = state.orders.filter((item) => String(item.status || '').toUpperCase() === 'READY_FOR_PICKUP');
+  const created = state.orders.filter((item) => SELLER_PENDING_STATUSES.includes(String(item.status || '').toUpperCase()));
+  const preparing = state.orders.filter((item) => SELLER_PREP_STATUSES.includes(String(item.status || '').toUpperCase()));
+  const ready = state.orders.filter((item) => SELLER_READY_STATUSES.includes(String(item.status || '').toUpperCase()));
   const closed = state.orders.filter(
     (item) =>
-      !['CREATED', 'ACCEPTED_BY_SELLER', 'ASSIGNED_TO_PARTNER', 'READY_FOR_PICKUP'].includes(
+      ![...SELLER_PENDING_STATUSES, ...SELLER_PREP_STATUSES, ...SELLER_READY_STATUSES].includes(
         String(item.status || '').toUpperCase()
       )
   );
@@ -794,13 +1015,17 @@ function PartnerOrdersScreen({ state, refresh, acceptOrder, readyOrder, rejectOr
             />
           ))
         ) : (
-          <EmptyState icon="receipt-outline" title="No new orders" subtitle="Fresh customer orders will appear here." />
+          <EmptyState
+            icon="receipt-outline"
+            title="No new orders"
+            subtitle="Fresh customer orders will appear here."
+          />
         )}
       </SectionCard>
 
-      <SectionCard title="Preparing / assigned" subtitle="Mark orders ready without jumping to another shell.">
-        {accepted.length ? (
-          accepted.map((order) => (
+      <SectionCard title="Preparing / assigned" subtitle="Mark orders ready without opening another app shell.">
+        {preparing.length ? (
+          preparing.map((order) => (
             <OrderCard
               key={order.id}
               order={order}
@@ -825,7 +1050,7 @@ function PartnerOrdersScreen({ state, refresh, acceptOrder, readyOrder, rejectOr
         )}
       </SectionCard>
 
-      <SectionCard title="Ready / closed orders" subtitle="Useful for kitchen visibility and verifying the dispatch flow.">
+      <SectionCard title="Ready / closed orders" subtitle="Useful for kitchen visibility and dispatch verification.">
         {[...ready, ...closed].length ? (
           [...ready, ...closed].slice(0, 12).map((order) => <OrderCard key={order.id} order={order} />)
         ) : (
@@ -847,7 +1072,7 @@ function PartnerAccountScreen({ state, setVendorForm, saveVendor, refresh, logou
     <ScrollView
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
-      <SectionCard title="Store settings" subtitle="Sellers need editable business info, not the customer profile screen.">
+      <SectionCard title="Store settings" subtitle="Sellers need editable business information and operational controls.">
         <TextField
           label="Store name"
           value={vendorForm.name}
@@ -908,11 +1133,17 @@ function PartnerAccountScreen({ state, setVendorForm, saveVendor, refresh, logou
             disabled={loadingAction}
             tone="brand"
           />
-          <PrimaryButton label="Logout" icon="log-out-outline" onPress={logout} disabled={loadingAction} tone="danger" />
+          <PrimaryButton
+            label="Logout"
+            icon="log-out-outline"
+            onPress={logout}
+            disabled={loadingAction}
+            tone="danger"
+          />
         </View>
       </SectionCard>
 
-      <SectionCard title="Logged-in business account" subtitle="Keep seller identity separate from rider and consumer roles.">
+      <SectionCard title="Logged-in business account" subtitle="Keep seller identity separate from rider and customer roles.">
         <View style={styles.metaList}>
           <MetaLine icon="mail-outline" label={state.profile?.email || '—'} />
           <MetaLine icon="shield-checkmark-outline" label={`Role: ${formatStatus(state.profile?.role)}`} />
@@ -931,9 +1162,16 @@ export default function OperationsScreen({ variant, screen }) {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingAction, setLoadingAction] = useState(false);
   const [profile, setProfile] = useState(contextProfile || null);
+  const [partnerStatus, setPartnerStatus] = useState(null);
   const [orders, setOrders] = useState([]);
   const [vendor, setVendor] = useState(null);
   const [products, setProducts] = useState([]);
+  const [locationForm, setLocationForm] = useState({
+    lat: '',
+    lng: '',
+    heading: '',
+    speed: '',
+  });
   const [productForm, setProductForm] = useState({
     id: null,
     name: '',
@@ -963,13 +1201,40 @@ export default function OperationsScreen({ variant, screen }) {
         if (!silent) setRefreshing(true);
 
         if (variant === 'delivery') {
-          const [profileResponse, orderResponse] = await Promise.all([
+          const [profileResponse, statusResponse, orderResponse] = await Promise.all([
             request('/me/profile', authToken),
-            request('/partner/orders', authToken),
+            request('/partner/status', authToken).catch((error) => {
+              if (error?.status === 404) return null;
+              throw error;
+            }),
+            request('/partner/orders', authToken, { query: { limit: 100 } }),
           ]);
 
           setProfile(profileResponse || null);
+          setPartnerStatus(statusResponse || null);
           setOrders(Array.isArray(orderResponse) ? orderResponse : []);
+
+          if (statusResponse?.latest_location) {
+            setLocationForm({
+              lat:
+                statusResponse.latest_location.lat != null
+                  ? String(statusResponse.latest_location.lat)
+                  : '',
+              lng:
+                statusResponse.latest_location.lng != null
+                  ? String(statusResponse.latest_location.lng)
+                  : '',
+              heading:
+                statusResponse.latest_location.heading != null
+                  ? String(statusResponse.latest_location.heading)
+                  : '',
+              speed:
+                statusResponse.latest_location.speed != null
+                  ? String(statusResponse.latest_location.speed)
+                  : '',
+            });
+          }
+
           return;
         }
 
@@ -990,6 +1255,7 @@ export default function OperationsScreen({ variant, screen }) {
         ]);
 
         setProfile(profileResponse || null);
+        setPartnerStatus(null);
         setVendor(vendorResponse || null);
         setProducts(Array.isArray(productResponse) ? productResponse : []);
         setOrders(Array.isArray(orderResponse) ? orderResponse : []);
@@ -1006,8 +1272,7 @@ export default function OperationsScreen({ variant, screen }) {
           is_open: nextVendor?.is_open !== false,
         });
       } catch (error) {
-        const message = error?.message || 'Could not load this screen.';
-        Alert.alert(`${appVariantName} sync failed`, message);
+        Alert.alert(`${appVariantName} sync failed`, error?.message || 'Could not load this screen.');
         if (error?.status === 401) {
           logout().catch(() => {});
         }
@@ -1022,6 +1287,8 @@ export default function OperationsScreen({ variant, screen }) {
     if (!sessionReady || !isAuthenticated || !authToken) return;
     loadData({ silent: false }).catch(() => {});
   }, [authToken, isAuthenticated, loadData, sessionReady]);
+
+  const refresh = useCallback(() => loadData({ silent: false }), [loadData]);
 
   const runAction = useCallback(
     async (work, successMessage) => {
@@ -1048,14 +1315,10 @@ export default function OperationsScreen({ variant, screen }) {
     (value) => {
       runAction(
         async () => {
-          const response = await request('/partner/availability', authToken, {
+          await request('/partner/availability', authToken, {
             method: 'POST',
             query: { is_available: value },
           });
-          setProfile((current) => ({
-            ...(current || {}),
-            is_partner_available: Boolean(response?.is_available),
-          }));
         },
         value
           ? 'Availability updated. The app will keep you offline if you already have an active trip.'
@@ -1064,6 +1327,35 @@ export default function OperationsScreen({ variant, screen }) {
     },
     [authToken, runAction]
   );
+
+  const saveLocation = useCallback(() => {
+    const lat = Number(locationForm.lat);
+    const lng = Number(locationForm.lng);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      Alert.alert('Location required', 'Enter valid latitude and longitude values first.');
+      return;
+    }
+
+    const payload = { lat, lng };
+    const heading = Number(locationForm.heading);
+    const speed = Number(locationForm.speed);
+
+    if (locationForm.heading.trim() && Number.isFinite(heading)) {
+      payload.heading = heading;
+    }
+
+    if (locationForm.speed.trim() && Number.isFinite(speed)) {
+      payload.speed = speed;
+    }
+
+    runAction(async () => {
+      await request('/partner/location', authToken, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    }, 'Rider location synced.');
+  }, [authToken, locationForm, runAction]);
 
   const pickup = useCallback(
     (orderId) => {
@@ -1171,6 +1463,18 @@ export default function OperationsScreen({ variant, screen }) {
     }, productForm.id ? 'Menu item updated.' : 'Menu item added.');
   }, [authToken, productForm, runAction]);
 
+  const toggleProductAvailability = useCallback(
+    (product) => {
+      runAction(async () => {
+        await request(`/seller/products/${product.id}`, authToken, {
+          method: 'PATCH',
+          body: JSON.stringify({ is_available: !product.is_available }),
+        });
+      }, `${product.name} is now ${product.is_available ? 'paused' : 'available'}.`);
+    },
+    [authToken, runAction]
+  );
+
   const startEditProduct = useCallback((product) => {
     setProductForm({
       id: product.id,
@@ -1249,11 +1553,13 @@ export default function OperationsScreen({ variant, screen }) {
   const state = {
     refreshing,
     profile,
+    partnerStatus,
     orders,
     vendor,
     products,
     productForm,
     vendorForm,
+    locationForm,
     pickup,
     deliver,
   };
@@ -1261,6 +1567,7 @@ export default function OperationsScreen({ variant, screen }) {
   if (!sessionReady) {
     return (
       <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.page} />
         <View style={styles.centerState}>
           <ActivityIndicator color={COLORS.brand} />
           <Text style={styles.centerTitle}>Preparing {appVariantName}</Text>
@@ -1273,6 +1580,7 @@ export default function OperationsScreen({ variant, screen }) {
   if (!isAuthenticated) {
     return (
       <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.page} />
         <View style={styles.centerState}>
           <Ionicons name="lock-closed-outline" size={28} color={COLORS.brand} />
           <Text style={styles.centerTitle}>Sign in required</Text>
@@ -1286,65 +1594,86 @@ export default function OperationsScreen({ variant, screen }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.page} />
+
       <View style={styles.wrapper}>
         {variant === 'delivery' && screen === 'index' ? (
           <DeliveryIndexScreen
             state={state}
             setAvailability={setAvailability}
-            refresh={loadData}
+            saveLocation={saveLocation}
+            setLocationForm={setLocationForm}
+            refresh={refresh}
             loadingAction={loadingAction}
           />
         ) : null}
+
         {variant === 'delivery' && screen === 'orders' ? (
-          <DeliveryOrdersScreen state={state} refresh={loadData} loadingAction={loadingAction} />
+          <DeliveryOrdersScreen
+            state={state}
+            refresh={refresh}
+            loadingAction={loadingAction}
+          />
         ) : null}
+
         {variant === 'delivery' && screen === 'earnings' ? (
-          <DeliveryEarningsScreen state={state} refresh={loadData} />
+          <DeliveryEarningsScreen state={state} refresh={refresh} />
         ) : null}
+
         {variant === 'delivery' && screen === 'account' ? (
           <DeliveryAccountScreen
             state={state}
             setAvailability={setAvailability}
-            refresh={loadData}
+            refresh={refresh}
             logout={logout}
             loadingAction={loadingAction}
           />
         ) : null}
+
         {variant === 'partner' && screen === 'index' ? (
-          <PartnerIndexScreen state={state} refresh={loadData} toggleStoreOpen={toggleStoreOpen} />
+          <PartnerIndexScreen
+            state={state}
+            refresh={refresh}
+            toggleStoreOpen={toggleStoreOpen}
+          />
         ) : null}
+
         {variant === 'partner' && screen === 'catalog' ? (
           <PartnerCatalogScreen
             state={state}
             setProductForm={setProductForm}
             saveProduct={saveProduct}
+            toggleProductAvailability={toggleProductAvailability}
             startEditProduct={startEditProduct}
             deleteProduct={deleteProduct}
-            refresh={loadData}
+            refresh={refresh}
             loadingAction={loadingAction}
           />
         ) : null}
+
         {variant === 'partner' && screen === 'orders' ? (
           <PartnerOrdersScreen
             state={state}
-            refresh={loadData}
+            refresh={refresh}
             acceptOrder={acceptOrder}
             readyOrder={readyOrder}
             rejectOrder={rejectOrder}
             loadingAction={loadingAction}
           />
         ) : null}
+
         {variant === 'partner' && screen === 'account' ? (
           <PartnerAccountScreen
             state={state}
             setVendorForm={setVendorForm}
             saveVendor={saveVendor}
-            refresh={loadData}
+            refresh={refresh}
             logout={logout}
             loadingAction={loadingAction}
           />
         ) : null}
       </View>
+
       <View style={{ height: tabBarHeight + 12 }} />
     </SafeAreaView>
   );
@@ -1458,6 +1787,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  primaryButton: {
+    minHeight: 42,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  primaryButtonText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  fieldWrap: {
+    marginBottom: 12,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.muted,
+    marginBottom: 6,
+  },
+  input: {
+    minHeight: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceAlt,
+    paddingHorizontal: 14,
+    color: COLORS.text,
+    fontSize: 14,
+  },
+  inputMultiline: {
+    minHeight: 88,
+    textAlignVertical: 'top',
+    paddingTop: 12,
+  },
   orderCard: {
     borderRadius: 18,
     padding: 14,
@@ -1508,43 +1875,134 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 14,
   },
-  primaryButton: {
-    minHeight: 42,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    borderWidth: 1,
+  expandRow: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    gap: 4,
   },
-  primaryButtonText: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  fieldWrap: {
-    marginBottom: 12,
-  },
-  fieldLabel: {
+  expandRowText: {
     fontSize: 12,
     fontWeight: '700',
     color: COLORS.muted,
-    marginBottom: 6,
   },
-  input: {
-    minHeight: 46,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surfaceAlt,
-    paddingHorizontal: 14,
-    color: COLORS.text,
-    fontSize: 14,
-  },
-  inputMultiline: {
-    minHeight: 88,
-    textAlignVertical: 'top',
+  timelineWrap: {
+    marginTop: 14,
     paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.line,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    minHeight: 58,
+  },
+  timelineRail: {
+    width: 18,
+    alignItems: 'center',
+  },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 5,
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    marginTop: 6,
+    backgroundColor: COLORS.line,
+  },
+  timelineBody: {
+    flex: 1,
+    paddingBottom: 12,
+  },
+  timelineTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  timelineMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    color: COLORS.muted,
+  },
+  timelineNote: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.text,
+  },
+  timelineEmpty: {
+    marginTop: 14,
+    borderRadius: 14,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    padding: 14,
+  },
+  timelineEmptyTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  timelineEmptySubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.muted,
+  },
+  inlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: COLORS.infoSoft,
+    marginBottom: 14,
+  },
+  inlineBannerWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: COLORS.warningSoft,
+    marginBottom: 14,
+  },
+  inlineBannerText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.text,
+  },
+  infoStrip: {
+    marginTop: 12,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+  },
+  infoStripText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.muted,
+  },
+  twoColRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  flexOne: {
+    flex: 1,
+  },
+  gapCol: {
+    width: 10,
   },
   emptyState: {
     alignItems: 'center',
@@ -1632,9 +2090,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   catalogFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     gap: 12,
   },
   catalogPrice: {
