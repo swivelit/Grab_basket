@@ -21,6 +21,7 @@ import MapView, { Marker, Polyline } from 'react-native-maps';
 
 import { useGrabBasket } from '../../../../App';
 import { buildApiUrl } from '../../../config';
+import LiveRouteIntelligenceCard from '../../../components/live-route-intelligence-card';
 
 const COLORS = {
   page: '#FFF9F3',
@@ -565,64 +566,12 @@ function SellerLiveTrackingCard({ order, vendor, tracking, loading, onRefresh })
     tracking?.has_location ? tracking?.lat : null,
     tracking?.has_location ? tracking?.lng : null
   );
-  const routePoint = getTrackingStop({
-    orderStatus: order?.status,
-    pickupPoint,
-    dropPoint,
-  });
-
-  const region = useMemo(
-    () => buildMapRegion([pickupPoint, dropPoint, riderPoint]),
-    [pickupPoint, dropPoint, riderPoint]
-  );
-
-  const polylineCoordinates = useMemo(() => {
-    const points = [pickupPoint];
-
-    if (hasCoordinate(riderPoint)) {
-      points.push(riderPoint);
-    }
-
-    if (hasCoordinate(dropPoint)) {
-      points.push(dropPoint);
-    }
-
-    return points.filter(hasCoordinate);
-  }, [pickupPoint, riderPoint, dropPoint]);
-
-  const openRoute = useCallback(async () => {
-    const url = buildRouteUrl(routePoint, { pickup: pickupPoint });
-
-    if (!url) {
-      Alert.alert('Route unavailable', 'Pickup or drop coordinates are not available for this order yet.');
-      return;
-    }
-
-    const supported = await Linking.canOpenURL(url).catch(() => false);
-    if (!supported) {
-      Alert.alert('Maps unavailable', 'No maps app was found to open the route.');
-      return;
-    }
-
-    await Linking.openURL(url);
-  }, [pickupPoint, routePoint]);
 
   if (loading) {
     return (
       <View style={styles.liveTrackingLoading}>
         <ActivityIndicator color={COLORS.brand} />
         <Text style={styles.liveTrackingLoadingText}>Loading live rider tracking…</Text>
-      </View>
-    );
-  }
-
-  if (!hasCoordinate(pickupPoint) && !hasCoordinate(dropPoint) && !hasCoordinate(riderPoint)) {
-    return (
-      <View style={styles.liveTrackingEmpty}>
-        <Text style={styles.liveTrackingEmptyTitle}>Tracking map will appear after geo setup</Text>
-        <Text style={styles.liveTrackingEmptySubtitle}>
-          Add vendor coordinates and an order delivery address to see pickup, rider, and drop on the seller app.
-        </Text>
       </View>
     );
   }
@@ -640,36 +589,29 @@ function SellerLiveTrackingCard({ order, vendor, tracking, loading, onRefresh })
         </TouchableOpacity>
       </View>
 
-      <View style={styles.liveTrackingMapCard}>
-        {Platform.OS === 'web' ? (
-          <View style={styles.liveTrackingWebFallback}>
-            <Text style={styles.liveTrackingEmptyTitle}>Map preview is only available on iOS and Android.</Text>
-          </View>
-        ) : (
-          <MapView style={styles.liveTrackingMap} initialRegion={region} region={region}>
-            {hasCoordinate(pickupPoint) ? (
-              <Marker coordinate={pickupPoint} title="Pickup" description={vendor?.name || 'Store'} />
-            ) : null}
-
-            {hasCoordinate(dropPoint) ? (
-              <Marker coordinate={dropPoint} title="Drop" description="Customer delivery address" pinColor={COLORS.success} />
-            ) : null}
-
-            {hasCoordinate(riderPoint) ? (
-              <Marker
-                coordinate={riderPoint}
-                title="Rider"
-                description={`Updated ${formatDateTime(tracking?.ts || tracking?.created_at)}`}
-                pinColor={COLORS.brand}
-              />
-            ) : null}
-
-            {polylineCoordinates.length >= 2 ? (
-              <Polyline coordinates={polylineCoordinates} strokeWidth={4} strokeColor={COLORS.black} />
-            ) : null}
-          </MapView>
-        )}
-      </View>
+      <LiveRouteIntelligenceCard
+        orderStatus={order?.status}
+        pickupPoint={pickupPoint}
+        dropPoint={dropPoint}
+        riderPoint={riderPoint}
+        pickupTitle="Pickup"
+        pickupDescription={vendor?.name || 'Store'}
+        dropTitle="Drop"
+        dropDescription="Customer delivery address"
+        riderTitle="Rider"
+        riderDescription={
+          tracking?.has_location
+            ? `Updated ${formatDateTime(tracking?.ts || tracking?.created_at)}`
+            : tracking?.assigned
+              ? 'Partner assigned, waiting for first live location'
+              : 'No partner assigned to this order yet'
+        }
+        emptyTitle="Tracking map will appear after geo setup"
+        emptySubtitle="Add vendor coordinates and an order delivery address to see pickup, rider, and drop with live route ETA on the seller app."
+        webTitle="Map preview is only available on iOS and Android."
+        webSubtitle="The seller app can still open the active stop in the installed maps application."
+        routeUnavailableMessage="Pickup or drop coordinates are not available for this order yet."
+      />
 
       <View style={styles.metaList}>
         <MetaLine icon="storefront-outline" label={vendor?.name || 'Vendor setup not loaded yet'} />
@@ -699,10 +641,6 @@ function SellerLiveTrackingCard({ order, vendor, tracking, loading, onRefresh })
               : 'Drop coordinates unavailable'
           }
         />
-      </View>
-
-      <View style={styles.buttonRow}>
-        <PrimaryButton label="Open route" icon="navigate-outline" tone="muted" onPress={openRoute} />
       </View>
     </View>
   );
