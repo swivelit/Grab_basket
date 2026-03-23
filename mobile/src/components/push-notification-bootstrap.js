@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { DeviceEventEmitter, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
@@ -12,6 +12,7 @@ import { getAppVariant } from '../constants/app-shell';
 import { captureEvent, captureException } from '../lib/telemetry';
 
 const APP_VARIANT = getAppVariant();
+const ORDER_SYNC_EVENT = 'grab_basket:orders_sync_requested';
 const STORAGE_AUTH_TOKEN = `@grab_basket/${APP_VARIANT}/auth_token_v1`;
 const STORAGE_LAST_PUSH_SIGNATURE = `@grab_basket/${APP_VARIANT}/push_registration_signature_v1`;
 
@@ -55,6 +56,12 @@ function getOrdersRoute(variant = APP_VARIANT) {
   if (variant === 'delivery') return '/(delivery)/(tabs)/orders';
   if (variant === 'partner') return '/(partner)/(tabs)/orders';
   return '/(tabs)/account';
+}
+
+function getNotificationOrderRoute(variant = APP_VARIANT) {
+  if (variant === 'delivery') return '/delivery-order/[orderId]';
+  if (variant === 'partner') return '/partner-order/[orderId]';
+  return '/order/[orderId]';
 }
 
 function sanitizeTargetApp(targetApp) {
@@ -118,8 +125,14 @@ export default function PushNotificationBootstrap() {
   const tapHandledRef = useRef('');
 
   const syncOrders = useCallback(() => {
+    DeviceEventEmitter.emit(ORDER_SYNC_EVENT, {
+      app_variant: appVariant || APP_VARIANT,
+      source: 'push',
+      at: Date.now(),
+    });
+
     if (typeof loadOrders === 'function') {
-      loadOrders().catch((error) => {
+      loadOrders({ silent: true }).catch((error) => {
         captureException(error, {
           tags: {
             area: 'push',
@@ -128,7 +141,7 @@ export default function PushNotificationBootstrap() {
         });
       });
     }
-  }, [loadOrders]);
+  }, [appVariant, loadOrders]);
 
   const openOrdersScreen = useCallback(
     (notificationData = {}) => {
@@ -150,12 +163,13 @@ export default function PushNotificationBootstrap() {
 
       syncOrders();
 
-      const fallbackPath = getOrdersRoute(appVariant || APP_VARIANT);
+      const activeVariant = appVariant || APP_VARIANT;
+      const fallbackPath = getOrdersRoute(activeVariant);
       const targetPath = normalizedData.deep_link_path || fallbackPath;
 
       if (normalizedData.order_id) {
         router.push({
-          pathname: targetPath,
+          pathname: getNotificationOrderRoute(activeVariant),
           params: { orderId: normalizedData.order_id },
         });
         return;
