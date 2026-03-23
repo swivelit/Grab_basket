@@ -24,6 +24,7 @@ import * as WebBrowser from 'expo-web-browser';
 
 import { useGrabBasket } from '../../../App';
 import { buildApiUrl } from '../../config';
+import LiveRouteIntelligenceCard from '../../components/live-route-intelligence-card';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -640,130 +641,25 @@ function TrackingMapCard({ order, vendor, partnerLocation }) {
   const pickupPoint = normalizeCoordinate(vendor?.lat, vendor?.lng);
   const dropPoint = normalizeCoordinate(order?.delivery_lat, order?.delivery_lng);
   const riderPoint = normalizeCoordinate(partnerLocation?.lat, partnerLocation?.lng);
-  const routePoint = getTrackingStop({
-    orderStatus: order?.status,
-    pickupPoint,
-    dropPoint,
-  });
-
-  const region = useMemo(
-    () => buildMapRegion([pickupPoint, dropPoint, riderPoint]),
-    [pickupPoint, dropPoint, riderPoint]
-  );
-
-  const polylineCoordinates = useMemo(() => {
-    const points = [pickupPoint];
-    if (hasCoordinate(riderPoint)) points.push(riderPoint);
-    if (hasCoordinate(dropPoint)) points.push(dropPoint);
-    return points.filter(hasCoordinate);
-  }, [pickupPoint, riderPoint, dropPoint]);
-
-  const openRoute = useCallback(async () => {
-    const url = buildRouteUrl(routePoint, {
-      pickup: pickupPoint,
-      rider: riderPoint,
-      orderStatus: order?.status,
-    });
-
-    if (!url) {
-      Alert.alert(
-        'Route unavailable',
-        'Pickup or drop coordinates are not available for this order yet.'
-      );
-      return;
-    }
-
-    const supported = await RNLinking.canOpenURL(url).catch(() => false);
-    if (!supported) {
-      Alert.alert('Maps unavailable', 'No maps app was found to open the route.');
-      return;
-    }
-
-    await RNLinking.openURL(url);
-  }, [order?.status, pickupPoint, riderPoint, routePoint]);
-
-  if (!hasCoordinate(pickupPoint) && !hasCoordinate(dropPoint) && !hasCoordinate(riderPoint)) {
-    return (
-      <View style={styles.emptyPanel}>
-        <Text style={styles.emptyPanelTitle}>Live map unavailable</Text>
-        <Text style={styles.emptyPanelSubtitle}>
-          Add vendor and delivery coordinates to see pickup, drop, and rider movement on the map.
-        </Text>
-      </View>
-    );
-  }
 
   return (
-    <View style={styles.mapWrap}>
-      {Platform.OS === 'web' ? (
-        <View style={styles.emptyPanel}>
-          <Text style={styles.emptyPanelTitle}>
-            Map preview is only available on iOS and Android.
-          </Text>
-          <TouchableOpacity activeOpacity={0.92} style={styles.secondaryButton} onPress={openRoute}>
-            <Ionicons name="navigate-outline" size={16} color={COLORS.text} />
-            <Text style={styles.secondaryButtonText}>Open route</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          <MapView style={styles.map} initialRegion={region} region={region}>
-            {hasCoordinate(pickupPoint) ? (
-              <Marker coordinate={pickupPoint} title="Pickup" description={vendor?.name || 'Pickup point'}>
-                <View style={styles.markerPickup}>
-                  <Ionicons name="storefront-outline" size={14} color="#FFFFFF" />
-                </View>
-              </Marker>
-            ) : null}
-
-            {hasCoordinate(dropPoint) ? (
-              <Marker coordinate={dropPoint} title="Drop" description="Delivery address">
-                <View style={styles.markerDrop}>
-                  <Ionicons name="home-outline" size={14} color="#FFFFFF" />
-                </View>
-              </Marker>
-            ) : null}
-
-            {hasCoordinate(riderPoint) ? (
-              <Marker
-                coordinate={riderPoint}
-                title="Rider"
-                description={`Updated ${formatDateTime(partnerLocation?.created_at)}`}>
-                <View style={styles.markerRider}>
-                  <Ionicons name="bicycle-outline" size={14} color="#FFFFFF" />
-                </View>
-              </Marker>
-            ) : null}
-
-            {polylineCoordinates.length >= 2 ? (
-              <Polyline coordinates={polylineCoordinates} strokeWidth={4} strokeColor={COLORS.brand} />
-            ) : null}
-          </MapView>
-
-          <View style={styles.mapMetaWrap}>
-            <View style={styles.mapLegendRow}>
-              <View style={styles.mapLegendItem}>
-                <View style={[styles.mapLegendDot, { backgroundColor: COLORS.brand }]} />
-                <Text style={styles.mapLegendText}>Pickup</Text>
-              </View>
-              <View style={styles.mapLegendItem}>
-                <View style={[styles.mapLegendDot, { backgroundColor: COLORS.info }]} />
-                <Text style={styles.mapLegendText}>Rider</Text>
-              </View>
-              <View style={styles.mapLegendItem}>
-                <View style={[styles.mapLegendDot, { backgroundColor: COLORS.success }]} />
-                <Text style={styles.mapLegendText}>Drop</Text>
-              </View>
-            </View>
-
-            <TouchableOpacity activeOpacity={0.92} style={styles.secondaryButton} onPress={openRoute}>
-              <Ionicons name="navigate-outline" size={16} color={COLORS.text} />
-              <Text style={styles.secondaryButtonText}>Open route</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
-    </View>
+    <LiveRouteIntelligenceCard
+      orderStatus={order?.status}
+      pickupPoint={pickupPoint}
+      dropPoint={dropPoint}
+      riderPoint={riderPoint}
+      pickupTitle="Pickup"
+      pickupDescription={vendor?.name || 'Pickup point'}
+      dropTitle="Drop"
+      dropDescription="Delivery address"
+      riderTitle="Rider"
+      riderDescription={partnerLocation ? `Updated ${formatDateTime(partnerLocation?.created_at)}` : 'Waiting for rider location'}
+      emptyTitle="Live map unavailable"
+      emptySubtitle="Add vendor and delivery coordinates to see pickup, rider, and drop with live route ETA in the customer app."
+      webTitle="Map preview is only available on iOS and Android."
+      webSubtitle="The customer app can still open the active stop in the installed maps application."
+      routeUnavailableMessage="Pickup or drop coordinates are not available for this order yet."
+    />
   );
 }
 
