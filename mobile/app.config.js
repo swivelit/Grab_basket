@@ -119,6 +119,34 @@ function isHttpUrl(value = '') {
   return /^https?:\/\//i.test(String(value || '').trim());
 }
 
+function safeParseUrl(value = '') {
+  try {
+    return new URL(String(value || '').trim());
+  } catch {
+    return null;
+  }
+}
+
+function isLocalOrPrivateHost(value = '') {
+  const host = String(value || '').trim().toLowerCase();
+
+  if (!host) {
+    return false;
+  }
+
+  return (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '0.0.0.0' ||
+    host === '10.0.2.2' ||
+    host === '10.0.3.2' ||
+    host.endsWith('.local') ||
+    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host)
+  );
+}
+
 function dedupeList(values = []) {
   return Array.from(
     new Set(
@@ -266,6 +294,109 @@ const POSTHOG_ENABLED = readBool(
   'EXPO_PUBLIC_POSTHOG_ENABLED',
   Boolean(POSTHOG_API_KEY)
 );
+
+function buildProductionValidationReport() {
+  const errors = [];
+  const warnings = [];
+
+  const normalizedScheme = String(APP_SCHEME || '').trim().toLowerCase();
+  const parsedApiUrl = safeParseUrl(API_BASE_URL);
+  const parsedPosthogHost = safeParseUrl(POSTHOG_HOST);
+
+  if (APP_ENV !== 'production') {
+    if (!GOOGLE_MAPS_API_KEY) {
+      warnings.push('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is missing. Native maps will render, but route geometry + live ETA will fall back to a simplified preview.');
+    }
+
+    if (!SENTRY_DSN) {
+      warnings.push('EXPO_PUBLIC_SENTRY_DSN is missing. Crash reporting is disabled for this app variant.');
+    }
+
+    if (!POSTHOG_API_KEY) {
+      warnings.push('EXPO_PUBLIC_POSTHOG_API_KEY is missing. Product analytics is disabled for this app variant.');
+    }
+
+    return { errors, warnings };
+  }
+
+  if (!API_BASE_URL) {
+    errors.push('EXPO_PUBLIC_API_BASE_URL is required in production.');
+  } else if (!parsedApiUrl) {
+    errors.push(`EXPO_PUBLIC_API_BASE_URL is invalid: ${API_BASE_URL}`);
+  } else {
+    if (parsedApiUrl.protocol !== 'https:') {
+      errors.push(`EXPO_PUBLIC_API_BASE_URL must use HTTPS in production. Current value: ${API_BASE_URL}`);
+    }
+
+    if (isLocalOrPrivateHost(parsedApiUrl.hostname)) {
+      errors.push(`EXPO_PUBLIC_API_BASE_URL cannot point to localhost or a private LAN in production. Current value: ${API_BASE_URL}`);
+    }
+  }
+
+  if (ALLOW_CLEARTEXT) {
+    errors.push('EXPO_PUBLIC_ALLOW_CLEARTEXT must be false in production.');
+  }
+
+  if (!normalizedScheme) {
+    errors.push('EXPO_PUBLIC_APP_SCHEME is required in production so payment callbacks and deep links can return to the app.');
+  }
+
+  if (!EAS_PROJECT_ID) {
+    errors.push('EXPO_PUBLIC_EAS_PROJECT_ID is required in production so Expo push token registration works reliably in release builds.');
+  }
+
+  if (!GOOGLE_MAPS_API_KEY) {
+    errors.push('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is required in production for live maps, route previews, and ETA calculations.');
+  }
+
+  if (!SENTRY_DSN) {
+    errors.push('EXPO_PUBLIC_SENTRY_DSN is required in production for crash reporting.');
+  }
+
+  if (!POSTHOG_API_KEY) {
+    errors.push('EXPO_PUBLIC_POSTHOG_API_KEY is required in production for analytics.');
+  }
+
+  if (!parsedPosthogHost) {
+    errors.push(`EXPO_PUBLIC_POSTHOG_HOST is invalid: ${POSTHOG_HOST}`);
+  } else if (parsedPosthogHost.protocol !== 'https:') {
+    errors.push(`EXPO_PUBLIC_POSTHOG_HOST must use HTTPS in production. Current value: ${POSTHOG_HOST}`);
+  }
+
+  if (!SENTRY_ENABLED) {
+    warnings.push('Crash reporting will not initialize because EXPO_PUBLIC_SENTRY_ENABLED is false.');
+  }
+
+  if (!POSTHOG_ENABLED) {
+    warnings.push('Analytics will not initialize because EXPO_PUBLIC_POSTHOG_ENABLED is false.');
+  }
+
+  if (SENTRY_UPLOAD_ENABLED && !(SENTRY_ORG && SENTRY_PROJECT && SENTRY_AUTH_TOKEN)) {
+    errors.push('Source-map upload is enabled, but SENTRY_ORG, EXPO_PUBLIC_SENTRY_PROJECT(_VARIANT), and SENTRY_AUTH_TOKEN are not fully configured.');
+  }
+
+  if (!EXPO_OWNER) {
+    warnings.push('EXPO_PUBLIC_EXPO_OWNER is not set. EAS project ownership metadata may be incomplete in release builds.');
+  }
+
+  return { errors, warnings };
+}
+
+const PRODUCTION_VALIDATION = buildProductionValidationReport();
+
+if (PRODUCTION_VALIDATION.warnings.length) {
+  console.warn(
+    `[Grab Basket][${APP_VARIANT}] build warnings:
+- ${PRODUCTION_VALIDATION.warnings.join('\n- ')}`
+  );
+}
+
+if (PRODUCTION_VALIDATION.errors.length) {
+  throw new Error(
+    `[Grab Basket][${APP_VARIANT}] release configuration is invalid:
+- ${PRODUCTION_VALIDATION.errors.join('\n- ')}`
+  );
+}
 
 const pushPermissionLabel = `${APP_NAME} uses notifications for order updates, assignment alerts, and payment status changes.`;
 
@@ -518,6 +649,12 @@ const expoConfig = {
     },
     googleMaps: {
       apiKey: GOOGLE_MAPS_API_KEY,
+    },
+    validation: {
+      release: {
+        errors: PRODUCTION_VALIDATION.errors,
+        warnings: PRODUCTION_VALIDATION.warnings,
+      },
     },
   },
 };

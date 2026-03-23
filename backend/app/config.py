@@ -133,6 +133,56 @@ class Settings(BaseSettings):
     def razorpay_enabled(self) -> bool:
         return bool(self.RAZORPAY_KEY_ID and self.RAZORPAY_KEY_SECRET)
 
+    @property
+    def push_ready(self) -> bool:
+        return bool(self.FCM_SERVICE_ACCOUNT_JSON or self.FCM_SERVICE_ACCOUNT_FILE)
+
+    @property
+    def payment_webhook_ready(self) -> bool:
+        return bool(self.razorpay_enabled and self.PUBLIC_BASE_URL and self.RAZORPAY_WEBHOOK_SECRET)
+
+    @property
+    def release_readiness_report(self) -> dict:
+        errors: list[str] = []
+        warnings: list[str] = []
+
+        if self.razorpay_enabled and not self.PUBLIC_BASE_URL:
+            message = (
+                "PUBLIC_BASE_URL is missing. Hosted Razorpay callbacks may use an internal/private backend URL instead of the public API domain."
+            )
+            if self.is_prod:
+                errors.append(message)
+            else:
+                warnings.append(message)
+
+        if self.razorpay_enabled and not self.RAZORPAY_WEBHOOK_SECRET:
+            message = "RAZORPAY_WEBHOOK_SECRET is missing. Razorpay webhook verification is disabled."
+            if self.is_prod:
+                errors.append(message)
+            else:
+                warnings.append(message)
+
+        if not self.push_ready:
+            warnings.append(
+                "FCM service-account credentials are not configured. Expo push tokens will still work, but direct native FCM sends are disabled."
+            )
+
+        return {
+            "errors": errors,
+            "warnings": warnings,
+            "components": {
+                "payments": {
+                    "razorpay_enabled": self.razorpay_enabled,
+                    "public_base_url_configured": bool(self.PUBLIC_BASE_URL),
+                    "webhook_secret_configured": bool(self.RAZORPAY_WEBHOOK_SECRET),
+                    "webhook_ready": self.payment_webhook_ready,
+                },
+                "push": {
+                    "fcm_service_account_configured": self.push_ready,
+                },
+            },
+        }
+
     @model_validator(mode="after")
     def _validate_prod_safety(self):
         if self.is_prod:
@@ -162,6 +212,11 @@ class Settings(BaseSettings):
                 raise ValueError("PUBLIC_BASE_URL must be a valid absolute http(s) URL")
             if self.is_prod and parsed.scheme != "https":
                 raise ValueError("PUBLIC_BASE_URL must use HTTPS in production")
+
+        if self.is_prod and self.razorpay_enabled and not self.PUBLIC_BASE_URL:
+            raise ValueError(
+                "PUBLIC_BASE_URL must be configured in production when Razorpay is enabled so hosted callbacks can return through the public API domain"
+            )
 
         if self.is_prod and self.razorpay_enabled and not self.RAZORPAY_WEBHOOK_SECRET:
             raise ValueError("RAZORPAY_WEBHOOK_SECRET must be configured in production when Razorpay is enabled")

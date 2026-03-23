@@ -30,11 +30,31 @@ app = FastAPI(
 )
 
 
+def _build_release_readiness_payload() -> dict:
+    report = settings.release_readiness_report
+    return {
+        "env": settings.APP_ENV,
+        "errors": list(report.get("errors") or []),
+        "warnings": list(report.get("warnings") or []),
+        "components": dict(report.get("components") or {}),
+    }
+
+
 @app.on_event("startup")
 def _startup() -> None:
+    readiness = _build_release_readiness_payload()
+
     if settings.RUN_DB_CREATE_ON_STARTUP:
         Base.metadata.create_all(bind=engine)
         logger.warning("Database tables auto-created at startup. Use Alembic migrations outside development.")
+
+    for warning in readiness["warnings"]:
+        logger.warning("Release readiness warning: %s", warning)
+
+    if readiness["errors"]:
+        logger.error("Release readiness errors: %s", readiness["errors"])
+    else:
+        logger.info("Release readiness OK for env=%s", settings.APP_ENV)
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -123,18 +143,21 @@ async def request_context(request: Request, call_next):
 
 @app.get("/")
 def root():
+    readiness = _build_release_readiness_payload()
     return {
-        "ok": True,
+        "ok": not readiness["errors"],
         "message": "GrabBasket backend is live",
         "service": "grabbasket-api",
         "env": settings.APP_ENV,
         "health": "/health",
+        "ready": "/ready",
         "docs": "/docs",
     }
 
 
 @app.get("/health")
 def health():
+    readiness = _build_release_readiness_payload()
     db_ok = False
     try:
         with engine.connect() as conn:
@@ -144,17 +167,25 @@ def health():
         logger.exception("Health check failed")
 
     return {
-        "ok": db_ok,
+        "ok": db_ok and not readiness["errors"],
         "env": settings.APP_ENV,
         "database": "ok" if db_ok else "error",
+        "release_readiness": readiness,
     }
 
 
 @app.get("/ready")
 def ready():
+    readiness = _build_release_readiness_payload()
+
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
-    return {"ok": True, "env": settings.APP_ENV}
+
+    return {
+        "ok": not readiness["errors"],
+        "env": settings.APP_ENV,
+        "release_readiness": readiness,
+    }
 
 
 # Routers
