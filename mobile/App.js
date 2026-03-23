@@ -21,6 +21,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useRouter } from 'expo-router';
+import * as ExpoLinking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { API_CONFIG_ERROR, API_TIMEOUT_MS, buildApiUrl } from './src/config';
 import { getAppShellConfig, getAppVariant } from './src/constants/app-shell';
@@ -43,6 +45,8 @@ const APP_SHELL = getAppShellConfig(APP_VARIANT);
 const APP_VARIANT_NAME = APP_SHELL.appName || 'Grab Basket';
 const APP_ALLOWED_ROLES = [String(APP_SHELL.role || 'CUSTOMER').trim().toUpperCase()];
 const APP_PRIMARY_ROLE = APP_ALLOWED_ROLES[0];
+
+WebBrowser.maybeCompleteAuthSession();
 
 function buildScopedAuthStorageKey(key) {
   return `@grab_basket/${APP_VARIANT}/${key}`;
@@ -564,6 +568,43 @@ function mergeOrderCollections(primary = [], secondary = []) {
     const bTime = new Date(b.createdAt || b.orderedAt || 0).getTime();
     return bTime - aTime;
   });
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizePaymentMethod(value = '') {
+  return String(value || '').trim().toUpperCase();
+}
+
+function normalizeGatewayStatus(value = '') {
+  return String(value || '').trim().toLowerCase();
+}
+
+async function pollGatewayStatus(requestPaymentStatus, orderId, { attempts = 4, delayMs = 1500 } = {}) {
+  let last = null;
+
+  for (let index = 0; index < attempts; index += 1) {
+    last = await requestPaymentStatus(orderId);
+
+    const paymentStatus = normalizePaymentMethod(last?.payment_status);
+    const checkoutStatus = normalizeGatewayStatus(last?.checkout_status);
+
+    if (paymentStatus === 'PAID' || paymentStatus === 'FAILED') {
+      return last;
+    }
+
+    if (['cancelled', 'expired', 'paid'].includes(checkoutStatus)) {
+      return last;
+    }
+
+    if (index < attempts - 1) {
+      await sleep(delayMs);
+    }
+  }
+
+  return last;
 }
 
 async function apiRequest(path, options = {}) {
@@ -1654,6 +1695,11 @@ export function GrabBasketProvider({ children }) {
     [authToken, authorizedRequest]
   );
 
+  const requestPaymentStatus = useCallback(
+    async (orderId) => authorizedRequest(`/payments/${orderId}/status`, { method: 'GET' }),
+    [authorizedRequest]
+  );
+
   const placeOrder = useCallback(
     async ({ paymentMethod = 'COD' } = {}) => {
       if (!APP_ALLOWED_ROLES.includes('CUSTOMER')) {
@@ -1691,13 +1737,16 @@ export function GrabBasketProvider({ children }) {
       try {
         setPlacingOrder(true);
 
+        const normalizedPaymentMethodValue = normalizePaymentMethod(paymentMethod || 'COD');
+        const isOnlinePayment = ['UPI', 'CARD'].includes(normalizedPaymentMethodValue);
+
         const payload = {
           vendor_id: Number(cartVendor?.id ?? cart?.vendorId),
           items: cartItems.map((item) => ({
             product_id: Number(item.id),
             qty: Number(item.qty || 1),
           })),
-          payment_method: String(paymentMethod || 'COD').toUpperCase(),
+          payment_method: normalizedPaymentMethodValue,
           ...(deliveryAddressId ? { delivery_address_id: Number(deliveryAddressId) } : {}),
         };
 
@@ -1706,25 +1755,121 @@ export function GrabBasketProvider({ children }) {
           body: JSON.stringify(payload),
         });
 
-        const normalizedOrder = normalizeOrderRecord(response, {
-          vendors,
-          addresses,
-          serviceHint: normalizedService,
-        });
+        const mergeOrderIntoHistory = (rawOrder) => {
+          const nextOrder = normalizeOrderRecord(rawOrder, {
+            vendors,
+            addresses,
+            serviceHint: normalizedService,
+          });
 
-        if (normalizedOrder) {
-          setOrderHistory((current) => mergeOrderCollections([normalizedOrder], current).slice(0, MAX_ORDERS));
-        }
+          if (!nextOrder) return;
 
+          setOrderHistory((current) =>
+            mergeOrderCollections([nextOrder], current).slice(0, MAX_ORDERS)
+          );
+        };
+
+        mergeOrderIntoHistory(response);
         clearCart();
 
+        if (!isOnlinePayment) {
+          Alert.alert(
+            normalizedService === 'eatout' || normalizedService === 'scenes'
+              ? 'Booking confirmed'
+              : 'Order placed',
+            'Your order has been created successfully.'
+          );
+          return true;
+        }
+
+        const orderId = Number(response?.id);
+        if (!Number.isFinite(orderId) || orderId <= 0) {
+          Alert.alert(
+            'Order created, payment pending',
+            'Your order was created, but the payment session could not be started. Retry payment from Account.'
+          );
+          return true;
+        }
+
+        let session = null;
+        try {
+          session = await authorizedRequest(`/payments/${orderId}/checkout-session`, {
+            method: 'POST',
+            body: JSON.stringify({
+              return_url: ExpoLinking.createURL('/cart'),
+            }),
+          });
+        } catch (sessionError) {
+          Alert.alert(
+            'Order created, payment pending',
+            `${normalizeErrorMessage(sessionError)} You can retry secure checkout from Account.`
+          );
+          return true;
+        }
+
+        const checkoutUrl = String(session?.checkout_url || '').trim();
+        if (!checkoutUrl) {
+          Alert.alert(
+            'Order created, payment pending',
+            'The payment gateway did not return a checkout URL. Retry payment from Account.'
+          );
+          return true;
+        }
+
+        try {
+          await WebBrowser.openAuthSessionAsync(checkoutUrl, ExpoLinking.createURL('/cart'));
+        } catch (browserError) {
+          Alert.alert(
+            'Order created, payment pending',
+            `${normalizeErrorMessage(browserError)} You can retry the payment from Account.`
+          );
+          return true;
+        }
+
+        let gatewayStatus = null;
+        try {
+          gatewayStatus = await pollGatewayStatus(requestPaymentStatus, orderId, {
+            attempts: 5,
+            delayMs: 1500,
+          });
+        } catch (statusError) {
+          Alert.alert(
+            'Order created, payment pending',
+            `${normalizeErrorMessage(statusError)} We could not confirm the payment yet. Retry from Account if needed.`
+          );
+          return true;
+        }
+
+        if (gatewayStatus?.order) {
+          mergeOrderIntoHistory(gatewayStatus.order);
+        } else {
+          loadOrders({ silent: true }).catch(() => {});
+        }
+
+        const paymentStatus = normalizePaymentMethod(gatewayStatus?.payment_status);
+        const checkoutStatus = normalizeGatewayStatus(gatewayStatus?.checkout_status);
+
+        if (paymentStatus === 'PAID') {
+          Alert.alert(
+            'Payment confirmed',
+            normalizedService === 'eatout' || normalizedService === 'scenes'
+              ? 'Your booking is confirmed and the payment was verified on the server.'
+              : 'Your order is confirmed and the payment was verified on the server.'
+          );
+          return true;
+        }
+
+        if (paymentStatus === 'FAILED' || ['cancelled', 'expired'].includes(checkoutStatus)) {
+          Alert.alert(
+            'Payment incomplete',
+            'Your order was created, but the payment did not complete. Reopen secure checkout from Account to finish payment.'
+          );
+          return true;
+        }
+
         Alert.alert(
-          normalizedService === 'eatout' || normalizedService === 'scenes'
-            ? 'Booking confirmed'
-            : 'Order placed',
-          payload.payment_method === 'UPI' && response?.payment_ref
-            ? `Order created successfully. Payment reference: ${response.payment_ref}`
-            : 'Your order has been created successfully.'
+          'Order created, payment pending',
+          'Your order is waiting for final gateway confirmation. Pull to refresh or reopen the payment from Account in a moment.'
         );
 
         return true;
@@ -1745,6 +1890,8 @@ export function GrabBasketProvider({ children }) {
       cartVendor,
       clearCart,
       defaultAddress,
+      loadOrders,
+      requestPaymentStatus,
       vendors,
     ]
   );
@@ -2268,9 +2415,15 @@ export function CartScreen() {
                   active={paymentMethod === 'UPI'}
                   onPress={setPaymentMethod}
                 />
+                <PaymentMethodPill
+                  label="Card"
+                  value="CARD"
+                  active={paymentMethod === 'CARD'}
+                  onPress={setPaymentMethod}
+                />
               </View>
               <Text style={styles.helperText}>
-                Gateway integration is still the next backend step. This patch uses your current API contract.
+                UPI and card now open the hosted secure checkout flow and payment is verified on the server before the order moves forward.
               </Text>
             </View>
 
@@ -2342,8 +2495,12 @@ export function CartScreen() {
                 {placingOrder
                   ? 'Placing order...'
                   : isBooking
-                    ? 'Confirm booking'
-                    : 'Place order'}
+                    ? normalizePaymentMethod(paymentMethod) === 'COD'
+                      ? 'Confirm booking'
+                      : 'Pay & confirm booking'
+                    : normalizePaymentMethod(paymentMethod) === 'COD'
+                      ? 'Place order'
+                      : 'Pay & place order'}
               </Text>
             </TouchableOpacity>
 
