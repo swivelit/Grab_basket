@@ -208,27 +208,50 @@ function initials(name = '') {
 }
 
 function estimateEta(vendor, service = 'food') {
-  if (service === 'warehouse') return '5-15 mins';
-  if (service === 'eatout') return 'Table in 10-15 mins';
+  const eta = Number(vendor?.estimated_delivery_time_min);
+
+  if (service === 'eatout') {
+    if (Number.isFinite(eta) && eta > 0) return `Table in ${Math.max(10, eta)} mins`;
+    return 'Reserve now';
+  }
+
+  if (service === 'scenes') {
+    return 'Instant confirmation';
+  }
+
+  if (Number.isFinite(eta) && eta > 0) {
+    if (eta <= 15) return `${Math.round(eta)} mins`;
+    return `${Math.max(10, Math.round(eta - 5))}-${Math.round(eta)} mins`;
+  }
+
+  if (service === 'warehouse') return '10-20 mins';
   if (vendor?.distance_km != null) {
     if (vendor.distance_km <= 2) return '15-20 mins';
     if (vendor.distance_km <= 5) return '20-30 mins';
   }
-  return '23 mins';
+  return '25-35 mins';
 }
 
 function getVendorRating(vendor) {
-  const seed = Number(vendor?.id || 0) || String(vendor?.name || '').length || 1;
-  return (4.1 + (seed % 8) * 0.1).toFixed(1);
+  const rating = Number(vendor?.avg_rating);
+  if (Number.isFinite(rating) && rating > 0) {
+    return rating.toFixed(1);
+  }
+  return 'New';
 }
 
 function getOfferLabel(vendor, service = 'food') {
-  const food = ['40% OFF', 'FREE DELIVERY', 'UPTO ₹100', 'BESTSELLER'];
-  const mart = ['₹9 DEAL', 'VALUE PICK', 'FAST ADD', 'DAILY SAVER'];
-  const dine = ['FLAT 50% OFF', 'BANK OFFER', 'PRE-BOOK', 'EXTRA CASHBACK'];
-  const set = service === 'warehouse' ? mart : service === 'eatout' ? dine : food;
-  const seed = Number(vendor?.id || 0) || String(vendor?.name || '').length || 0;
-  return set[seed % set.length];
+  if (vendor?.open_now === false) return 'Closed now';
+  if ((service === 'food' || service === 'warehouse') && vendor?.can_deliver === false) {
+    return 'Out of range';
+  }
+  if (vendor?.is_busy) return 'High demand';
+  if (vendor?.accepts_cod === false) return 'Online only';
+  if (Number(vendor?.total_ratings || 0) >= 100) return 'Top rated';
+  if (service === 'eatout') return 'Reserve now';
+  if (service === 'scenes') return 'Limited slots';
+  if (vendor?.distance_km != null && vendor.distance_km <= 2) return 'Free delivery';
+  return 'New on GrabBasket';
 }
 
 function getVendorNote(vendor, service = 'food') {
@@ -242,9 +265,12 @@ function getVendorNote(vendor, service = 'food') {
 }
 
 function getDeliveryLine(vendor, service = 'food') {
-  if (service === 'warehouse') return 'Free delivery above ₹199';
-  if (service === 'eatout') return 'Bill offer available';
+  if (service === 'eatout') return vendor?.open_now === false ? 'Closed for reservations' : 'Table booking available';
+  if (service === 'scenes') return 'Instant confirmation';
+  if (vendor?.can_deliver === false) return 'Outside delivery radius';
   if (vendor?.distance_km != null && vendor.distance_km <= 2) return 'Free delivery';
+  if (vendor?.distance_km != null && vendor.distance_km <= 5) return '₹19 delivery';
+  if (service === 'warehouse') return 'Fast basket delivery';
   return '₹29 delivery';
 }
 
@@ -358,7 +384,30 @@ function SearchBar({ value, onChangeText, onSubmit, placeholder, dark = false })
   );
 }
 
-function HeroBanner({ theme, activeService }) {
+function HeroBanner({ theme, activeService, vendors = [] }) {
+  const etaValues = (vendors || [])
+    .map((vendor) => Number(vendor?.estimated_delivery_time_min))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  const avgEta = etaValues.length
+    ? `${Math.round(etaValues.reduce((sum, value) => sum + value, 0) / etaValues.length)} mins`
+    : activeService === 'eatout'
+      ? 'Reserve now'
+      : activeService === 'scenes'
+        ? `${(vendors || []).length} picks`
+        : 'Live catalog';
+
+  const openCount = (vendors || []).filter((vendor) => vendor?.open_now !== false).length;
+
+  const experienceLabel =
+    activeService === 'warehouse'
+      ? `${openCount} stores live`
+      : activeService === 'eatout'
+        ? `${openCount} tables available`
+        : activeService === 'scenes'
+          ? `${(vendors || []).length} experiences`
+          : `${openCount} kitchens live`;
+
   return (
     <View
       style={[
@@ -369,27 +418,35 @@ function HeroBanner({ theme, activeService }) {
       <Text style={[styles.heroEyebrow, activeService === 'scenes' && styles.heroEyebrowDark]}>
         {theme.bannerEyebrow}
       </Text>
-      <Text style={[styles.heroTitle, activeService === 'scenes' && styles.heroTitleDark]}>{theme.bannerTitle}</Text>
-      <Text style={[styles.heroCopy, activeService === 'scenes' && styles.heroCopyDark]}>{theme.bannerCopy}</Text>
+      <Text style={[styles.heroTitle, activeService === 'scenes' && styles.heroTitleDark]}>
+        {theme.bannerTitle}
+      </Text>
+      <Text style={[styles.heroCopy, activeService === 'scenes' && styles.heroCopyDark]}>
+        {theme.bannerCopy}
+      </Text>
 
       <View style={styles.heroStatRow}>
         <View style={[styles.heroStat, activeService === 'scenes' && styles.heroStatDark]}>
-          <Text style={[styles.heroStatLabel, activeService === 'scenes' && styles.heroStatLabelDark]}>Avg ETA</Text>
+          <Text style={[styles.heroStatLabel, activeService === 'scenes' && styles.heroStatLabelDark]}>
+            Avg ETA
+          </Text>
           <Text style={[styles.heroStatValue, activeService === 'scenes' && styles.heroStatValueDark]}>
-            {activeService === 'warehouse' ? '8 min' : activeService === 'eatout' ? '12 min' : activeService === 'scenes' ? '5 picks' : '24 min'}
+            {avgEta}
           </Text>
         </View>
+
         <View style={[styles.heroStat, activeService === 'scenes' && styles.heroStatDark]}>
-          <Text style={[styles.heroStatLabel, activeService === 'scenes' && styles.heroStatLabelDark]}>Experience</Text>
+          <Text style={[styles.heroStatLabel, activeService === 'scenes' && styles.heroStatLabelDark]}>
+            Live now
+          </Text>
           <Text style={[styles.heroStatValue, activeService === 'scenes' && styles.heroStatValueDark]}>
-            {activeService === 'food' ? 'Warmer cards' : activeService === 'warehouse' ? 'Quick add' : activeService === 'eatout' ? 'Offer first' : 'Curated'}
+            {experienceLabel}
           </Text>
         </View>
       </View>
     </View>
   );
 }
-
 function BasketBanner({ cartCount, cartTotal, onPress, dark = false }) {
   if (!cartCount) return null;
 
@@ -726,7 +783,11 @@ export default function HomeScreen() {
             dark={isDark}
           />
 
-          <HeroBanner theme={theme} activeService={activeService} />
+          <HeroBanner
+            theme={theme}
+            activeService={activeService}
+            vendors={featuredVendors?.length ? featuredVendors : vendors}
+          />
         </View>
 
         <View style={[styles.body, isDark && styles.bodyDark]}>

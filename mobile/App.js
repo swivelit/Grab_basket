@@ -363,19 +363,38 @@ function findVendorById(vendors = [], vendorId) {
 
 function estimateEta(vendor, service = 'food') {
   const normalized = mapLegacyService(service);
-  if (normalized === 'warehouse') return '5-15 mins';
-  if (normalized === 'eatout') return 'Table in 10-15 mins';
-  if (normalized === 'scenes') return 'Instant confirmation';
+  const eta = Number(vendor?.estimated_delivery_time_min);
+
+  if (normalized === 'eatout') {
+    if (Number.isFinite(eta) && eta > 0) {
+      return `Table in ${Math.max(10, eta)} mins`;
+    }
+    return 'Reserve now';
+  }
+
+  if (normalized === 'scenes') {
+    return 'Instant confirmation';
+  }
+
+  if (Number.isFinite(eta) && eta > 0) {
+    if (eta <= 15) return `${Math.round(eta)} mins`;
+    return `${Math.max(10, Math.round(eta - 5))}-${Math.round(eta)} mins`;
+  }
+
+  if (normalized === 'warehouse') return '10-20 mins';
   if (vendor?.distance_km != null) {
     if (vendor.distance_km <= 2) return '15-20 mins';
     if (vendor.distance_km <= 5) return '20-30 mins';
   }
-  return '23 mins';
+  return '25-35 mins';
 }
 
 function getVendorRating(vendor) {
-  const seed = Number(vendor?.id || 0) || String(vendor?.name || '').length || 1;
-  return (4.1 + (seed % 8) * 0.1).toFixed(1);
+  const rating = Number(vendor?.avg_rating);
+  if (Number.isFinite(rating) && rating > 0) {
+    return rating.toFixed(1);
+  }
+  return 'New';
 }
 
 function getDeliveryFeeAmount(vendor) {
@@ -384,11 +403,35 @@ function getDeliveryFeeAmount(vendor) {
   return 29;
 }
 
-function buildVendorQuery(search = '', filter = 'All') {
+function buildVendorQuery({ search = '', filter = 'All', service = 'food', address = null } = {}) {
   const params = new URLSearchParams();
   const q = String(search || '').trim();
+  const normalizedService = mapLegacyService(service);
+  const latitude = Number(address?.lat);
+  const longitude = Number(address?.lng);
+
   if (q) params.set('q', q);
-  if (filter === 'Open now') params.set('open_only', 'true');
+  if (normalizedService) params.set('service', normalizedService);
+
+  if (filter === 'Open now') {
+    params.set('open_only', 'true');
+  }
+
+  if (filter === 'Closest') {
+    params.set('sort_by', 'distance');
+  } else if (filter === 'A-Z') {
+    params.set('sort_by', 'a_z');
+  }
+
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    params.set('lat', String(latitude));
+    params.set('lng', String(longitude));
+
+    if (normalizedService === 'food' || normalizedService === 'warehouse') {
+      params.set('deliverable_only', 'true');
+    }
+  }
+
   params.set('limit', '50');
   return `/vendors?${params.toString()}`;
 }
@@ -1169,7 +1212,14 @@ export function GrabBasketProvider({ children }) {
         if (pullToRefresh) setRefreshing(true);
         else setVendorsLoading(true);
 
-        const data = await apiRequest(buildVendorQuery(homeSearch, storeFilter));
+        const data = await apiRequest(
+          buildVendorQuery({
+            search: homeSearch,
+            filter: storeFilter,
+            service: activeService,
+            address: defaultAddress,
+          })
+        );
 
         if (requestId !== vendorRequestIdRef.current) return;
 
@@ -1192,7 +1242,7 @@ export function GrabBasketProvider({ children }) {
         }
       }
     },
-    [homeSearch, storeFilter]
+    [activeService, defaultAddress, homeSearch, storeFilter]
   );
 
   useEffect(() => {
