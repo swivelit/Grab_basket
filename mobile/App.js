@@ -31,6 +31,10 @@ import { getAppShellConfig, getAppVariant } from './src/constants/app-shell';
 export { GrabBasketProvider, useGrabBasket } from './src/providers/grab-basket-provider';
 export { ReorderScreen } from './src/screens/reorder-screen';
 
+export default function AppBridge() {
+  return null;
+}
+
 const GrabBasketContext = createContext(null);
 
 const APP_VARIANT = getAppVariant();
