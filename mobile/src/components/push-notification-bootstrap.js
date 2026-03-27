@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { DeviceEventEmitter, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -390,8 +390,8 @@ export default function PushNotificationBootstrap() {
       });
 
     return () => {
-      Notifications.removeNotificationSubscription(receivedSubscription);
-      Notifications.removeNotificationSubscription(responseSubscription);
+      receivedSubscription?.remove?.();
+      responseSubscription?.remove?.();
     };
   }, [appVariant, openOrdersScreen, syncOrders]);
 
