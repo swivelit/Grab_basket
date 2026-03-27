@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -17,7 +16,10 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useGrabBasket } from '../../App';
-import { buildApiUrl } from '../config';
+import InlineConfirmCard from './inline-confirm-card';
+import InlineErrorCard from './inline-error-card';
+import InlineNoticeCard from './inline-notice-card';
+import { getErrorMessage, requestJson } from '../lib/api-client';
 
 const COLORS = {
   page: '#FFF9F3',
@@ -121,52 +123,13 @@ function getStatusTone(status = '') {
   return { bg: COLORS.warningSoft, text: COLORS.warning, icon: 'time-outline' };
 }
 
-function safeJsonParse(raw) {
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function extractErrorMessage(payload, fallback = 'Something went wrong') {
-  if (typeof payload === 'string' && payload.trim()) return payload.trim();
-  if (payload?.detail && typeof payload.detail === 'string') return payload.detail;
-  if (payload?.error?.message) return payload.error.message;
-  return fallback;
-}
-
-function buildQueryString(params = {}) {
-  const pairs = Object.entries(params)
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
-
-  return pairs.length ? `?${pairs.join('&')}` : '';
-}
-
 async function request(path, token, { method = 'GET', body, query } = {}) {
-  const response = await fetch(`${buildApiUrl(path)}${buildQueryString(query)}`, {
+  return requestJson(path, {
     method,
-    headers: {
-      Accept: 'application/json',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body,
+    token,
+    query,
+    body: typeof body === 'string' ? JSON.parse(body) : body,
   });
-
-  const raw = await response.text();
-  const payload = safeJsonParse(raw);
-
-  if (!response.ok) {
-    const error = new Error(extractErrorMessage(payload, `Request failed with status ${response.status}`));
-    error.status = response.status;
-    throw error;
-  }
-
-  return payload;
 }
 
 function SectionCard({ title, subtitle, right, children }) {
@@ -1188,10 +1151,29 @@ export default function OperationsScreen({ variant, screen }) {
     delivery_radius_km: '5',
     is_open: true,
   });
+  const [inlineError, setInlineError] = useState('');
+  const [inlineNotice, setInlineNotice] = useState(null);
+  const [pendingConfirm, setPendingConfirm] = useState(null);
 
   useEffect(() => {
     setProfile(contextProfile || null);
   }, [contextProfile]);
+
+  const showNotice = useCallback((title, message, tone = 'success') => {
+    setInlineNotice({ title, message, tone });
+  }, []);
+
+  const clearNotice = useCallback(() => {
+    setInlineNotice(null);
+  }, []);
+
+  const showError = useCallback((message, fallback = 'Please try again.') => {
+    setInlineError(getErrorMessage(message, fallback));
+  }, []);
+
+  const clearError = useCallback(() => {
+    setInlineError('');
+  }, []);
 
   const loadData = useCallback(
     async ({ silent = false } = {}) => {
@@ -1272,7 +1254,7 @@ export default function OperationsScreen({ variant, screen }) {
           is_open: nextVendor?.is_open !== false,
         });
       } catch (error) {
-        Alert.alert(`${appVariantName} sync failed`, error?.message || 'Could not load this screen.');
+        showError(error, `${appVariantName} could not load this screen.`);
         if (error?.status === 401) {
           logout().catch(() => {});
         }
@@ -1280,7 +1262,7 @@ export default function OperationsScreen({ variant, screen }) {
         if (!silent) setRefreshing(false);
       }
     },
-    [appVariantName, authToken, logout, variant]
+    [appVariantName, authToken, logout, showError, variant]
   );
 
   useEffect(() => {
@@ -1295,12 +1277,13 @@ export default function OperationsScreen({ variant, screen }) {
       try {
         setLoadingAction(true);
         await work();
+        clearError();
         if (successMessage) {
-          Alert.alert('Done', successMessage);
+          showNotice('Done', successMessage, 'success');
         }
         await loadData({ silent: true });
       } catch (error) {
-        Alert.alert('Action failed', error?.message || 'Please try again.');
+        showError(error, 'Please try again.');
         if (error?.status === 401) {
           logout().catch(() => {});
         }
@@ -1308,7 +1291,7 @@ export default function OperationsScreen({ variant, screen }) {
         setLoadingAction(false);
       }
     },
-    [loadData, logout]
+    [clearError, loadData, logout, showError, showNotice]
   );
 
   const setAvailability = useCallback(
@@ -1333,7 +1316,7 @@ export default function OperationsScreen({ variant, screen }) {
     const lng = Number(locationForm.lng);
 
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      Alert.alert('Location required', 'Enter valid latitude and longitude values first.');
+      showError('Enter valid latitude and longitude values first.', 'Enter valid latitude and longitude values first.');
       return;
     }
 
@@ -1355,7 +1338,7 @@ export default function OperationsScreen({ variant, screen }) {
         body: JSON.stringify(payload),
       });
     }, 'Rider location synced.');
-  }, [authToken, locationForm, runAction]);
+  }, [authToken, locationForm, runAction, showError]);
 
   const pickup = useCallback(
     (orderId) => {
@@ -1384,25 +1367,23 @@ export default function OperationsScreen({ variant, screen }) {
     [authToken, runAction]
   );
 
-  const rejectOrder = useCallback(
-    (orderId) => {
-      Alert.alert('Reject order', `Reject order #${orderId}?`, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reject',
-          style: 'destructive',
-          onPress: () =>
-            runAction(async () => {
-              await request(`/seller/orders/${orderId}/reject`, authToken, {
-                method: 'POST',
-                query: { reason: 'Rejected from seller app' },
-              });
-            }, `Order #${orderId} rejected.`),
-        },
-      ]);
-    },
-    [authToken, runAction]
-  );
+  const rejectOrder = useCallback((orderId) => {
+    setPendingConfirm({
+      title: 'Reject order',
+      message: `Reject order #${orderId}?`,
+      confirmLabel: 'Reject',
+      cancelLabel: 'Keep order',
+      tone: 'danger',
+      execute: () =>
+        runAction(async () => {
+          await request(`/seller/orders/${orderId}/reject`, authToken, {
+            method: 'POST',
+            query: { reason: 'Rejected from seller app' },
+          });
+          setPendingConfirm(null);
+        }, `Order #${orderId} rejected.`),
+    });
+  }, [authToken, runAction]);
 
   const readyOrder = useCallback(
     (orderId) => {
@@ -1429,13 +1410,13 @@ export default function OperationsScreen({ variant, screen }) {
 
   const saveProduct = useCallback(() => {
     if (!productForm.name.trim()) {
-      Alert.alert('Item name required', 'Enter a menu item name first.');
+      showError('Enter a menu item name first.', 'Enter a menu item name first.');
       return;
     }
 
     const price = Number(productForm.price);
     if (!Number.isFinite(price) || price <= 0) {
-      Alert.alert('Invalid price', 'Enter a valid product price.');
+      showError('Enter a valid product price.', 'Enter a valid product price.');
       return;
     }
 
@@ -1461,7 +1442,7 @@ export default function OperationsScreen({ variant, screen }) {
 
       setProductForm({ id: null, name: '', description: '', price: '', is_available: true });
     }, productForm.id ? 'Menu item updated.' : 'Menu item added.');
-  }, [authToken, productForm, runAction]);
+  }, [authToken, productForm, runAction, showError]);
 
   const toggleProductAvailability = useCallback(
     (product) => {
@@ -1485,27 +1466,25 @@ export default function OperationsScreen({ variant, screen }) {
     });
   }, []);
 
-  const deleteProduct = useCallback(
-    (productId) => {
-      Alert.alert('Delete item', 'This will remove the product from your catalog.', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () =>
-            runAction(async () => {
-              await request(`/seller/products/${productId}`, authToken, { method: 'DELETE' });
-            }, 'Product removed.'),
-        },
-      ]);
-    },
-    [authToken, runAction]
-  );
+  const deleteProduct = useCallback((productId) => {
+    setPendingConfirm({
+      title: 'Delete item',
+      message: 'This will remove the product from your catalog.',
+      confirmLabel: 'Delete',
+      cancelLabel: 'Keep item',
+      tone: 'danger',
+      execute: () =>
+        runAction(async () => {
+          await request(`/seller/products/${productId}`, authToken, { method: 'DELETE' });
+          setPendingConfirm(null);
+        }, 'Product removed.'),
+    });
+  }, [authToken, runAction]);
 
   const saveVendor = useCallback(() => {
     const name = vendorForm.name.trim();
     if (!name) {
-      Alert.alert('Store name required', 'Enter a store name first.');
+      showError('Enter a store name first.', 'Enter a store name first.');
       return;
     }
 
@@ -1548,7 +1527,7 @@ export default function OperationsScreen({ variant, screen }) {
         });
       }
     }, vendor ? 'Store settings updated.' : 'Store profile created.');
-  }, [authToken, runAction, vendor, vendorForm]);
+  }, [authToken, runAction, showError, vendor, vendorForm]);
 
   const state = {
     refreshing,
@@ -1597,6 +1576,29 @@ export default function OperationsScreen({ variant, screen }) {
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.page} />
 
       <View style={styles.wrapper}>
+        <View style={styles.feedbackStack}>
+          <InlineErrorCard
+            title={`${appVariantName} sync issue`}
+            message={inlineError}
+            onRetry={refresh}
+            onDismiss={clearError}
+          />
+          <InlineNoticeCard
+            title={inlineNotice?.title || 'Updated'}
+            message={inlineNotice?.message || ''}
+            tone={inlineNotice?.tone || 'success'}
+            onDismiss={clearNotice}
+          />
+          <InlineConfirmCard
+            title={pendingConfirm?.title || 'Please confirm'}
+            message={pendingConfirm?.message || ''}
+            confirmLabel={pendingConfirm?.confirmLabel || 'Confirm'}
+            cancelLabel={pendingConfirm?.cancelLabel || 'Cancel'}
+            tone={pendingConfirm?.tone || 'danger'}
+            onConfirm={() => pendingConfirm?.execute?.()}
+            onCancel={() => setPendingConfirm(null)}
+          />
+        </View>
         {variant === 'delivery' && screen === 'index' ? (
           <DeliveryIndexScreen
             state={state}
@@ -1688,6 +1690,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 12,
+  },
+  feedbackStack: {
+    gap: 12,
+    marginBottom: 14,
   },
   centerState: {
     flex: 1,
