@@ -50,7 +50,9 @@ const DEBOUNCE_MS = 280;
 const FILTERS = [
   { key: 'all', label: 'All', icon: 'apps-outline' },
   { key: 'available', label: 'Available', icon: 'checkmark-circle-outline' },
-  { key: 'unavailable', label: 'Unavailable', icon: 'pause-circle-outline' },
+  { key: 'outofstock', label: 'Out of stock', icon: 'alert-circle-outline' },
+  { key: 'lowstock', label: 'Low stock', icon: 'warning-outline' },
+  { key: 'paused', label: 'Paused', icon: 'pause-circle-outline' },
   { key: 'under199', label: 'Under ₹199', icon: 'pricetag-outline' },
   { key: 'premium', label: 'Premium', icon: 'diamond-outline' },
 ];
@@ -59,6 +61,7 @@ const SORT_OPTIONS = [
   { key: 'relevance', label: 'Relevance' },
   { key: 'name', label: 'Name' },
   { key: 'price', label: 'Price' },
+  { key: 'stock', label: 'Stock' },
   { key: 'availability', label: 'Availability' },
 ];
 
@@ -138,8 +141,92 @@ function getStatusTone(status = '') {
   return { bg: COLORS.warningSoft, text: COLORS.warning, icon: 'time-outline' };
 }
 
+function getStockQty(product) {
+  const value = Number(product?.stock_qty ?? 0);
+  return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
+}
+
+function getMaxQtyPerOrder(product) {
+  const value = Number(product?.max_qty_per_order ?? 20);
+  return Number.isFinite(value) ? Math.max(1, Math.trunc(value)) : 20;
+}
+
+function getInventoryState(product) {
+  const isAvailable = product?.is_available !== false;
+  const stockQty = getStockQty(product);
+
+  if (!isAvailable && stockQty <= 0) {
+    return {
+      key: 'outofstock',
+      label: 'Out of stock',
+      helper: 'Customers cannot order this item until you restock or enable it again.',
+      tone: { bg: COLORS.dangerSoft, text: COLORS.danger, icon: 'alert-circle-outline' },
+    };
+  }
+
+  if (!isAvailable) {
+    return {
+      key: 'paused',
+      label: `Paused · ${stockQty} left`,
+      helper: 'Inventory exists, but ordering is paused for this item.',
+      tone: { bg: COLORS.warningSoft, text: COLORS.warning, icon: 'pause-circle-outline' },
+    };
+  }
+
+  if (stockQty <= 0) {
+    return {
+      key: 'untracked',
+      label: 'Inventory not tracked',
+      helper: 'This item stays orderable until you manually pause it.',
+      tone: { bg: COLORS.infoSoft, text: COLORS.info, icon: 'layers-outline' },
+    };
+  }
+
+  if (stockQty <= 5) {
+    return {
+      key: 'lowstock',
+      label: `Low stock · ${stockQty} left`,
+      helper: 'Restock soon to avoid failed accepts when multiple orders land together.',
+      tone: { bg: COLORS.warningSoft, text: COLORS.warning, icon: 'warning-outline' },
+    };
+  }
+
+  return {
+    key: 'available',
+    label: `${stockQty} in stock`,
+    helper: 'Tracked inventory is healthy for this item right now.',
+    tone: { bg: COLORS.successSoft, text: COLORS.success, icon: 'cube-outline' },
+  };
+}
+
+function createEmptyProductForm() {
+  return {
+    id: null,
+    name: '',
+    description: '',
+    price: '',
+    stock_qty: '',
+    max_qty_per_order: '20',
+    is_available: true,
+  };
+}
+
+function normalizeIntegerInput(value) {
+  return String(value || '').replace(/[^0-9]/g, '');
+}
+
 function productSearchText(product) {
-  return [product?.name, product?.description, product?.price, product?.is_available ? 'available' : 'unavailable']
+  const inventory = getInventoryState(product);
+  return [
+    product?.name,
+    product?.description,
+    product?.price,
+    product?.is_available ? 'available' : 'unavailable',
+    inventory?.label,
+    inventory?.helper,
+    getStockQty(product),
+    getMaxQtyPerOrder(product),
+  ]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
@@ -159,12 +246,17 @@ function getProductScore(product, search) {
 
 function matchesFilter(product, filterKey) {
   const price = Number(product?.price || 0);
+  const inventory = getInventoryState(product);
 
   switch (filterKey) {
     case 'available':
-      return Boolean(product?.is_available);
-    case 'unavailable':
-      return !product?.is_available;
+      return inventory.key === 'available' || inventory.key === 'untracked' || inventory.key === 'lowstock';
+    case 'outofstock':
+      return inventory.key === 'outofstock';
+    case 'lowstock':
+      return inventory.key === 'lowstock';
+    case 'paused':
+      return inventory.key === 'paused';
     case 'under199':
       return price > 0 && price <= 199;
     case 'premium':
@@ -178,6 +270,7 @@ function sortProducts(list = [], sortBy = 'relevance') {
   return [...list].sort((a, b) => {
     if (sortBy === 'name') return String(a?.name || '').localeCompare(String(b?.name || ''));
     if (sortBy === 'price') return Number(a?.price || 0) - Number(b?.price || 0);
+    if (sortBy === 'stock') return getStockQty(b) - getStockQty(a);
     if (sortBy === 'availability') return Number(Boolean(b?.is_available)) - Number(Boolean(a?.is_available));
     return (b.__score || 0) - (a.__score || 0) || String(a?.name || '').localeCompare(String(b?.name || ''));
   });
@@ -204,7 +297,7 @@ function computeQueryData(products = [], search, filterKey, sortBy) {
 function buildSourceSignature(products = []) {
   return (products || [])
     .slice(0, 40)
-    .map((product) => `${product?.id}-${product?.is_available}-${product?.price}-${product?.name}`)
+    .map((product) => `${product?.id}-${product?.is_available}-${product?.price}-${product?.stock_qty}-${product?.max_qty_per_order}-${product?.name}`)
     .join('|');
 }
 
@@ -556,13 +649,7 @@ export default function PartnerCatalogScreen() {
   const [filterKey, setFilterKey] = useState('all');
   const [sortBy, setSortBy] = useState('relevance');
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [productForm, setProductForm] = useState({
-    id: null,
-    name: '',
-    description: '',
-    price: '',
-    is_available: true,
-  });
+  const [productForm, setProductForm] = useState(createEmptyProductForm());
 
   const debouncedSearch = useDebouncedValue(search);
 
@@ -626,10 +713,27 @@ export default function PartnerCatalogScreen() {
       return;
     }
 
+    const stockQtyValue = normalizeIntegerInput(productForm.stock_qty);
+    const maxQtyValue = normalizeIntegerInput(productForm.max_qty_per_order);
+    const stockQty = stockQtyValue === '' ? 0 : Number(stockQtyValue);
+    const maxQtyPerOrder = maxQtyValue === '' ? 20 : Number(maxQtyValue);
+
+    if (!Number.isInteger(stockQty) || stockQty < 0) {
+      Alert.alert('Invalid stock', 'Tracked stock must be a whole number of units.');
+      return;
+    }
+
+    if (!Number.isInteger(maxQtyPerOrder) || maxQtyPerOrder <= 0) {
+      Alert.alert('Invalid order limit', 'Max quantity per order must be at least 1.');
+      return;
+    }
+
     const payload = {
       name: productForm.name.trim(),
       description: productForm.description.trim(),
       price,
+      stock_qty: stockQty,
+      max_qty_per_order: maxQtyPerOrder,
       is_available: Boolean(productForm.is_available),
     };
 
@@ -645,7 +749,7 @@ export default function PartnerCatalogScreen() {
           body: JSON.stringify(payload),
         });
       }
-      setProductForm({ id: null, name: '', description: '', price: '', is_available: true });
+      setProductForm(createEmptyProductForm());
     }, productForm.id ? 'Menu item updated.' : 'Menu item added.');
   }, [authToken, productForm, runAction]);
 
@@ -661,12 +765,48 @@ export default function PartnerCatalogScreen() {
     [authToken, runAction]
   );
 
+  const adjustTrackedStock = useCallback(
+    (product, delta, { enableIfPositive = false, successMessage } = {}) => {
+      const nextStock = Math.max(0, getStockQty(product) + delta);
+      const nextPayload = { stock_qty: nextStock };
+
+      if (enableIfPositive && nextStock > 0) {
+        nextPayload.is_available = true;
+      }
+      if (nextStock === 0 && delta < 0) {
+        nextPayload.is_available = false;
+      }
+
+      runAction(async () => {
+        await request(`/seller/products/${product.id}`, authToken, {
+          method: 'PATCH',
+          body: JSON.stringify(nextPayload),
+        });
+      }, successMessage || `${product.name} stock updated.`);
+    },
+    [authToken, runAction]
+  );
+
+  const markProductSoldOut = useCallback(
+    (product) => {
+      runAction(async () => {
+        await request(`/seller/products/${product.id}`, authToken, {
+          method: 'PATCH',
+          body: JSON.stringify({ stock_qty: 0, is_available: false }),
+        });
+      }, `${product.name} marked out of stock.`);
+    },
+    [authToken, runAction]
+  );
+
   const startEditProduct = useCallback((product) => {
     setProductForm({
       id: product.id,
       name: product.name || '',
       description: product.description || '',
       price: product.price != null ? String(product.price) : '',
+      stock_qty: product?.stock_qty != null ? String(product.stock_qty) : '',
+      max_qty_per_order: product?.max_qty_per_order != null ? String(product.max_qty_per_order) : '20',
       is_available: product.is_available !== false,
     });
   }, []);
@@ -728,13 +868,31 @@ export default function PartnerCatalogScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: tabBarHeight + 20 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
-        <SectionCard title={productForm.id ? 'Edit menu item' : 'Add menu item'} subtitle="Swiggy-level seller apps need menu control, availability control, and fast edits.">
+        <SectionCard title={productForm.id ? 'Edit menu item' : 'Add menu item'} subtitle="Swiggy-level seller apps need menu control, availability control, and real stock visibility.">
           <TextField label="Item name" value={productForm.name} onChangeText={(value) => setProductForm((current) => ({ ...current, name: value }))} placeholder="Paneer Tikka Wrap" />
           <TextField label="Description" value={productForm.description} onChangeText={(value) => setProductForm((current) => ({ ...current, description: value }))} placeholder="Short item description" multiline />
           <TextField label="Price" value={productForm.price} onChangeText={(value) => setProductForm((current) => ({ ...current, price: value }))} placeholder="249" keyboardType="decimal-pad" />
+          <TextField
+            label="Tracked stock units"
+            value={productForm.stock_qty}
+            onChangeText={(value) => setProductForm((current) => ({ ...current, stock_qty: normalizeIntegerInput(value) }))}
+            placeholder="0"
+            keyboardType="number-pad"
+          />
+          <Text style={styles.helperNote}>0 keeps inventory tracking off. To show a true sold-out state, keep this at 0 and switch the item to unavailable, or use the quick Sold out action below.</Text>
+          <TextField
+            label="Max quantity per order"
+            value={productForm.max_qty_per_order}
+            onChangeText={(value) => setProductForm((current) => ({ ...current, max_qty_per_order: normalizeIntegerInput(value) }))}
+            placeholder="20"
+            keyboardType="number-pad"
+          />
 
           <View style={styles.preferenceRow}>
-            <Text style={styles.preferenceLabel}>Available for ordering</Text>
+            <View style={styles.flexOne}>
+              <Text style={styles.preferenceLabel}>Available for ordering</Text>
+              <Text style={styles.helperNote}>Turn this off to pause the item even if stock is still left.</Text>
+            </View>
             <Switch
               value={Boolean(productForm.is_available)}
               onValueChange={(value) => setProductForm((current) => ({ ...current, is_available: value }))}
@@ -745,7 +903,7 @@ export default function PartnerCatalogScreen() {
 
           <View style={styles.buttonRow}>
             <PrimaryButton label={productForm.id ? 'Update item' : 'Add item'} icon="save-outline" onPress={saveProduct} disabled={loadingAction} tone="brand" />
-            {productForm.id ? <PrimaryButton label="Cancel edit" icon="close-outline" onPress={() => setProductForm({ id: null, name: '', description: '', price: '', is_available: true })} disabled={loadingAction} tone="muted" /> : null}
+            {productForm.id ? <PrimaryButton label="Cancel edit" icon="close-outline" onPress={() => setProductForm(createEmptyProductForm())} disabled={loadingAction} tone="muted" /> : null}
           </View>
         </SectionCard>
 
@@ -779,30 +937,71 @@ export default function PartnerCatalogScreen() {
           ) : null}
         </SectionCard>
 
-        <SectionCard title="Catalog" subtitle="You now have working CRUD plus fast availability toggles.">
+        <SectionCard title="Catalog" subtitle="You now have working CRUD, stock-aware status states, and fast availability toggles.">
           {queryState.isLoading ? (
             <EmptyState icon="refresh-outline" title="Loading catalog" subtitle="Preparing cached catalog results for the seller app." />
           ) : queryState.data.items.length ? (
-            queryState.data.items.map((product) => (
-              <View key={product.id} style={styles.catalogCard}>
-                <View style={styles.catalogTopRow}>
-                  <View style={styles.flexOne}>
-                    <Text style={styles.catalogName}>{product.name}</Text>
-                    <Text style={styles.catalogDescription}>{product.description || 'No description added'}</Text>
-                  </View>
-                  <Pill text={product.is_available ? 'Available' : 'Unavailable'} tone={getStatusTone(product.is_available ? 'AVAILABLE' : 'UNAVAILABLE')} />
-                </View>
+            queryState.data.items.map((product) => {
+              const inventoryState = getInventoryState(product);
+              const stockQty = getStockQty(product);
+              const maxQtyPerOrder = getMaxQtyPerOrder(product);
+              const showRestock = inventoryState.key === 'outofstock';
+              const showSoldOut = product?.is_available !== false || stockQty > 0;
 
-                <View style={styles.catalogFooter}>
-                  <Text style={styles.catalogPrice}>{money(product.price)}</Text>
-                  <View style={styles.buttonRow}>
-                    <PrimaryButton label="Edit" icon="create-outline" onPress={() => startEditProduct(product)} disabled={loadingAction} tone="muted" />
-                    <PrimaryButton label={product.is_available ? 'Pause' : 'Enable'} icon={product.is_available ? 'pause-outline' : 'play-outline'} onPress={() => toggleProductAvailability(product)} disabled={loadingAction} tone="brand" />
-                    <PrimaryButton label="Delete" icon="trash-outline" onPress={() => deleteProduct(product.id)} disabled={loadingAction} tone="danger" />
+              return (
+                <View key={product.id} style={styles.catalogCard}>
+                  <View style={styles.catalogTopRow}>
+                    <View style={styles.flexOne}>
+                      <Text style={styles.catalogName}>{product.name}</Text>
+                      <Text style={styles.catalogDescription}>{product.description || 'No description added'}</Text>
+                    </View>
+                    <View style={styles.catalogPillRow}>
+                      <Pill text={product.is_available ? 'Available' : 'Unavailable'} tone={getStatusTone(product.is_available ? 'AVAILABLE' : 'UNAVAILABLE')} />
+                      <Pill text={inventoryState.label} tone={inventoryState.tone} />
+                    </View>
+                  </View>
+
+                  <View style={styles.catalogFooter}>
+                    <Text style={styles.catalogPrice}>{money(product.price)}</Text>
+                    <View style={styles.inventoryMetaCard}>
+                      <Text style={styles.inventoryMetaTitle}>Inventory state</Text>
+                      <Text style={styles.inventoryMetaText}>{inventoryState.helper}</Text>
+                      <View style={styles.inventoryMetaRow}>
+                        <Text style={styles.inventoryMetaChip}>Tracked stock: {stockQty}</Text>
+                        <Text style={styles.inventoryMetaChip}>Max per order: {maxQtyPerOrder}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.buttonRow}>
+                      <PrimaryButton label="Edit" icon="create-outline" onPress={() => startEditProduct(product)} disabled={loadingAction} tone="muted" />
+                      <PrimaryButton label={product.is_available ? 'Pause' : 'Enable'} icon={product.is_available ? 'pause-outline' : 'play-outline'} onPress={() => toggleProductAvailability(product)} disabled={loadingAction} tone="brand" />
+                      {showRestock ? (
+                        <PrimaryButton
+                          label="Restock +10"
+                          icon="add-circle-outline"
+                          onPress={() => adjustTrackedStock(product, 10, { enableIfPositive: true, successMessage: `${product.name} restocked by 10 units.` })}
+                          disabled={loadingAction}
+                          tone="brand"
+                        />
+                      ) : null}
+                      {stockQty > 0 ? (
+                        <PrimaryButton
+                          label="+5 stock"
+                          icon="cube-outline"
+                          onPress={() => adjustTrackedStock(product, 5, { successMessage: `${product.name} stock increased by 5.` })}
+                          disabled={loadingAction}
+                          tone="muted"
+                        />
+                      ) : null}
+                      {showSoldOut ? (
+                        <PrimaryButton label="Sold out" icon="remove-circle-outline" onPress={() => markProductSoldOut(product)} disabled={loadingAction} tone="danger" />
+                      ) : null}
+                      <PrimaryButton label="Delete" icon="trash-outline" onPress={() => deleteProduct(product.id)} disabled={loadingAction} tone="danger" />
+                    </View>
                   </View>
                 </View>
-              </View>
-            ))
+              );
+            })
           ) : (
             <EmptyState
               icon={isQueryActive ? 'search-outline' : 'restaurant-outline'}
@@ -827,6 +1026,7 @@ const styles = StyleSheet.create({
   cardSubtitle: { fontSize: 13, lineHeight: 19, color: COLORS.muted },
   fieldWrap: { marginBottom: 12 },
   fieldLabel: { fontSize: 12, fontWeight: '700', color: COLORS.muted, marginBottom: 6 },
+  helperNote: { fontSize: 12, lineHeight: 18, color: COLORS.subtle, marginTop: -2, marginBottom: 8 },
   input: {
     minHeight: 46,
     borderRadius: 14,
@@ -890,8 +1090,14 @@ const styles = StyleSheet.create({
   catalogCard: { borderRadius: 18, padding: 14, backgroundColor: COLORS.surfaceAlt, borderWidth: 1, borderColor: COLORS.line, marginBottom: 10, gap: 12 },
   catalogTopRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', justifyContent: 'space-between' },
   catalogName: { fontSize: 15, fontWeight: '800', color: COLORS.text },
+  catalogPillRow: { alignItems: 'flex-end', gap: 8 },
   catalogDescription: { fontSize: 13, lineHeight: 19, color: COLORS.muted, marginTop: 4 },
   catalogFooter: { gap: 12 },
+  inventoryMetaCard: { borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.surface, padding: 12, gap: 8 },
+  inventoryMetaTitle: { fontSize: 12, fontWeight: '800', color: COLORS.text },
+  inventoryMetaText: { fontSize: 12, lineHeight: 18, color: COLORS.muted },
+  inventoryMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  inventoryMetaChip: { fontSize: 11, fontWeight: '800', color: COLORS.text, backgroundColor: COLORS.surfaceAlt, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999 },
   catalogPrice: { fontSize: 16, fontWeight: '800', color: COLORS.text },
   buttonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 14 },
   flexOne: { flex: 1 },

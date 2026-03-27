@@ -24,6 +24,10 @@ LOCATION_DEDUP_HEADING_DELTA = 12
 LOCATION_DEDUP_SPEED_DELTA = 2.5
 
 
+def _utcnow() -> datetime:
+    return datetime.utcnow()
+
+
 def _user_tokens(db: Session, user_id: int) -> list[str]:
     return [row.token for row in db.query(FcmToken).filter(FcmToken.user_id == user_id).all()]
 
@@ -163,6 +167,26 @@ def _order_summary(db: Session, partner_id: int) -> dict:
     }
 
 
+def _touch_pickup_timestamps(order: Order) -> datetime:
+    now = _utcnow()
+    if order.assigned_at is None:
+        order.assigned_at = now
+    if order.picked_up_at is None:
+        order.picked_up_at = now
+    return order.picked_up_at or now
+
+
+def _touch_delivery_timestamps(order: Order) -> datetime:
+    now = _utcnow()
+    if order.assigned_at is None:
+        order.assigned_at = now
+    if order.picked_up_at is None:
+        order.picked_up_at = now
+    if order.delivered_at is None:
+        order.delivered_at = now
+    return order.delivered_at or now
+
+
 @router.get("/status", dependencies=[Depends(require_role("PARTNER"))])
 def partner_status(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     latest_loc = _latest_location(db, user.id)
@@ -284,11 +308,26 @@ def pickup(order_id: int, db: Session = Depends(get_db), user: User = Depends(ge
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    if order.status not in {"ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP"}:
+    current_status = str(order.status or "").upper()
+    if current_status == "PICKED_UP":
+        user.is_partner_available = False
+        db.commit()
+        db.refresh(order)
+        return order
+    if current_status == "DELIVERED":
+        raise HTTPException(status_code=400, detail="This order has already been delivered")
+    if current_status not in {"ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP"}:
         raise HTTPException(status_code=400, detail="This order cannot be picked up right now")
 
+    pickup_at = _touch_pickup_timestamps(order)
     user.is_partner_available = False
-    _add_order_event(db, order, "PICKED_UP", "Picked up by delivery partner", actor_user_id=user.id)
+    _add_order_event(
+        db,
+        order,
+        "PICKED_UP",
+        f"Picked up by delivery partner at {pickup_at.strftime('%Y-%m-%d %H:%M:%S')} UTC",
+        actor_user_id=user.id,
+    )
 
     db.commit()
     db.refresh(order)
@@ -309,10 +348,23 @@ def deliver(order_id: int, db: Session = Depends(get_db), user: User = Depends(g
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    if order.status != "PICKED_UP":
+    current_status = str(order.status or "").upper()
+    if current_status == "DELIVERED":
+        _maybe_set_available(db, user)
+        db.commit()
+        db.refresh(order)
+        return order
+    if current_status != "PICKED_UP":
         raise HTTPException(status_code=400, detail="This order cannot be delivered right now")
 
-    _add_order_event(db, order, "DELIVERED", "Delivered by partner", actor_user_id=user.id)
+    delivered_at = _touch_delivery_timestamps(order)
+    _add_order_event(
+        db,
+        order,
+        "DELIVERED",
+        f"Delivered by partner at {delivered_at.strftime('%Y-%m-%d %H:%M:%S')} UTC",
+        actor_user_id=user.id,
+    )
 
     if str(order.payment_method or "").upper() == "COD":
         order.payment_status = "PAID"
