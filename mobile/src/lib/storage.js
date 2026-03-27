@@ -11,6 +11,11 @@ export function buildScopedStorageKey(key, variant = APP_VARIANT) {
   return `${STORAGE_PREFIX}/${variant}/${String(key || '').replace(/^\/+/, '')}`;
 }
 
+export function buildScopedStorageNamespace(namespace, variant = APP_VARIANT) {
+  const scopedKey = buildScopedStorageKey(namespace, variant).replace(/\/+$/, '');
+  return `${scopedKey}/`;
+}
+
 export const STORAGE_KEYS = {
   authToken: buildScopedStorageKey('auth_token_v1'),
   refreshToken: buildScopedStorageKey('auth_refresh_token_v1'),
@@ -25,6 +30,8 @@ export const STORAGE_KEYS = {
   recentSearches: buildScopedStorageKey('recent_searches_v9'),
   orderHistory: buildScopedStorageKey('order_history_v7'),
   pendingCheckoutAttempt: buildScopedStorageKey('pending_checkout_attempt_v2'),
+  pushRegistrationSignature: buildScopedStorageKey('push_registration_signature_v1'),
+  lastBackgroundLocation: buildScopedStorageKey('background_location_last_v1'),
 };
 
 export const LEGACY_STORAGE_KEYS = {
@@ -164,5 +171,29 @@ export async function migrateLegacyAuthStorage() {
   ]);
 
   await clearLegacyAuthStorage();
+  return true;
+}
+
+export async function readStoredJsonValue(key, fallback = null) {
+  const value = await readStoredValue(key);
+
+  if (!value) {
+    return fallback;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+export async function writeStoredJsonValue(key, value) {
+  if (value === undefined) {
+    await removeStoredValue(key);
+    return false;
+  }
+
+  await writeStoredValue(key, JSON.stringify(value));
   return true;
 }

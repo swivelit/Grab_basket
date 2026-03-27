@@ -1,13 +1,13 @@
 import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useGlobalSearchParams, usePathname } from 'expo-router';
 import * as TaskManager from 'expo-task-manager';
 
 import { GrabBasketProvider } from '../../App';
 import PushNotificationBootstrap from '../components/push-notification-bootstrap';
 import { getAppVariant } from '../constants/app-shell';
-import { buildApiUrl } from '../config';
+import { apiPost } from '../lib/api-client';
+import { STORAGE_KEYS, readStoredValue, writeStoredJsonValue } from '../lib/storage';
 import {
   captureEvent,
   captureException,
@@ -46,63 +46,10 @@ type DeliveryLocationTaskPayload = {
   locations?: BackgroundLocation[];
 };
 
-function buildScopedStorageKey(key: string) {
-  return `@grab_basket/${APP_VARIANT}/${key}`;
-}
-
-const STORAGE_AUTH_TOKEN = buildScopedStorageKey('auth_token_v1');
-const STORAGE_AUTH_EMAIL = buildScopedStorageKey('auth_email_v1');
-const STORAGE_AUTH_ROLE = buildScopedStorageKey('auth_role_v1');
-const STORAGE_LAST_BACKGROUND_LOCATION = buildScopedStorageKey('background_location_last_v1');
-
-let secureStoreModuleCache:
-  | {
-      getItemAsync?: (key: string) => Promise<string | null>;
-    }
-  | null
-  | undefined;
-
-function getSecureStoreModule() {
-  if (secureStoreModuleCache !== undefined) {
-    return secureStoreModuleCache;
-  }
-
-  try {
-    secureStoreModuleCache = require('expo-secure-store');
-  } catch {
-    secureStoreModuleCache = null;
-  }
-
-  return secureStoreModuleCache;
-}
-
-async function readStoredValue(key: string) {
-  const secureStoreModule = getSecureStoreModule();
-
-  if (secureStoreModule?.getItemAsync) {
-    try {
-      const secureValue = await secureStoreModule.getItemAsync(key);
-      if (secureValue) {
-        return secureValue;
-      }
-    } catch {
-      // Fall back to AsyncStorage.
-    }
-  }
-
-  try {
-    return await AsyncStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
 async function persistLastBackgroundLocation(payload: StoredLocationPayload) {
-  try {
-    await AsyncStorage.setItem(STORAGE_LAST_BACKGROUND_LOCATION, JSON.stringify(payload));
-  } catch {
+  await writeStoredJsonValue(STORAGE_KEYS.lastBackgroundLocation, payload).catch(() => {
     // Best effort only.
-  }
+  });
 }
 
 function toFiniteNumber(value: unknown) {
@@ -140,8 +87,8 @@ function buildLocationPayload(location: BackgroundLocation) {
 async function hydrateTelemetryUser() {
   try {
     const [email, role] = await Promise.all([
-      readStoredValue(STORAGE_AUTH_EMAIL),
-      readStoredValue(STORAGE_AUTH_ROLE),
+      readStoredValue(STORAGE_KEYS.authEmail),
+      readStoredValue(STORAGE_KEYS.authRole),
     ]);
 
     const normalizedEmail = String(email || '').trim().toLowerCase();
@@ -167,19 +114,10 @@ async function hydrateTelemetryUser() {
 }
 
 async function postPartnerLocation(token: string, payload: StoredLocationPayload) {
-  const response = await fetch(buildApiUrl('/partner/location'), {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
+  await apiPost('/partner/location', payload, {
+    token,
+    timeoutMs: 10000,
   });
-
-  if (!response.ok) {
-    throw new Error(`Location sync failed with status ${response.status}`);
-  }
 }
 
 function registerDeliveryLocationTask() {
@@ -226,7 +164,7 @@ function registerDeliveryLocationTask() {
           return;
         }
 
-        const token = String((await readStoredValue(STORAGE_AUTH_TOKEN)) || '').trim();
+        const token = String((await readStoredValue(STORAGE_KEYS.authToken)) || '').trim();
         if (!token) {
           return;
         }

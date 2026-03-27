@@ -28,6 +28,9 @@ import { usePricingDomain } from './src/domains/pricing-domain';
 import { useVendorDomain } from './src/domains/vendor-domain';
 import { getAppShellConfig, getAppVariant } from './src/constants/app-shell';
 
+export { GrabBasketProvider, useGrabBasket } from './src/providers/grab-basket-provider';
+export { ReorderScreen } from './src/screens/reorder-screen';
+
 const GrabBasketContext = createContext(null);
 
 const APP_VARIANT = getAppVariant();
