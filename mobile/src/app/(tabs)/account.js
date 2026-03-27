@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking as RNLinking,
   Modal,
   Platform,
@@ -23,7 +22,10 @@ import * as ExpoLinking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
 import { useGrabBasket } from '../../../App';
-import { buildApiUrl } from '../../config';
+import InlineConfirmCard from '../../components/inline-confirm-card';
+import InlineErrorCard from '../../components/inline-error-card';
+import InlineNoticeCard from '../../components/inline-notice-card';
+import { getErrorMessage, requestJson } from '../../lib/api-client';
 import LiveRouteIntelligenceCard from '../../components/live-route-intelligence-card';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -64,63 +66,16 @@ function money(value) {
   return `₹${Number(value || 0).toFixed(0)}`;
 }
 
-function safeJsonParse(raw) {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function createHttpError(message, extras = {}) {
-  const error = new Error(message);
-  Object.entries(extras).forEach(([key, value]) => {
-    error[key] = value;
-  });
-  return error;
-}
-
 async function authRequest(path, token, { method = 'GET', body } = {}) {
-  const response = await fetch(buildApiUrl(path), {
+  return requestJson(path, {
     method,
-    headers: {
-      Accept: 'application/json',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body,
+    token,
+    body: typeof body === 'string' ? JSON.parse(body) : body,
   });
-
-  const raw = await response.text();
-  const payload = safeJsonParse(raw);
-
-  if (!response.ok) {
-    throw createHttpError(
-      payload?.detail || payload?.message || `Request failed with status ${response.status}`,
-      { status: response.status, payload }
-    );
-  }
-
-  return payload;
 }
 
 async function publicRequest(path) {
-  const response = await fetch(buildApiUrl(path), {
-    headers: { Accept: 'application/json' },
-  });
-
-  const raw = await response.text();
-  const payload = safeJsonParse(raw);
-
-  if (!response.ok) {
-    throw createHttpError(
-      payload?.detail || payload?.message || `Request failed with status ${response.status}`,
-      { status: response.status, payload }
-    );
-  }
-
-  return payload;
+  return requestJson(path);
 }
 
 function sleep(ms) {
@@ -919,10 +874,29 @@ export default function AccountScreen() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailActionLoading, setDetailActionLoading] = useState(false);
   const [retryPaymentLoading, setRetryPaymentLoading] = useState(false);
+  const [inlineError, setInlineError] = useState('');
+  const [inlineNotice, setInlineNotice] = useState(null);
+  const [confirmState, setConfirmState] = useState(null);
 
   useEffect(() => {
     setEmail(String(authEmail || ''));
   }, [authEmail]);
+
+  const showNotice = useCallback((title, message, tone = 'success') => {
+    setInlineNotice({ title, message, tone });
+  }, []);
+
+  const clearNotice = useCallback(() => {
+    setInlineNotice(null);
+  }, []);
+
+  const showError = useCallback((message, fallback = 'Please try again.') => {
+    setInlineError(getErrorMessage(message, fallback));
+  }, []);
+
+  const clearError = useCallback(() => {
+    setInlineError('');
+  }, []);
 
   const stats = useMemo(() => {
     const list = Array.isArray(orderHistory) ? orderHistory : [];
@@ -959,19 +933,20 @@ export default function AccountScreen() {
     try {
       setRefreshing(true);
       await Promise.all([loadOrders({ silent: true }), loadAddresses({ silent: true })]);
+      clearError();
     } finally {
       setRefreshing(false);
     }
-  }, [isAuthenticated, loadAddresses, loadOrders]);
+  }, [clearError, isAuthenticated, loadAddresses, loadOrders]);
 
   const submitAuth = useCallback(async () => {
     if (!email.trim()) {
-      Alert.alert('Email required', 'Enter your email address.');
+      showError('Enter your email address.', 'Enter your email address.');
       return;
     }
 
     if (String(password || '').length < 6) {
-      Alert.alert('Password required', 'Enter at least 6 characters.');
+      showError('Enter at least 6 characters.', 'Enter at least 6 characters.');
       return;
     }
 
@@ -984,7 +959,7 @@ export default function AccountScreen() {
       setPassword('');
       refreshDashboard().catch(() => {});
     }
-  }, [authMode, email, login, password, refreshDashboard, register]);
+  }, [authMode, email, login, password, refreshDashboard, register, showError]);
 
   const saveAddress = useCallback(async () => {
     try {
@@ -1010,16 +985,14 @@ export default function AccountScreen() {
       setLat('12.9716');
       setLng('77.5946');
 
-      Alert.alert('Saved', 'Address added successfully.');
+      clearError();
+      showNotice('Saved', 'Address added successfully.', 'success');
     } catch (error) {
-      Alert.alert(
-        'Could not save address',
-        error?.message || 'Please check the address and coordinates.'
-      );
+      showError(error, 'Please check the address and coordinates.');
     } finally {
       setSavingAddress(false);
     }
-  }, [addresses.length, city, createAddress, label, lat, line1, lng, pincode]);
+  }, [addresses.length, city, clearError, createAddress, label, lat, line1, lng, pincode, showNotice, showError]);
 
   const openStoreFromOrder = useCallback(
     (order) => {
@@ -1072,12 +1045,12 @@ export default function AccountScreen() {
           setOrderDetailVendor(vendorPayload || null);
         }
       } catch (error) {
-        Alert.alert('Could not load tracking', error?.message || 'Please try again.');
+        showError(error, 'Please try again.');
       } finally {
         setDetailLoading(false);
       }
     },
-    [authToken, vendors]
+    [authToken, showError, vendors]
   );
 
   const refreshSelectedOrder = useCallback(() => {
@@ -1088,31 +1061,33 @@ export default function AccountScreen() {
   const cancelOrder = useCallback(async () => {
     if (!authToken || !selectedOrder?.id) return;
 
-    Alert.alert('Cancel order', `Cancel order #${selectedOrder.id}?`, [
-      { text: 'Keep order', style: 'cancel' },
-      {
-        text: 'Cancel order',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            setDetailActionLoading(true);
-            await authRequest(
-              `/orders/${selectedOrder.id}/cancel?reason=Cancelled%20from%20customer%20app`,
-              authToken,
-              { method: 'POST' }
-            );
+    setConfirmState({
+      title: 'Cancel order',
+      message: `Cancel order #${selectedOrder.id}?`,
+      confirmLabel: 'Cancel order',
+      cancelLabel: 'Keep order',
+      tone: 'danger',
+      execute: async () => {
+        try {
+          setDetailActionLoading(true);
+          await authRequest(
+            `/orders/${selectedOrder.id}/cancel?reason=Cancelled%20from%20customer%20app`,
+            authToken,
+            { method: 'POST' }
+          );
 
-            await Promise.all([loadOrders({ silent: true }), refreshSelectedOrder()]);
-            Alert.alert('Cancelled', `Order #${selectedOrder.id} has been cancelled.`);
-          } catch (error) {
-            Alert.alert('Could not cancel order', error?.message || 'Please try again.');
-          } finally {
-            setDetailActionLoading(false);
-          }
-        },
+          await Promise.all([loadOrders({ silent: true }), refreshSelectedOrder()]);
+          setConfirmState(null);
+          clearError();
+          showNotice('Cancelled', `Order #${selectedOrder.id} has been cancelled.`, 'success');
+        } catch (error) {
+          showError(error, 'Please try again.');
+        } finally {
+          setDetailActionLoading(false);
+        }
       },
-    ]);
-  }, [authToken, loadOrders, refreshSelectedOrder, selectedOrder]);
+    });
+  }, [authToken, clearError, loadOrders, refreshSelectedOrder, selectedOrder, showNotice, showError]);
 
   const retryPendingPayment = useCallback(async () => {
     const retryOrder = orderDetail?.order || selectedOrder;
@@ -1120,10 +1095,7 @@ export default function AccountScreen() {
     if (!authToken || !retryOrder?.id) return;
 
     if (!canRetryGatewayPayment(retryOrder)) {
-      Alert.alert(
-        'Payment already settled',
-        'This order no longer needs an online payment retry.'
-      );
+      showError('This order no longer needs an online payment retry.', 'This order no longer needs an online payment retry.');
       return;
     }
 
@@ -1159,33 +1131,36 @@ export default function AccountScreen() {
       ]);
 
       if (paymentStatus === 'PAID') {
-        Alert.alert(
+        showNotice(
           'Payment successful',
           providerPaymentId
             ? `Payment captured and verified on the server. Payment ID: ${providerPaymentId}`
-            : 'Payment captured and verified on the server.'
+            : 'Payment captured and verified on the server.',
+          'success'
         );
         return;
       }
 
       if (paymentStatus === 'FAILED' || ['cancelled', 'expired'].includes(checkoutStatus)) {
-        Alert.alert(
+        showNotice(
           'Payment not completed',
-          'No amount was confirmed by the gateway for this order yet. You can retry again from this screen.'
+          'No amount was confirmed by the gateway for this order yet. You can retry again from this screen.',
+          'warning'
         );
         return;
       }
 
-      Alert.alert(
+      showNotice(
         'Payment still processing',
-        `Order #${retryOrder.id} is waiting for final gateway confirmation. Pull to refresh or reopen this order in a moment.`
+        `Order #${retryOrder.id} is waiting for final gateway confirmation. Pull to refresh or reopen this order in a moment.`,
+        'info'
       );
     } catch (error) {
-      Alert.alert('Could not reopen checkout', error?.message || 'Please try again.');
+      showError(error, 'Please try again.');
     } finally {
       setRetryPaymentLoading(false);
     }
-  }, [authToken, loadOrders, orderDetail, refreshSelectedOrder, selectedOrder]);
+  }, [authToken, loadOrders, orderDetail, refreshSelectedOrder, selectedOrder, showError, showNotice]);
 
   const closeSheet = useCallback(() => {
     setSelectedOrder(null);
@@ -1194,6 +1169,7 @@ export default function AccountScreen() {
     setDetailLoading(false);
     setDetailActionLoading(false);
     setRetryPaymentLoading(false);
+    setConfirmState(null);
   }, []);
 
   return (
@@ -1210,6 +1186,29 @@ export default function AccountScreen() {
             tintColor={COLORS.brand}
           />
         }>
+        <View style={styles.feedbackStack}>
+          <InlineErrorCard
+            title="Account issue"
+            message={inlineError}
+            onRetry={refreshDashboard}
+            onDismiss={clearError}
+          />
+          <InlineNoticeCard
+            title={inlineNotice?.title || 'Updated'}
+            message={inlineNotice?.message || ''}
+            tone={inlineNotice?.tone || 'success'}
+            onDismiss={clearNotice}
+          />
+          <InlineConfirmCard
+            title={confirmState?.title || 'Please confirm'}
+            message={confirmState?.message || ''}
+            confirmLabel={confirmState?.confirmLabel || 'Confirm'}
+            cancelLabel={confirmState?.cancelLabel || 'Cancel'}
+            tone={confirmState?.tone || 'danger'}
+            onConfirm={() => confirmState?.execute?.()}
+            onCancel={() => setConfirmState(null)}
+          />
+        </View>
         <View style={styles.heroCard}>
           <View style={{ flex: 1 }}>
             <Text style={styles.heroEyebrow}>Grab Basket account</Text>
@@ -1456,6 +1455,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bg,
   },
+  feedbackStack: { paddingHorizontal: 18, paddingTop: 14, gap: 12 },
   heroCard: {
     marginHorizontal: 16,
     marginTop: 12,

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Platform,
   RefreshControl,
@@ -20,7 +19,10 @@ import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 
 import { useGrabBasket } from '../../../../App';
-import { buildApiUrl } from '../../../config';
+import InlineConfirmCard from '../../../components/inline-confirm-card';
+import InlineErrorCard from '../../../components/inline-error-card';
+import InlineNoticeCard from '../../../components/inline-notice-card';
+import { getErrorMessage, requestJson } from '../../../lib/api-client';
 import LiveRouteIntelligenceCard from '../../../components/live-route-intelligence-card';
 
 const COLORS = {
@@ -86,39 +88,13 @@ function normalizeText(value = '') {
   return String(value || '').trim().toLowerCase();
 }
 
-function buildQueryString(params = {}) {
-  const pairs = Object.entries(params)
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
-
-  return pairs.length ? `?${pairs.join('&')}` : '';
-}
-
 async function request(path, token, { method = 'GET', body, query } = {}) {
-  const response = await fetch(`${buildApiUrl(path)}${buildQueryString(query)}`, {
+  return requestJson(path, {
     method,
-    headers: {
-      Accept: 'application/json',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body,
+    token,
+    query,
+    body: typeof body === 'string' ? JSON.parse(body) : body,
   });
-
-  const raw = await response.text();
-  const payload = safeJsonParse(raw, {});
-
-  if (!response.ok) {
-    const message =
-      (typeof payload?.detail === 'string' && payload.detail) ||
-      payload?.error?.message ||
-      `Request failed with status ${response.status}`;
-    const error = new Error(message);
-    error.status = response.status;
-    throw error;
-  }
-
-  return payload;
 }
 
 function money(value) {
@@ -841,8 +817,27 @@ export default function PartnerOrdersScreen() {
   const [vendorProfile, setVendorProfile] = useState(null);
   const [trackingSnapshot, setTrackingSnapshot] = useState(null);
   const [trackingLoading, setTrackingLoading] = useState(false);
+  const [inlineError, setInlineError] = useState('');
+  const [inlineNotice, setInlineNotice] = useState(null);
+  const [pendingRejectOrderId, setPendingRejectOrderId] = useState(null);
 
   const debouncedSearch = useDebouncedValue(search);
+
+  const showNotice = useCallback((title, message, tone = 'success') => {
+    setInlineNotice({ title, message, tone });
+  }, []);
+
+  const clearNotice = useCallback(() => {
+    setInlineNotice(null);
+  }, []);
+
+  const showError = useCallback((message, fallback = 'Please try again.') => {
+    setInlineError(getErrorMessage(message, fallback));
+  }, []);
+
+  const clearError = useCallback(() => {
+    setInlineError('');
+  }, []);
 
   const loadData = useCallback(
     async ({ silent = false } = {}) => {
@@ -854,8 +849,9 @@ export default function PartnerOrdersScreen() {
           throw error;
         });
         setOrders(Array.isArray(response) ? response : []);
+        clearError();
       } catch (error) {
-        Alert.alert(`${appVariantName} sync failed`, error?.message || 'Could not load seller orders.');
+        showError(error, `${appVariantName} could not load seller orders.`);
         if (error?.status === 401) {
           logout().catch(() => {});
         }
@@ -863,7 +859,7 @@ export default function PartnerOrdersScreen() {
         if (!silent) setRefreshing(false);
       }
     },
-    [appVariantName, authToken, logout]
+    [appVariantName, authToken, clearError, logout, showError]
   );
 
   useEffect(() => {
@@ -911,7 +907,7 @@ export default function PartnerOrdersScreen() {
       } catch (error) {
         setTrackingSnapshot(null);
         if (!silent) {
-          Alert.alert('Tracking unavailable', error?.message || 'Could not load live delivery tracking.');
+          showError(error, 'Could not load live delivery tracking.');
         }
         if (error?.status === 401) {
           logout().catch(() => {});
@@ -920,7 +916,7 @@ export default function PartnerOrdersScreen() {
         if (!silent) setTrackingLoading(false);
       }
     },
-    [activeTrackingOrder?.id, authToken, logout]
+    [activeTrackingOrder?.id, authToken, logout, showError]
   );
 
   useEffect(() => {
@@ -938,10 +934,13 @@ export default function PartnerOrdersScreen() {
       try {
         setLoadingAction(true);
         await work();
-        if (successMessage) Alert.alert('Done', successMessage);
+        clearError();
+        if (successMessage) {
+          showNotice('Done', successMessage, 'success');
+        }
         await Promise.all([loadData({ silent: true }), loadTrackingSnapshot({ silent: true })]);
       } catch (error) {
-        Alert.alert('Action failed', error?.message || 'Please try again.');
+        showError(error, 'Please try again.');
         if (error?.status === 401) {
           logout().catch(() => {});
         }
@@ -949,7 +948,7 @@ export default function PartnerOrdersScreen() {
         setLoadingAction(false);
       }
     },
-    [loadData, loadTrackingSnapshot, logout]
+    [clearError, loadData, loadTrackingSnapshot, logout, showError, showNotice]
   );
 
   const acceptOrder = useCallback(
@@ -961,25 +960,21 @@ export default function PartnerOrdersScreen() {
     [authToken, runAction]
   );
 
-  const rejectOrder = useCallback(
-    (orderId) => {
-      Alert.alert('Reject order', `Reject order #${orderId}?`, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reject',
-          style: 'destructive',
-          onPress: () =>
-            runAction(async () => {
-              await request(`/seller/orders/${orderId}/reject`, authToken, {
-                method: 'POST',
-                query: { reason: 'Rejected from seller app' },
-              });
-            }, `Order #${orderId} rejected.`),
-        },
-      ]);
-    },
-    [authToken, runAction]
-  );
+  const rejectOrder = useCallback((orderId) => {
+    setPendingRejectOrderId(orderId);
+  }, []);
+
+  const confirmRejectOrder = useCallback(() => {
+    if (!pendingRejectOrderId) return;
+
+    runAction(async () => {
+      await request(`/seller/orders/${pendingRejectOrderId}/reject`, authToken, {
+        method: 'POST',
+        query: { reason: 'Rejected from seller app' },
+      });
+      setPendingRejectOrderId(null);
+    }, `Order #${pendingRejectOrderId} rejected.`);
+  }, [authToken, pendingRejectOrderId, runAction]);
 
   const readyOrder = useCallback(
     (orderId) => {
@@ -1050,6 +1045,29 @@ export default function PartnerOrdersScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: tabBarHeight + 20 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+        <View style={styles.feedbackStack}>
+          <InlineErrorCard
+            title={`${appVariantName} sync issue`}
+            message={inlineError}
+            onRetry={refresh}
+            onDismiss={clearError}
+          />
+          <InlineNoticeCard
+            title={inlineNotice?.title || 'Updated'}
+            message={inlineNotice?.message || ''}
+            tone={inlineNotice?.tone || 'success'}
+            onDismiss={clearNotice}
+          />
+          <InlineConfirmCard
+            title="Reject order"
+            message={pendingRejectOrderId ? `Reject order #${pendingRejectOrderId}?` : ''}
+            confirmLabel="Reject"
+            cancelLabel="Keep order"
+            tone="danger"
+            onConfirm={confirmRejectOrder}
+            onCancel={() => setPendingRejectOrderId(null)}
+          />
+        </View>
         <SectionCard title="Search seller orders" subtitle="Find orders by id, item names, status, or payment mode. Cached results stay visible while the queue refreshes.">
           <QuerySearchBar
             value={search}
@@ -1164,6 +1182,7 @@ const styles = StyleSheet.create({
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, gap: 8 },
   centerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text },
   centerSubtitle: { fontSize: 13, lineHeight: 19, textAlign: 'center', color: COLORS.muted },
+  feedbackStack: { gap: 12, marginBottom: 14 },
   card: { backgroundColor: COLORS.surface, borderRadius: 24, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 14 },
   cardHeader: { gap: 4, marginBottom: 14 },
   cardTitle: { fontSize: 17, fontWeight: '800', color: COLORS.text },

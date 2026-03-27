@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Platform,
   RefreshControl,
@@ -19,7 +18,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 
 import { useGrabBasket } from '../../App';
-import { buildApiUrl } from '../config';
+import InlineErrorCard from './inline-error-card';
+import InlineNoticeCard from './inline-notice-card';
+import { getErrorMessage, requestJson } from '../lib/api-client';
 import LiveRouteIntelligenceCard from './live-route-intelligence-card';
 import { useCachedQuery } from '../lib/query-cache';
 
@@ -54,14 +55,6 @@ const COLORS = {
   black: '#241A14',
 };
 
-function safeJsonParse(raw, fallback = null) {
-  try {
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 function normalizeText(value = '') {
   return String(value || '').trim().toLowerCase();
 }
@@ -93,47 +86,13 @@ function money(value) {
   return `₹${Number(value || 0).toFixed(0)}`;
 }
 
-function buildQueryString(params = {}) {
-  const pairs = Object.entries(params)
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
-
-  return pairs.length ? `?${pairs.join('&')}` : '';
-}
-
-function createHttpError(message, extras = {}) {
-  const error = new Error(message);
-  Object.entries(extras).forEach(([key, value]) => {
-    error[key] = value;
-  });
-  return error;
-}
-
 async function request(path, token = '', { method = 'GET', body, query } = {}) {
-  const response = await fetch(`${buildApiUrl(path)}${buildQueryString(query)}`, {
+  return requestJson(path, {
     method,
-    headers: {
-      Accept: 'application/json',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body,
+    token,
+    query,
+    body: typeof body === 'string' ? JSON.parse(body) : body,
   });
-
-  const raw = await response.text();
-  const payload = safeJsonParse(raw, {});
-
-  if (!response.ok) {
-    const message =
-      (typeof payload?.detail === 'string' && payload.detail.trim()) ||
-      (typeof payload?.message === 'string' && payload.message.trim()) ||
-      payload?.error?.message ||
-      `Request failed with status ${response.status}`;
-
-    throw createHttpError(message, { status: response.status, payload });
-  }
-
-  return payload;
 }
 
 function getLatestEvent(order) {
@@ -381,8 +340,26 @@ export default function DeliveryControlCenter() {
   const [foregroundPermission, setForegroundPermission] = useState('unknown');
   const [backgroundPermission, setBackgroundPermission] = useState('unknown');
   const [working, setWorking] = useState(false);
+  const [inlineError, setInlineError] = useState('');
+  const [inlineNotice, setInlineNotice] = useState(null);
 
   const canLoad = Boolean(sessionReady && isAuthenticated && authToken);
+
+  const showNotice = useCallback((title, message, tone = 'success') => {
+    setInlineNotice({ title, message, tone });
+  }, []);
+
+  const clearNotice = useCallback(() => {
+    setInlineNotice(null);
+  }, []);
+
+  const showError = useCallback((message, fallback = 'Please try again.') => {
+    setInlineError(getErrorMessage(message, fallback));
+  }, []);
+
+  const clearError = useCallback(() => {
+    setInlineError('');
+  }, []);
 
   const statusQuery = useCachedQuery({
     queryKey: ['delivery', 'status', authToken || 'guest'],
@@ -479,7 +456,8 @@ export default function DeliveryControlCenter() {
       await vendorQuery.refresh().catch(() => {});
     }
     await refreshPermissions();
-  }, [activeOrder?.vendor_id, ordersQuery, refreshPermissions, statusQuery, vendorQuery]);
+    clearError();
+  }, [activeOrder?.vendor_id, clearError, ordersQuery, refreshPermissions, statusQuery, vendorQuery]);
 
   const handleAuthFailure = useCallback(
     (error) => {
@@ -535,11 +513,11 @@ export default function DeliveryControlCenter() {
       await refreshPermissions();
     } catch (error) {
       handleAuthFailure(error);
-      Alert.alert('Location sync failed', error?.message || 'Could not sync current location.');
+      showError(error, 'Could not sync current location.');
     } finally {
       setWorking(false);
     }
-  }, [authToken, handleAuthFailure, refreshPermissions, statusQuery]);
+  }, [authToken, handleAuthFailure, refreshPermissions, showError, statusQuery]);
 
   const toggleBackgroundTracking = useCallback(async () => {
     try {
@@ -573,27 +551,27 @@ export default function DeliveryControlCenter() {
       await syncCurrentLocation();
       await refreshPermissions();
     } catch (error) {
-      Alert.alert('Tracking update failed', error?.message || 'Could not change tracking mode.');
+      showError(error, 'Could not change tracking mode.');
     } finally {
       setWorking(false);
     }
-  }, [refreshPermissions, requestPermissions, syncCurrentLocation, trackingEnabled]);
+  }, [refreshPermissions, requestPermissions, showError, syncCurrentLocation, trackingEnabled]);
 
   const openRoute = useCallback(async () => {
     const url = buildMapsUrl(activeStop);
     if (!url) {
-      Alert.alert('Route unavailable', 'Pickup or drop coordinates are not available for this order yet.');
+      showError('Pickup or drop coordinates are not available for this order yet.', 'Pickup or drop coordinates are not available for this order yet.');
       return;
     }
 
     const supported = await Linking.canOpenURL(url).catch(() => false);
     if (!supported) {
-      Alert.alert('Maps unavailable', 'No maps app was found to open the route.');
+      showError('No maps app was found to open the route.', 'No maps app was found to open the route.');
       return;
     }
 
     await Linking.openURL(url);
-  }, [activeStop]);
+  }, [activeStop, showError]);
 
   const runOrderAction = useCallback(
     async (path, successMessage) => {
@@ -601,15 +579,16 @@ export default function DeliveryControlCenter() {
         setWorking(true);
         await request(path, authToken, { method: 'POST' });
         await Promise.all([statusQuery.refresh(), ordersQuery.refresh()]);
-        Alert.alert('Done', successMessage);
+        clearError();
+        showNotice('Done', successMessage, 'success');
       } catch (error) {
         handleAuthFailure(error);
-        Alert.alert('Action failed', error?.message || 'Please try again.');
+        showError(error, 'Please try again.');
       } finally {
         setWorking(false);
       }
     },
-    [authToken, handleAuthFailure, ordersQuery, statusQuery]
+    [authToken, clearError, handleAuthFailure, ordersQuery, showError, showNotice, statusQuery]
   );
 
   const pickupOrder = useCallback(
@@ -635,6 +614,20 @@ export default function DeliveryControlCenter() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: tabBarHeight + 28 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshEverything} />}>
+        <View style={styles.feedbackStack}>
+          <InlineErrorCard
+            title="Delivery control issue"
+            message={inlineError || getErrorMessage(statusQuery.error || ordersQuery.error || vendorQuery.error, '')}
+            onRetry={refreshEverything}
+            onDismiss={clearError}
+          />
+          <InlineNoticeCard
+            title={inlineNotice?.title || 'Updated'}
+            message={inlineNotice?.message || ''}
+            tone={inlineNotice?.tone || 'success'}
+            onDismiss={clearNotice}
+          />
+        </View>
         <View style={styles.screenHeader}>
           <Text style={styles.eyebrow}>Grab Basket Delivery App</Text>
           <Text style={styles.screenTitle}>Control center</Text>
@@ -734,7 +727,7 @@ export default function DeliveryControlCenter() {
               disabled={working}
               onPress={() =>
                 requestPermissions().catch((error) =>
-                  Alert.alert('Permissions required', error?.message || 'Please allow location access.')
+                  showError(error, 'Please allow location access.')
                 )
               }
             />
@@ -853,6 +846,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.page,
   },
+  feedbackStack: { paddingHorizontal: 18, paddingTop: 14, gap: 12 },
   screenHeader: {
     paddingHorizontal: 18,
     paddingTop: 14,

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -18,7 +17,10 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useGrabBasket } from '../../../../App';
-import { buildApiUrl } from '../../../config';
+import InlineConfirmCard from '../../../components/inline-confirm-card';
+import InlineErrorCard from '../../../components/inline-error-card';
+import InlineNoticeCard from '../../../components/inline-notice-card';
+import { getErrorMessage, requestJson } from '../../../lib/api-client';
 
 const COLORS = {
   page: '#FFF9F3',
@@ -81,39 +83,13 @@ function normalizeText(value = '') {
   return String(value || '').trim().toLowerCase();
 }
 
-function buildQueryString(params = {}) {
-  const pairs = Object.entries(params)
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
-
-  return pairs.length ? `?${pairs.join('&')}` : '';
-}
-
 async function request(path, token, { method = 'GET', body, query } = {}) {
-  const response = await fetch(`${buildApiUrl(path)}${buildQueryString(query)}`, {
+  return requestJson(path, {
     method,
-    headers: {
-      Accept: 'application/json',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body,
+    token,
+    query,
+    body: typeof body === 'string' ? JSON.parse(body) : body,
   });
-
-  const raw = await response.text();
-  const payload = safeJsonParse(raw, {});
-
-  if (!response.ok) {
-    const message =
-      (typeof payload?.detail === 'string' && payload.detail) ||
-      payload?.error?.message ||
-      `Request failed with status ${response.status}`;
-    const error = new Error(message);
-    error.status = response.status;
-    throw error;
-  }
-
-  return payload;
 }
 
 function money(value) {
@@ -650,8 +626,28 @@ export default function PartnerCatalogScreen() {
   const [sortBy, setSortBy] = useState('relevance');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [productForm, setProductForm] = useState(createEmptyProductForm());
+  const [inlineError, setInlineError] = useState('');
+  const [inlineNotice, setInlineNotice] = useState(null);
+  const [pendingDeleteProduct, setPendingDeleteProduct] = useState(null);
 
   const debouncedSearch = useDebouncedValue(search);
+
+  const showNotice = useCallback((title, message, tone = 'success') => {
+    setInlineNotice({ title, message, tone });
+  }, []);
+
+  const clearNotice = useCallback(() => {
+    setInlineNotice(null);
+  }, []);
+
+  const showError = useCallback((message, fallback = 'Please try again.') => {
+    setInlineError(getErrorMessage(message, fallback));
+  }, []);
+
+  const clearError = useCallback(() => {
+    setInlineError('');
+  }, []);
+
 
   const loadData = useCallback(
     async ({ silent = false } = {}) => {
@@ -663,8 +659,9 @@ export default function PartnerCatalogScreen() {
           throw error;
         });
         setProducts(Array.isArray(response) ? response : []);
+        clearError();
       } catch (error) {
-        Alert.alert(`${appVariantName} sync failed`, error?.message || 'Could not load catalog.');
+        showError(error, `${appVariantName} could not load catalog.`);
         if (error?.status === 401) {
           logout().catch(() => {});
         }
@@ -672,7 +669,7 @@ export default function PartnerCatalogScreen() {
         if (!silent) setRefreshing(false);
       }
     },
-    [appVariantName, authToken, logout]
+    [appVariantName, authToken, clearError, logout, showError]
   );
 
   useEffect(() => {
@@ -687,10 +684,13 @@ export default function PartnerCatalogScreen() {
       try {
         setLoadingAction(true);
         await work();
-        if (successMessage) Alert.alert('Done', successMessage);
+        clearError();
+        if (successMessage) {
+          showNotice('Done', successMessage, 'success');
+        }
         await loadData({ silent: true });
       } catch (error) {
-        Alert.alert('Action failed', error?.message || 'Please try again.');
+        showError(error, 'Please try again.');
         if (error?.status === 401) {
           logout().catch(() => {});
         }
@@ -698,18 +698,18 @@ export default function PartnerCatalogScreen() {
         setLoadingAction(false);
       }
     },
-    [loadData, logout]
+    [clearError, loadData, logout, showError, showNotice]
   );
 
   const saveProduct = useCallback(() => {
     if (!productForm.name.trim()) {
-      Alert.alert('Item name required', 'Enter a menu item name first.');
+      showError('Enter a menu item name first.', 'Enter a menu item name first.');
       return;
     }
 
     const price = Number(productForm.price);
     if (!Number.isFinite(price) || price <= 0) {
-      Alert.alert('Invalid price', 'Enter a valid product price.');
+      showError('Enter a valid product price.', 'Enter a valid product price.');
       return;
     }
 
@@ -719,12 +719,12 @@ export default function PartnerCatalogScreen() {
     const maxQtyPerOrder = maxQtyValue === '' ? 20 : Number(maxQtyValue);
 
     if (!Number.isInteger(stockQty) || stockQty < 0) {
-      Alert.alert('Invalid stock', 'Tracked stock must be a whole number of units.');
+      showError('Tracked stock must be a whole number of units.', 'Tracked stock must be a whole number of units.');
       return;
     }
 
     if (!Number.isInteger(maxQtyPerOrder) || maxQtyPerOrder <= 0) {
-      Alert.alert('Invalid order limit', 'Max quantity per order must be at least 1.');
+      showError('Max quantity per order must be at least 1.', 'Max quantity per order must be at least 1.');
       return;
     }
 
@@ -751,7 +751,7 @@ export default function PartnerCatalogScreen() {
       }
       setProductForm(createEmptyProductForm());
     }, productForm.id ? 'Menu item updated.' : 'Menu item added.');
-  }, [authToken, productForm, runAction]);
+  }, [authToken, productForm, runAction, showError]);
 
   const toggleProductAvailability = useCallback(
     (product) => {
@@ -811,22 +811,18 @@ export default function PartnerCatalogScreen() {
     });
   }, []);
 
-  const deleteProduct = useCallback(
-    (productId) => {
-      Alert.alert('Delete item', 'This will remove the product from your catalog.', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () =>
-            runAction(async () => {
-              await request(`/seller/products/${productId}`, authToken, { method: 'DELETE' });
-            }, 'Product removed.'),
-        },
-      ]);
-    },
-    [authToken, runAction]
-  );
+  const deleteProduct = useCallback((product) => {
+    setPendingDeleteProduct(product);
+  }, []);
+
+  const confirmDeleteProduct = useCallback(() => {
+    if (!pendingDeleteProduct?.id) return;
+
+    runAction(async () => {
+      await request(`/seller/products/${pendingDeleteProduct.id}`, authToken, { method: 'DELETE' });
+      setPendingDeleteProduct(null);
+    }, 'Product removed.');
+  }, [authToken, pendingDeleteProduct, runAction]);
 
   const queryState = useCatalogQuery({ products, search: debouncedSearch, filterKey, sortBy });
 
@@ -996,7 +992,7 @@ export default function PartnerCatalogScreen() {
                       {showSoldOut ? (
                         <PrimaryButton label="Sold out" icon="remove-circle-outline" onPress={() => markProductSoldOut(product)} disabled={loadingAction} tone="danger" />
                       ) : null}
-                      <PrimaryButton label="Delete" icon="trash-outline" onPress={() => deleteProduct(product.id)} disabled={loadingAction} tone="danger" />
+                      <PrimaryButton label="Delete" icon="trash-outline" onPress={() => deleteProduct(product)} disabled={loadingAction} tone="danger" />
                     </View>
                   </View>
                 </View>
@@ -1020,6 +1016,7 @@ const styles = StyleSheet.create({
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, gap: 8 },
   centerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text },
   centerSubtitle: { fontSize: 13, lineHeight: 19, textAlign: 'center', color: COLORS.muted },
+  feedbackStack: { gap: 12, marginBottom: 14 },
   card: { backgroundColor: COLORS.surface, borderRadius: 24, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 14 },
   cardHeader: { gap: 4, marginBottom: 14 },
   cardTitle: { fontSize: 17, fontWeight: '800', color: COLORS.text },

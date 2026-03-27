@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -17,7 +16,9 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useGrabBasket } from '../../../../App';
-import { buildApiUrl } from '../../../config';
+import InlineErrorCard from '../../../components/inline-error-card';
+import InlineNoticeCard from '../../../components/inline-notice-card';
+import { getErrorMessage, requestJson } from '../../../lib/api-client';
 
 const COLORS = {
   page: '#FFF9F3',
@@ -79,39 +80,13 @@ function normalizeText(value = '') {
   return String(value || '').trim().toLowerCase();
 }
 
-function buildQueryString(params = {}) {
-  const pairs = Object.entries(params)
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
-
-  return pairs.length ? `?${pairs.join('&')}` : '';
-}
-
 async function request(path, token, { method = 'GET', body, query } = {}) {
-  const response = await fetch(`${buildApiUrl(path)}${buildQueryString(query)}`, {
+  return requestJson(path, {
     method,
-    headers: {
-      Accept: 'application/json',
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body,
+    token,
+    query,
+    body: typeof body === 'string' ? JSON.parse(body) : body,
   });
-
-  const raw = await response.text();
-  const payload = safeJsonParse(raw, {});
-
-  if (!response.ok) {
-    const message =
-      (typeof payload?.detail === 'string' && payload.detail) ||
-      payload?.error?.message ||
-      `Request failed with status ${response.status}`;
-    const error = new Error(message);
-    error.status = response.status;
-    throw error;
-  }
-
-  return payload;
 }
 
 function money(value) {
@@ -675,8 +650,26 @@ export default function DeliveryOrdersScreen() {
   const [filterKey, setFilterKey] = useState('all');
   const [sortBy, setSortBy] = useState('relevance');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [inlineError, setInlineError] = useState('');
+  const [inlineNotice, setInlineNotice] = useState(null);
 
   const debouncedSearch = useDebouncedValue(search);
+
+  const showNotice = useCallback((title, message, tone = 'success') => {
+    setInlineNotice({ title, message, tone });
+  }, []);
+
+  const clearNotice = useCallback(() => {
+    setInlineNotice(null);
+  }, []);
+
+  const showError = useCallback((message, fallback = 'Please try again.') => {
+    setInlineError(getErrorMessage(message, fallback));
+  }, []);
+
+  const clearError = useCallback(() => {
+    setInlineError('');
+  }, []);
 
   const loadData = useCallback(
     async ({ silent = false } = {}) => {
@@ -685,8 +678,9 @@ export default function DeliveryOrdersScreen() {
         if (!silent) setRefreshing(true);
         const response = await request('/partner/orders', authToken, { query: { limit: 100 } });
         setOrders(Array.isArray(response) ? response : []);
+        clearError();
       } catch (error) {
-        Alert.alert(`${appVariantName} sync failed`, error?.message || 'Could not load delivery orders.');
+        showError(error, `${appVariantName} could not load delivery orders.`);
         if (error?.status === 401) {
           logout().catch(() => {});
         }
@@ -694,7 +688,7 @@ export default function DeliveryOrdersScreen() {
         if (!silent) setRefreshing(false);
       }
     },
-    [appVariantName, authToken, logout]
+    [appVariantName, authToken, clearError, logout, showError]
   );
 
   useEffect(() => {
@@ -709,10 +703,13 @@ export default function DeliveryOrdersScreen() {
       try {
         setLoadingAction(true);
         await work();
-        if (successMessage) Alert.alert('Done', successMessage);
+        clearError();
+        if (successMessage) {
+          showNotice('Done', successMessage, 'success');
+        }
         await loadData({ silent: true });
       } catch (error) {
-        Alert.alert('Action failed', error?.message || 'Please try again.');
+        showError(error, 'Please try again.');
         if (error?.status === 401) {
           logout().catch(() => {});
         }
@@ -720,7 +717,7 @@ export default function DeliveryOrdersScreen() {
         setLoadingAction(false);
       }
     },
-    [loadData, logout]
+    [clearError, loadData, logout, showError, showNotice]
   );
 
   const pickup = useCallback(
@@ -791,6 +788,20 @@ export default function DeliveryOrdersScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: tabBarHeight + 20 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+        <View style={styles.feedbackStack}>
+          <InlineErrorCard
+            title={`${appVariantName} sync issue`}
+            message={inlineError}
+            onRetry={refresh}
+            onDismiss={clearError}
+          />
+          <InlineNoticeCard
+            title={inlineNotice?.title || 'Updated'}
+            message={inlineNotice?.message || ''}
+            tone={inlineNotice?.tone || 'success'}
+            onDismiss={clearNotice}
+          />
+        </View>
         <SectionCard
           title="Search delivery queue"
           subtitle="Search by order id, item names, status, or payment mode. Cached results stay visible while the list refreshes.">
@@ -876,6 +887,7 @@ const styles = StyleSheet.create({
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, gap: 8 },
   centerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text },
   centerSubtitle: { fontSize: 13, lineHeight: 19, textAlign: 'center', color: COLORS.muted },
+  feedbackStack: { gap: 12, marginBottom: 14 },
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: 24,
