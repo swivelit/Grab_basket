@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -16,6 +17,29 @@ router = APIRouter(prefix="/vendors", tags=["vendors"])
 
 MAX_VENDOR_SCAN = 500
 MAX_PRODUCT_SCAN = 1000
+SERVICE_ALIASES = {
+    "instamart": "warehouse",
+    "grocery": "warehouse",
+    "groceries": "warehouse",
+    "dineout": "eatout",
+    "dining": "eatout",
+    "events": "scenes",
+    "experience": "scenes",
+}
+SERVICE_MATCHERS: dict[str, tuple[re.Pattern[str], ...]] = {
+    "warehouse": (
+        re.compile(r"\b(instamart|grocery|groceries|mart|basket|essentials?|daily|fruit|vegetable|veggies|greens|dairy|milk|bread|eggs?|snacks?|beverages?|beauty|personal care|pharmacy)\b", re.I),
+    ),
+    "eatout": (
+        re.compile(r"\b(dineout|dine\s?in|dining out|table|reserve|reservation|buffet|brunch|rooftop|fine dining|bill offer|book a table)\b", re.I),
+    ),
+    "scenes": (
+        re.compile(r"\b(scene|scenes|event|events|experience|experiences|show|shows|music|comedy|workshop|ticket|tickets|entry|gig|performance|festival|nightlife)\b", re.I),
+    ),
+    "food": (
+        re.compile(r"\b(food|restaurant|restaurants|kitchen|meal|meals|biryani|pizza|burger|burgers|fries|dosa|thali|cafe|bakery|dessert|desserts|chicken|paneer|naan|curry)\b", re.I),
+    ),
+}
 
 
 def _clean_text(value: object) -> str:
@@ -24,6 +48,50 @@ def _clean_text(value: object) -> str:
 
 def _clean_lower(value: object) -> str:
     return _clean_text(value).lower()
+
+
+def _normalize_service(value: object) -> str:
+    normalized = _clean_lower(value)
+    if not normalized or normalized == "all":
+        return ""
+    return SERVICE_ALIASES.get(normalized, normalized)
+
+
+def _vendor_service_haystack(vendor: Vendor) -> str:
+    return " ".join(
+        [
+            _clean_text(getattr(vendor, "name", "")),
+            _clean_text(getattr(vendor, "description", "")),
+            _clean_text(getattr(vendor, "cuisine_tags", "")),
+            _clean_text(getattr(vendor, "slug", "")),
+        ]
+    )
+
+
+def _vendor_matches_service(vendor: Vendor, service: str) -> bool:
+    normalized_service = _normalize_service(service)
+    if not normalized_service:
+        return True
+
+    haystack = _vendor_service_haystack(vendor)
+
+    if normalized_service in {"warehouse", "eatout", "scenes"}:
+        return any(pattern.search(haystack) for pattern in SERVICE_MATCHERS[normalized_service])
+
+    # Food is the default consumer vertical. Keep food broad enough to include regular restaurants,
+    # but exclude records that clearly belong only to other verticals.
+    if normalized_service == "food":
+        if any(pattern.search(haystack) for pattern in SERVICE_MATCHERS["food"]):
+            return True
+
+        clearly_other_vertical = any(
+            pattern.search(haystack)
+            for other_service in ("warehouse", "eatout", "scenes")
+            for pattern in SERVICE_MATCHERS[other_service]
+        )
+        return not clearly_other_vertical
+
+    return True
 
 
 def _open_now(vendor: Vendor) -> bool:
@@ -105,7 +173,7 @@ def _sort_vendor_rows(
             key=lambda row: (-(row.avg_rating or 0.0), -(row.total_ratings or 0), row.id),
         )
 
-    if mode == "delivery_time":
+    if mode in {"delivery_time", "eta"}:
         return sorted(
             rows,
             key=lambda row: (
@@ -212,6 +280,7 @@ def list_vendors(
     lng: float | None = Query(default=None, ge=-180, le=180),
     q: str | None = Query(default=None, max_length=200),
     category: str | None = Query(default=None, max_length=120),
+    service: str | None = Query(default=None, max_length=40),
     open_only: bool = Query(default=False),
     deliverable_only: bool = Query(default=False),
     min_rating: float | None = Query(default=None, ge=0, le=5),
@@ -242,12 +311,17 @@ def list_vendors(
         query = query.filter(Vendor.avg_rating >= float(min_rating))
 
     # Fetch a larger candidate pool first because we do post-processing
-    # for geospatial filters, open-now checks, category matching, and sorting.
+    # for geospatial filters, vertical matching, open-now checks, and sorting.
     scan_limit = min(MAX_VENDOR_SCAN, max(limit + offset + 50, limit * 3))
     vendors = query.order_by(Vendor.id.desc()).limit(scan_limit).all()
 
     rows: list[VendorOut] = []
+    normalized_service = _normalize_service(service)
+
     for vendor in vendors:
+        if normalized_service and not _vendor_matches_service(vendor, normalized_service):
+            continue
+
         if not _vendor_matches_category(vendor, _clean_text(category)):
             continue
 

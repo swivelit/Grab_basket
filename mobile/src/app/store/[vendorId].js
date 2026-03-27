@@ -110,27 +110,43 @@ function findVendorById(list = [], id) {
 }
 
 function estimateEta(vendor, service = 'food') {
-  if (service === 'eatout') return 'Table in 10-15 mins';
-  if (service === 'scenes') return 'Entry slots today';
-  if (service === 'warehouse') return '5-15 mins';
+  const eta = Number(vendor?.estimated_delivery_time_min);
+
+  if (service === 'eatout') {
+    if (Number.isFinite(eta) && eta > 0) return `Table in ${Math.max(10, eta)} mins`;
+    return 'Reserve now';
+  }
+
+  if (service === 'scenes') return 'Instant confirmation';
+
+  if (Number.isFinite(eta) && eta > 0) {
+    if (eta <= 15) return `${Math.round(eta)} mins`;
+    return `${Math.max(10, Math.round(eta - 5))}-${Math.round(eta)} mins`;
+  }
+
+  if (service === 'warehouse') return '10-20 mins';
   if (vendor?.distance_km != null) {
     if (vendor.distance_km <= 2) return '15-20 mins';
     if (vendor.distance_km <= 5) return '20-30 mins';
   }
-  return '23 mins';
+  return '25-35 mins';
 }
 
 function getVendorRating(vendor) {
-  const seed = Number(vendor?.id || 0) || String(vendor?.name || '').length || 1;
-  return (4.1 + (seed % 8) * 0.1).toFixed(1);
+  const rating = Number(vendor?.avg_rating);
+  if (Number.isFinite(rating) && rating > 0) {
+    return rating.toFixed(1);
+  }
+  return 'New';
 }
 
 function getDeliveryLabel(vendor, service = 'food') {
-  if (service === 'eatout') return 'Extra bank offers';
+  if (service === 'eatout') return vendor?.open_now === false ? 'Closed for reservations' : 'Table booking available';
   if (service === 'scenes') return 'Instant confirmation';
+  if (vendor?.can_deliver === false) return 'Outside delivery radius';
   if (vendor?.distance_km != null && vendor.distance_km <= 2) return 'Free delivery';
   if (vendor?.distance_km != null && vendor.distance_km <= 5) return '₹19 delivery';
-  return '₹29 delivery';
+  return service === 'warehouse' ? 'Fast basket delivery' : '₹29 delivery';
 }
 
 function getHeroSubtitle(vendor, service = 'food') {
@@ -146,31 +162,18 @@ function getHeroSubtitle(vendor, service = 'food') {
   return vendor?.description || 'Popular local store with fast delivery and strong value.';
 }
 
-function pickEmoji(name = '', service = 'food') {
-  const value = String(name || '').toLowerCase();
-
-  if (service === 'eatout' && /(table|booking|seat)/.test(value)) return '🍽️';
-  if (service === 'scenes' && /(ticket|entry|pass)/.test(value)) return '🎟️';
-  if (/(curd|milk|paneer|dairy|yogurt)/.test(value)) return '🥛';
-  if (/(chip|snack|cracker)/.test(value)) return '🥔';
-  if (/(jam|berry|fruit)/.test(value)) return '🍓';
-  if (/(chocolate|candy|bar)/.test(value)) return '🍫';
-  if (/(bread|toast|bun|bakery|naan)/.test(value)) return '🍞';
-  if (/(drink|juice|cola|water|tea|coffee)/.test(value)) return '🥤';
-  if (/(vegetable|tomato|onion|potato)/.test(value)) return '🥬';
-  if (/(rice|dal|flour|atta)/.test(value)) return '🍚';
-  if (/(beauty|cream|soap|shampoo|sunscreen)/.test(value)) return '🧴';
-  if (/(pizza|burger|biryani|sandwich|meal|paneer butter masala|fries)/.test(value)) return '🍔';
-  if (/(dessert|cake|brownie|ice cream|truffle)/.test(value)) return '🍰';
-  if (/(pottery|workshop|maker)/.test(value)) return '🏺';
-  if (/(comedy|show|performance)/.test(value)) return '🎤';
-
-  return service === 'warehouse' ? '🛍️' : service === 'scenes' ? '🎟️' : '🍽️';
-}
-
 function getProductBadge(product, service = 'food') {
+  const explicitBadge = String(product?.badge_text || '').trim();
+  if (explicitBadge) return explicitBadge;
+
   const name = String(product?.name || '').toLowerCase();
   const price = Number(product?.price || 0);
+  const originalPrice = Number(product?.original_price || 0);
+  const rating = Number(product?.avg_rating || 0);
+
+  if (originalPrice > price && price > 0) return `Save ₹${Math.round(originalPrice - price)}`;
+  if (product?.is_featured) return 'Featured';
+  if (rating >= 4.5) return 'Top rated';
 
   if (service === 'eatout') {
     if (/(combo|platter|feast)/.test(name)) return 'Best for sharing';
@@ -197,46 +200,20 @@ function getProductBadge(product, service = 'food') {
   return 'Popular';
 }
 
-function deriveCategory(product, service = 'food') {
-  const value = `${product?.name || ''} ${product?.description || ''}`.toLowerCase();
-
-  if (service === 'warehouse') {
-    if (/(milk|curd|paneer|dairy|egg)/.test(value)) return 'Daily essentials';
-    if (/(fruit|vegetable|greens|tomato|onion|potato)/.test(value)) return 'Fresh';
-    if (/(chip|snack|cracker|chocolate|biscuit)/.test(value)) return 'Snacks';
-    if (/(drink|juice|cola|water|tea|coffee)/.test(value)) return 'Beverages';
-    if (/(soap|shampoo|cream|beauty)/.test(value)) return 'Personal care';
-    if (/(bread|toast|bun|bakery)/.test(value)) return 'Bakery';
-    return 'Essentials';
-  }
-
-  if (service === 'eatout') {
-    if (/(drink|juice|mocktail|coffee|tea)/.test(value)) return 'Drinks';
-    if (/(dessert|cake|brownie|ice cream)/.test(value)) return 'Desserts';
-    if (/(starter|fries|side)/.test(value)) return 'Starters';
-    if (/(combo|platter|meal|burger|biryani|pizza|pasta|naan|paneer|curry)/.test(value)) return 'Mains';
-    return 'Chef picks';
-  }
-
-  if (service === 'scenes') {
-    if (/(vip|premium)/.test(value)) return 'Premium';
-    if (/(workshop|class|lab)/.test(value)) return 'Workshops';
-    if (/(show|night|comedy|music|gig|entry|ticket|pass)/.test(value)) return 'Tickets';
-    return 'Experiences';
-  }
-
-  if (/(drink|juice|coffee|tea)/.test(value)) return 'Beverages';
-  if (/(dessert|cake|brownie|ice cream|sweet|truffle)/.test(value)) return 'Desserts';
-  if (/(naan|bread|bun|roll)/.test(value)) return 'Breads';
-  if (/(fries|starter|side)/.test(value)) return 'Sides';
-  return 'Mains';
-}
-
 function sortRecommended(products = []) {
   return [...products].sort((a, b) => {
-    const aScore = Number(a?.price || 0) + String(a?.name || '').length * 0.1;
-    const bScore = Number(b?.price || 0) + String(b?.name || '').length * 0.1;
-    return aScore - bScore;
+    const score = (item) => {
+      const discount = Math.max(0, Number(item?.original_price || 0) - Number(item?.price || 0));
+      return (
+        (item?.is_available ? 1000 : 0) +
+        (item?.is_featured ? 300 : 0) +
+        Math.round(Number(item?.avg_rating || 0) * 40) +
+        Math.min(discount, 200) +
+        Math.max(0, 100 - Number(item?.price || 0))
+      );
+    };
+
+    return score(b) - score(a) || String(a?.name || '').localeCompare(String(b?.name || ''));
   });
 }
 
