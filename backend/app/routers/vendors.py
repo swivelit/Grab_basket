@@ -1,92 +1,368 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import Vendor, Product
-from ..schemas import VendorOut, ProductOut
+from ..models import Product, Vendor
+from ..schemas import ProductOut, VendorOut
 from ..utils.geo import haversine_km
 
 router = APIRouter(prefix="/vendors", tags=["vendors"])
 
+MAX_VENDOR_SCAN = 500
+MAX_PRODUCT_SCAN = 1000
 
-def _open_now(v: Vendor) -> bool:
-    if not v.is_open:
+
+def _clean_text(value: object) -> str:
+    return str(value or "").strip()
+
+
+def _clean_lower(value: object) -> str:
+    return _clean_text(value).lower()
+
+
+def _open_now(vendor: Vendor) -> bool:
+    """
+    Operationally open for ordering right now.
+    This is stricter than only checking business hours.
+    """
+    if not bool(vendor.is_open):
         return False
-    if v.open_time is None or v.close_time is None:
+    if not bool(getattr(vendor, "is_accepting_orders", True)):
+        return False
+
+    open_time = getattr(vendor, "open_time", None)
+    close_time = getattr(vendor, "close_time", None)
+
+    if open_time is None or close_time is None:
         return True
+
     now = datetime.now().time()
-    if v.open_time <= v.close_time:
-        return v.open_time <= now <= v.close_time
-    return now >= v.open_time or now <= v.close_time
+    if open_time <= close_time:
+        return open_time <= now <= close_time
+
+    # Overnight range, e.g. 18:00 -> 02:00
+    return now >= open_time or now <= close_time
 
 
-def _annotate_vendor(v: Vendor, lat: float | None, lng: float | None) -> VendorOut:
-    vo = VendorOut.model_validate(v)
-    vo.open_now = _open_now(v)
-    if lat is not None and lng is not None and v.lat is not None and v.lng is not None:
-        dist = haversine_km(lat, lng, v.lat, v.lng)
-        vo.distance_km = dist
-        vo.can_deliver = dist <= float(v.delivery_radius_km)
-    return vo
+def _vendor_distance_km(vendor: Vendor, lat: float | None, lng: float | None) -> float | None:
+    if lat is None or lng is None:
+        return None
+    if vendor.lat is None or vendor.lng is None:
+        return None
+    return haversine_km(lat, lng, vendor.lat, vendor.lng)
+
+
+def _annotate_vendor(vendor: Vendor, lat: float | None, lng: float | None) -> VendorOut:
+    out = VendorOut.model_validate(vendor)
+    distance_km = _vendor_distance_km(vendor, lat, lng)
+
+    out.open_now = _open_now(vendor)
+    out.distance_km = distance_km
+
+    if distance_km is not None:
+        try:
+            out.can_deliver = distance_km <= float(vendor.delivery_radius_km or 0)
+        except Exception:
+            out.can_deliver = False
+    else:
+        out.can_deliver = None
+
+    return out
+
+
+def _vendor_matches_category(vendor: Vendor, category: str) -> bool:
+    if not category:
+        return True
+
+    category_norm = _clean_lower(category)
+    haystacks = [
+        _clean_lower(getattr(vendor, "cuisine_tags", "")),
+        _clean_lower(getattr(vendor, "description", "")),
+        _clean_lower(getattr(vendor, "name", "")),
+    ]
+    return any(category_norm in hay for hay in haystacks)
+
+
+def _sort_vendor_rows(
+    rows: list[VendorOut],
+    *,
+    sort_by: str,
+) -> list[VendorOut]:
+    mode = _clean_lower(sort_by) or "recommended"
+
+    if mode == "distance":
+        return sorted(rows, key=lambda row: (row.distance_km is None, row.distance_km or 10**9, row.id))
+
+    if mode == "rating":
+        return sorted(
+            rows,
+            key=lambda row: (-(row.avg_rating or 0.0), -(row.total_ratings or 0), row.id),
+        )
+
+    if mode == "delivery_time":
+        return sorted(
+            rows,
+            key=lambda row: (
+                row.estimated_delivery_time_min is None,
+                row.estimated_delivery_time_min or 10**9,
+                row.distance_km is None,
+                row.distance_km or 10**9,
+                row.id,
+            ),
+        )
+
+    if mode == "a_z":
+        return sorted(rows, key=lambda row: (_clean_lower(row.name), row.id))
+
+    if mode == "newest":
+        return sorted(
+            rows,
+            key=lambda row: (
+                -(int(row.created_at.timestamp()) if row.created_at else 0),
+                row.id,
+            ),
+        )
+
+    # recommended / default:
+    # 1) accepting + open now
+    # 2) deliverable when location is known
+    # 3) higher rating + more ratings
+    # 4) faster ETA
+    # 5) nearer distance
+    # 6) richer media/catalog signals
+    def score(row: VendorOut) -> tuple:
+        media_signal = 0
+        if _clean_text(getattr(row, "logo_image_url", "")):
+            media_signal += 1
+        if _clean_text(getattr(row, "cover_image_url", "")):
+            media_signal += 1
+        if _clean_text(getattr(row, "banner_image_url", "")):
+            media_signal += 1
+
+        return (
+            0 if row.open_now else 1,
+            0 if row.can_deliver is True else 1,
+            -(row.avg_rating or 0.0),
+            -(row.total_ratings or 0),
+            row.estimated_delivery_time_min or 10**9,
+            row.distance_km if row.distance_km is not None else 10**9,
+            -media_signal,
+            row.id,
+        )
+
+    return sorted(rows, key=score)
+
+
+def _sort_product_rows(
+    rows: list[Product],
+    *,
+    sort_by: str,
+) -> list[Product]:
+    mode = _clean_lower(sort_by) or "recommended"
+
+    if mode == "price_asc":
+        return sorted(rows, key=lambda row: (float(row.price or 0), row.id))
+
+    if mode == "price_desc":
+        return sorted(rows, key=lambda row: (-float(row.price or 0), row.id))
+
+    if mode == "rating":
+        return sorted(
+            rows,
+            key=lambda row: (-(row.avg_rating or 0.0), -(row.total_ratings or 0), row.id),
+        )
+
+    if mode == "newest":
+        return sorted(
+            rows,
+            key=lambda row: (
+                -(int(row.created_at.timestamp()) if row.created_at else 0),
+                row.id,
+            ),
+        )
+
+    if mode == "a_z":
+        return sorted(rows, key=lambda row: (_clean_lower(row.name), row.id))
+
+    # recommended / default
+    return sorted(
+        rows,
+        key=lambda row: (
+            0 if bool(row.is_available) else 1,
+            0 if bool(getattr(row, "is_featured", False)) else 1,
+            getattr(row, "sort_order", 0),
+            -(row.avg_rating or 0.0),
+            -(row.total_ratings or 0),
+            _clean_lower(row.name),
+            row.id,
+        ),
+    )
 
 
 @router.get("", response_model=list[VendorOut])
 def list_vendors(
     db: Session = Depends(get_db),
-    lat: float | None = Query(default=None),
-    lng: float | None = Query(default=None),
-    q: str | None = Query(default=None),
+    lat: float | None = Query(default=None, ge=-90, le=90),
+    lng: float | None = Query(default=None, ge=-180, le=180),
+    q: str | None = Query(default=None, max_length=200),
+    category: str | None = Query(default=None, max_length=120),
     open_only: bool = Query(default=False),
     deliverable_only: bool = Query(default=False),
+    min_rating: float | None = Query(default=None, ge=0, le=5),
+    sort_by: str = Query(default="recommended", max_length=40),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ):
     query = db.query(Vendor)
-    if q:
-        s = f"%{q.strip()}%"
-        query = query.filter(or_(Vendor.name.ilike(s), Vendor.description.ilike(s), Vendor.address.ilike(s)))
 
-    vendors = query.order_by(Vendor.id.desc()).offset(offset).limit(limit).all()
+    search = _clean_text(q)
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            or_(
+                Vendor.name.ilike(like),
+                Vendor.description.ilike(like),
+                Vendor.address.ilike(like),
+                Vendor.cuisine_tags.ilike(like),
+                Vendor.slug.ilike(like),
+            )
+        )
 
-    out: list[VendorOut] = []
-    for v in vendors:
-        vo = _annotate_vendor(v, lat, lng)
-        if open_only and not vo.open_now:
+    if open_only:
+        query = query.filter(Vendor.is_open == True)  # noqa: E712
+        query = query.filter(Vendor.is_accepting_orders == True)  # noqa: E712
+
+    if min_rating is not None:
+        query = query.filter(Vendor.avg_rating >= float(min_rating))
+
+    # Fetch a larger candidate pool first because we do post-processing
+    # for geospatial filters, open-now checks, category matching, and sorting.
+    scan_limit = min(MAX_VENDOR_SCAN, max(limit + offset + 50, limit * 3))
+    vendors = query.order_by(Vendor.id.desc()).limit(scan_limit).all()
+
+    rows: list[VendorOut] = []
+    for vendor in vendors:
+        if not _vendor_matches_category(vendor, _clean_text(category)):
             continue
-        if deliverable_only and (lat is None or lng is None or vo.can_deliver is not True):
-            continue
-        out.append(vo)
 
-    if lat is not None and lng is not None:
-        out.sort(key=lambda x: (x.distance_km is None, x.distance_km or 10**9))
-    return out
+        row = _annotate_vendor(vendor, lat, lng)
+
+        if open_only and not row.open_now:
+            continue
+
+        if deliverable_only:
+            if lat is None or lng is None:
+                continue
+            if row.can_deliver is not True:
+                continue
+
+        rows.append(row)
+
+    rows = _sort_vendor_rows(rows, sort_by=sort_by)
+    return rows[offset : offset + limit]
 
 
 @router.get("/{vendor_id}", response_model=VendorOut)
-def get_vendor(vendor_id: int, db: Session = Depends(get_db), lat: float | None = None, lng: float | None = None):
-    v = db.query(Vendor).filter(Vendor.id == vendor_id).first()
-    if not v:
+def get_vendor(
+    vendor_id: int,
+    db: Session = Depends(get_db),
+    lat: float | None = Query(default=None, ge=-90, le=90),
+    lng: float | None = Query(default=None, ge=-180, le=180),
+):
+    vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
+    if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
-    return _annotate_vendor(v, lat, lng)
+    return _annotate_vendor(vendor, lat, lng)
 
 
 @router.get("/{vendor_id}/products", response_model=list[ProductOut])
 def vendor_products(
     vendor_id: int,
     db: Session = Depends(get_db),
-    q: str | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=200),
+    category: str | None = Query(default=None, max_length=120),
     include_unavailable: bool = Query(default=False),
+    featured_only: bool = Query(default=False),
+    sort_by: str = Query(default="recommended", max_length=40),
     limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ):
+    vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+
+    query = db.query(Product).filter(Product.vendor_id == vendor_id)
+
+    if not include_unavailable:
+        query = query.filter(Product.is_available == True)  # noqa: E712
+
+    if featured_only:
+        query = query.filter(Product.is_featured == True)  # noqa: E712
+
+    search = _clean_text(q)
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            or_(
+                Product.name.ilike(like),
+                Product.description.ilike(like),
+                Product.category.ilike(like),
+                Product.subcategory.ilike(like),
+                Product.badge_text.ilike(like),
+                Product.sku.ilike(like),
+                Product.barcode.ilike(like),
+            )
+        )
+
+    category_value = _clean_text(category)
+    if category_value:
+        like = f"%{category_value}%"
+        query = query.filter(
+            or_(
+                Product.category.ilike(like),
+                Product.subcategory.ilike(like),
+            )
+        )
+
+    scan_limit = min(MAX_PRODUCT_SCAN, max(limit + offset + 50, limit * 3))
+    products = query.limit(scan_limit).all()
+    products = _sort_product_rows(products, sort_by=sort_by)
+
+    return products[offset : offset + limit]
+
+
+@router.get("/{vendor_id}/categories", response_model=list[str])
+def vendor_categories(
+    vendor_id: int,
+    db: Session = Depends(get_db),
+    include_unavailable: bool = Query(default=False),
+):
+    vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+
     query = db.query(Product).filter(Product.vendor_id == vendor_id)
     if not include_unavailable:
-        query = query.filter(Product.is_available == True)  # noqa
-    if q:
-        s = f"%{q.strip()}%"
-        query = query.filter(or_(Product.name.ilike(s), Product.description.ilike(s)))
-    return query.order_by(Product.id.desc()).limit(limit).all()
+        query = query.filter(Product.is_available == True)  # noqa: E712
+
+    rows = query.all()
+    seen: set[str] = set()
+    output: list[str] = []
+
+    for product in rows:
+        for raw in [getattr(product, "category", ""), getattr(product, "subcategory", "")]:
+            value = _clean_text(raw)
+            key = value.lower()
+            if not value or key in seen:
+                continue
+            seen.add(key)
+            output.append(value)
+
+    output.sort(key=lambda value: value.lower())
+    return output

@@ -13,8 +13,26 @@ import { captureEvent, captureException } from '../lib/telemetry';
 
 const APP_VARIANT = getAppVariant();
 const ORDER_SYNC_EVENT = 'grab_basket:orders_sync_requested';
+const ORDER_OPEN_EVENT = 'grab_basket:push_order_open_requested';
 const STORAGE_AUTH_TOKEN = `@grab_basket/${APP_VARIANT}/auth_token_v1`;
 const STORAGE_LAST_PUSH_SIGNATURE = `@grab_basket/${APP_VARIANT}/push_registration_signature_v1`;
+
+const KNOWN_APP_ROUTES = new Set([
+  '/(tabs)/index',
+  '/(tabs)/explore',
+  '/(tabs)/reorder',
+  '/(tabs)/account',
+  '/(delivery)/(tabs)/index',
+  '/(delivery)/(tabs)/orders',
+  '/(delivery)/(tabs)/earnings',
+  '/(delivery)/(tabs)/account',
+  '/(partner)/(tabs)/index',
+  '/(partner)/(tabs)/orders',
+  '/(partner)/(tabs)/catalog',
+  '/(partner)/(tabs)/account',
+  '/cart',
+  '/explore',
+]);
 
 let secureStoreModuleCache;
 
@@ -58,12 +76,6 @@ function getOrdersRoute(variant = APP_VARIANT) {
   return '/(tabs)/account';
 }
 
-function getNotificationOrderRoute(variant = APP_VARIANT) {
-  if (variant === 'delivery') return '/delivery-order/[orderId]';
-  if (variant === 'partner') return '/partner-order/[orderId]';
-  return '/order/[orderId]';
-}
-
 function sanitizeTargetApp(targetApp) {
   const value = String(targetApp || '').trim().toLowerCase();
   if (['customer', 'consumer', 'user'].includes(value)) return 'consumer';
@@ -81,6 +93,20 @@ function sanitizeNotificationData(notificationData = {}) {
     target_app: sanitizeTargetApp(notificationData?.target_app),
     deep_link_path: String(notificationData?.deep_link_path || '').trim(),
   };
+}
+
+function isSafeAppRoute(path) {
+  return KNOWN_APP_ROUTES.has(String(path || '').trim());
+}
+
+function resolveNotificationRoute({ appVariant = APP_VARIANT, deepLinkPath = '' } = {}) {
+  const sanitizedPath = String(deepLinkPath || '').trim();
+
+  if (isSafeAppRoute(sanitizedPath)) {
+    return sanitizedPath;
+  }
+
+  return getOrdersRoute(appVariant);
 }
 
 async function ensureAndroidChannel() {
@@ -106,6 +132,34 @@ async function getPushTokenAsync() {
 
   const response = await Notifications.getExpoPushTokenAsync();
   return response?.data || '';
+}
+
+async function buildRegistrationError(response) {
+  try {
+    const payload = await response.json();
+    const message =
+      payload?.error?.message ||
+      payload?.detail ||
+      payload?.message ||
+      '';
+
+    if (message) {
+      return `Push registration failed with status ${response.status}: ${message}`;
+    }
+  } catch {
+    // Ignore JSON parse failures and fall through to text parsing.
+  }
+
+  try {
+    const text = String(await response.text()).trim();
+    if (text) {
+      return `Push registration failed with status ${response.status}: ${text}`;
+    }
+  } catch {
+    // Ignore text parse failures.
+  }
+
+  return `Push registration failed with status ${response.status}`;
 }
 
 Notifications.setNotificationHandler({
@@ -164,18 +218,32 @@ export default function PushNotificationBootstrap() {
       syncOrders();
 
       const activeVariant = appVariant || APP_VARIANT;
-      const fallbackPath = getOrdersRoute(activeVariant);
-      const targetPath = normalizedData.deep_link_path || fallbackPath;
+      const targetPath = resolveNotificationRoute({
+        appVariant: activeVariant,
+        deepLinkPath: normalizedData.deep_link_path,
+      });
 
       if (normalizedData.order_id) {
-        router.push({
-          pathname: getNotificationOrderRoute(activeVariant),
-          params: { orderId: normalizedData.order_id },
+        DeviceEventEmitter.emit(ORDER_OPEN_EVENT, {
+          app_variant: activeVariant,
+          order_id: normalizedData.order_id,
+          status: normalizedData.status,
+          type: normalizedData.type,
+          source: 'push',
+          at: Date.now(),
         });
-        return;
       }
 
-      router.push(targetPath);
+      router.push({
+        pathname: targetPath,
+        params: normalizedData.order_id
+          ? {
+              orderId: normalizedData.order_id,
+              highlightOrderId: normalizedData.order_id,
+              source: 'push',
+            }
+          : undefined,
+      });
     },
     [appVariant, router, syncOrders]
   );
@@ -243,7 +311,7 @@ export default function PushNotificationBootstrap() {
     });
 
     if (!response.ok) {
-      throw new Error(`Push registration failed with status ${response.status}`);
+      throw new Error(await buildRegistrationError(response));
     }
 
     await AsyncStorage.setItem(STORAGE_LAST_PUSH_SIGNATURE, nextSignature);
