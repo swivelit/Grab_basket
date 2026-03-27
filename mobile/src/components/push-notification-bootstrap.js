@@ -1,21 +1,19 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { DeviceEventEmitter, Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 
 import { useGrabBasket } from '../../App';
-import { buildApiUrl } from '../config';
 import { getAppVariant } from '../constants/app-shell';
+import { apiPost } from '../lib/api-client';
+import { STORAGE_KEYS, readStoredValue, writeStoredValue } from '../lib/storage';
 import { captureEvent, captureException } from '../lib/telemetry';
 
 const APP_VARIANT = getAppVariant();
 const ORDER_SYNC_EVENT = 'grab_basket:orders_sync_requested';
 const ORDER_OPEN_EVENT = 'grab_basket:push_order_open_requested';
-const STORAGE_AUTH_TOKEN = `@grab_basket/${APP_VARIANT}/auth_token_v1`;
-const STORAGE_LAST_PUSH_SIGNATURE = `@grab_basket/${APP_VARIANT}/push_registration_signature_v1`;
 
 const KNOWN_APP_ROUTES = new Set([
   '/(tabs)/index',
@@ -34,31 +32,8 @@ const KNOWN_APP_ROUTES = new Set([
   '/explore',
 ]);
 
-let secureStoreModuleCache;
-
-function getSecureStoreModule() {
-  if (secureStoreModuleCache !== undefined) return secureStoreModuleCache;
-
-  try {
-    secureStoreModuleCache = require('expo-secure-store');
-  } catch {
-    secureStoreModuleCache = null;
-  }
-
-  return secureStoreModuleCache;
-}
-
-function hasSecureStore() {
-  const module = getSecureStoreModule();
-  return Boolean(module?.getItemAsync && module?.setItemAsync);
-}
-
 async function getStoredAccessToken() {
-  if (hasSecureStore()) {
-    return (await getSecureStoreModule().getItemAsync(STORAGE_AUTH_TOKEN)) || '';
-  }
-
-  return (await AsyncStorage.getItem(STORAGE_AUTH_TOKEN)) || '';
+  return String((await readStoredValue(STORAGE_KEYS.authToken)) || '').trim();
 }
 
 function getExpoProjectId() {
@@ -132,34 +107,6 @@ async function getPushTokenAsync() {
 
   const response = await Notifications.getExpoPushTokenAsync();
   return response?.data || '';
-}
-
-async function buildRegistrationError(response) {
-  try {
-    const payload = await response.json();
-    const message =
-      payload?.error?.message ||
-      payload?.detail ||
-      payload?.message ||
-      '';
-
-    if (message) {
-      return `Push registration failed with status ${response.status}: ${message}`;
-    }
-  } catch {
-    // Ignore JSON parse failures and fall through to text parsing.
-  }
-
-  try {
-    const text = String(await response.text()).trim();
-    if (text) {
-      return `Push registration failed with status ${response.status}: ${text}`;
-    }
-  } catch {
-    // Ignore text parse failures.
-  }
-
-  return `Push registration failed with status ${response.status}`;
 }
 
 Notifications.setNotificationHandler({
@@ -262,7 +209,7 @@ export default function PushNotificationBootstrap() {
 
     let accessToken = String(authToken || '').trim();
     if (!accessToken) {
-      accessToken = String(await getStoredAccessToken()).trim();
+      accessToken = await getStoredAccessToken();
     }
     if (!accessToken) return;
 
@@ -291,30 +238,27 @@ export default function PushNotificationBootstrap() {
     }
 
     const nextSignature = `${String(authEmail || '').trim().toLowerCase()}|${pushToken}`;
-    const previousSignature = (await AsyncStorage.getItem(STORAGE_LAST_PUSH_SIGNATURE)) || '';
+    const previousSignature = String(
+      (await readStoredValue(STORAGE_KEYS.pushRegistrationSignature)) || ''
+    ).trim();
 
     if (previousSignature === nextSignature) {
       return;
     }
 
-    const response = await fetch(buildApiUrl('/auth/fcm/register'), {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
+    await apiPost(
+      '/auth/fcm/register',
+      {
         token: pushToken,
         platform: Platform.OS,
-      }),
-    });
+      },
+      {
+        token: accessToken,
+        timeoutMs: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      throw new Error(await buildRegistrationError(response));
-    }
-
-    await AsyncStorage.setItem(STORAGE_LAST_PUSH_SIGNATURE, nextSignature);
+    await writeStoredValue(STORAGE_KEYS.pushRegistrationSignature, nextSignature);
 
     captureEvent('push_token_registered', {
       app_variant: appVariant || APP_VARIANT,
@@ -384,14 +328,14 @@ export default function PushNotificationBootstrap() {
         captureException(error, {
           tags: {
             area: 'push',
-            operation: 'read-last-response',
+            operation: 'get-last-response',
           },
         });
       });
 
     return () => {
-      receivedSubscription?.remove?.();
-      responseSubscription?.remove?.();
+      receivedSubscription.remove();
+      responseSubscription.remove();
     };
   }, [appVariant, openOrdersScreen, syncOrders]);
 
