@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
   Alert,
@@ -39,6 +40,7 @@ const NETWORK_TIMEOUT_MS =
   Number.isFinite(Number(API_TIMEOUT_MS)) && Number(API_TIMEOUT_MS) > 0
     ? Number(API_TIMEOUT_MS)
     : 15000;
+const STORAGE_PENDING_CHECKOUT_ATTEMPT = '@grab_basket/pending_checkout_attempt_v1';
 
 function money(value) {
   return `₹${Number(value || 0).toFixed(0)}`;
@@ -200,16 +202,68 @@ function hasSameItems(order, cartItems = []) {
   return signature(orderItems, 'product_id') === signature(cartItems, 'id');
 }
 
-function findReusablePendingOrder(orders = [], { vendorId, paymentMethod, cartItems }) {
+function findReusablePendingOrder(orders = [], { vendorId, paymentMethod, deliveryAddressId, cartItems }) {
   return (
     (orders || []).find(
       (order) =>
         Number(order?.vendor_id || 0) === Number(vendorId || 0) &&
+        Number(order?.delivery_address_id || 0) === Number(deliveryAddressId || 0) &&
         String(order?.payment_method || '').toUpperCase() === String(paymentMethod || '').toUpperCase() &&
         isOrderPaymentPending(order) &&
         hasSameItems(order, cartItems)
     ) || null
   );
+}
+
+function buildCheckoutAttemptSignature({ vendorId, paymentMethod, deliveryAddressId, cartItems }) {
+  const itemsSignature = [...(cartItems || [])]
+    .map((item) => `${Number(item?.id || 0)}:${Number(item?.qty || 0)}`)
+    .sort()
+    .join('|');
+
+  return [
+    Number(vendorId || 0),
+    String(paymentMethod || 'COD').toUpperCase(),
+    Number(deliveryAddressId || 0),
+    itemsSignature,
+  ].join('::');
+}
+
+function generateCheckoutIdempotencyKey() {
+  return `cart_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+async function readPendingCheckoutAttempt() {
+  const raw = await AsyncStorage.getItem(STORAGE_PENDING_CHECKOUT_ATTEMPT).catch(() => null);
+  const parsed = safeJsonParse(raw);
+  return parsed && typeof parsed === 'object' ? parsed : null;
+}
+
+async function writePendingCheckoutAttempt(signature, key) {
+  const payload = JSON.stringify({
+    signature,
+    key,
+    created_at: new Date().toISOString(),
+  });
+
+  await AsyncStorage.setItem(STORAGE_PENDING_CHECKOUT_ATTEMPT, payload).catch(() => {});
+}
+
+async function clearPendingCheckoutAttempt() {
+  await AsyncStorage.removeItem(STORAGE_PENDING_CHECKOUT_ATTEMPT).catch(() => {});
+}
+
+async function getOrCreatePendingCheckoutAttempt(signature) {
+  const existing = await readPendingCheckoutAttempt();
+  const existingKey = String(existing?.key || '').trim();
+
+  if (existing?.signature === signature && existingKey) {
+    return { key: existingKey, isNew: false };
+  }
+
+  const nextKey = generateCheckoutIdempotencyKey();
+  await writePendingCheckoutAttempt(signature, nextKey);
+  return { key: nextKey, isNew: true };
 }
 
 async function pollGatewayStatus(orderId, authToken, { attempts = 4, delayMs = 1500 } = {}) {
@@ -307,6 +361,12 @@ export default function CartScreen() {
 
     const vendorId = Number(cartVendor?.id ?? cart?.vendorId);
     const isOnlinePayment = paymentMethod !== 'COD';
+    const checkoutAttemptSignature = buildCheckoutAttemptSignature({
+      vendorId,
+      paymentMethod,
+      deliveryAddressId,
+      cartItems,
+    });
 
     let order = null;
     let createdFreshPendingOrder = false;
@@ -324,11 +384,13 @@ export default function CartScreen() {
         order = findReusablePendingOrder(existingOrders, {
           vendorId,
           paymentMethod,
+          deliveryAddressId,
           cartItems,
         });
       }
 
       if (!order) {
+        const checkoutAttempt = await getOrCreatePendingCheckoutAttempt(checkoutAttemptSignature);
         const orderPayload = {
           vendor_id: vendorId,
           items: cartItems.map((item) => ({
@@ -343,11 +405,15 @@ export default function CartScreen() {
           method: 'POST',
           token: authToken,
           body: JSON.stringify(orderPayload),
+          headers: {
+            'X-Idempotency-Key': checkoutAttempt.key,
+          },
         });
-        createdFreshPendingOrder = isOnlinePayment;
+        createdFreshPendingOrder = isOnlinePayment && checkoutAttempt.isNew;
       }
 
       if (!isOnlinePayment) {
+        await clearPendingCheckoutAttempt();
         clearCart();
         await loadOrders().catch(() => {});
 
@@ -387,6 +453,7 @@ export default function CartScreen() {
       await loadOrders().catch(() => {});
 
       if (paymentStatus === 'PAID') {
+        await clearPendingCheckoutAttempt();
         clearCart();
         Alert.alert(
           isBooking ? 'Booking confirmed' : 'Payment successful',
@@ -403,6 +470,7 @@ export default function CartScreen() {
           method: 'POST',
           token: authToken,
         }).catch(() => {});
+        await clearPendingCheckoutAttempt();
 
         await loadOrders().catch(() => {});
 
@@ -423,6 +491,7 @@ export default function CartScreen() {
           method: 'POST',
           token: authToken,
         }).catch(() => {});
+        await clearPendingCheckoutAttempt();
       }
 
       Alert.alert('Could not place order', normalizeErrorMessage(error));

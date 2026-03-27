@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -10,6 +12,11 @@ from ..models import User, Vendor, Product, Order, OrderEvent, FcmToken, Partner
 from ..schemas import VendorUpdateIn, ProductCreateIn, ProductUpdateIn, ProductOut, OrderOut
 from ..notifications import build_order_notification_data, send_push
 from ..utils.geo import haversine_km
+from ..utils.inventory import (
+    InventoryReservationError,
+    release_inventory_for_order,
+    reserve_inventory_for_order,
+)
 
 router = APIRouter(prefix="/seller", tags=["seller"])
 
@@ -137,6 +144,7 @@ def _try_assign_partner(db: Session, order: Order, vendor: Vendor | None) -> Use
             continue
 
         order.partner_id = pid
+        order.assigned_at = datetime.utcnow()
         _add_event(db, order, "ASSIGNED_TO_PARTNER", "Partner assigned", actor_user_id=None)
         return partner_by_id.get(pid) or db.query(User).filter(User.id == pid).first()
 
@@ -269,6 +277,18 @@ def accept_order(order_id: int, db: Session = Depends(get_db), user: User = Depe
     if order.status != "CREATED":
         raise HTTPException(status_code=400, detail="Order cannot be accepted")
 
+    try:
+        reserve_inventory_for_order(
+            db,
+            order,
+            actor_user_id=user.id,
+            note="Inventory reserved on seller acceptance",
+        )
+    except InventoryReservationError as error:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+    order.accepted_at = datetime.utcnow()
     _add_event(db, order, "ACCEPTED_BY_SELLER", "Accepted by seller", actor_user_id=user.id)
     assigned_partner = _try_assign_partner(db, order, v)
 
@@ -310,6 +330,12 @@ def reject_order(order_id: int, reason: str = "", db: Session = Depends(get_db),
     partner_id = order.partner_id
     order.partner_id = None
 
+    release_inventory_for_order(
+        db,
+        order,
+        actor_user_id=user.id,
+        note="Inventory released after seller rejection",
+    )
     _add_event(db, order, "REJECTED_BY_SELLER", reason or "Rejected", actor_user_id=user.id)
     if partner_id:
         _maybe_mark_partner_available(db, partner_id)
@@ -348,6 +374,7 @@ def mark_ready(order_id: int, db: Session = Depends(get_db), user: User = Depend
         raise HTTPException(status_code=400, detail="Order not ready at this stage")
 
     assigned_partner = _try_assign_partner(db, order, v)
+    order.ready_for_pickup_at = datetime.utcnow()
     _add_event(db, order, "READY_FOR_PICKUP", "Ready for pickup", actor_user_id=user.id)
 
     db.commit()
