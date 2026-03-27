@@ -20,7 +20,7 @@
     "ios:partner": "node ./scripts/with-variant.js partner run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test:unit": "node --experimental-default-type=module --test ./tests/**/*.test.js",
+    "test:unit": "node --experimental-default-type=module --test ./tests",
     "ci": "npm run lint && npm run test:unit"
   },
   "dependencies": {
@@ -67,7 +67,9 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~55.0.0"
   },
   "private": true
 }

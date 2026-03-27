@@ -376,7 +376,6 @@ function normalizeApiError(error, extras = {}) {
 function getAppMetadataHeaders() {
   const appVersion =
     Application?.nativeApplicationVersion ||
-    Application?.applicationVersion ||
     Application?.nativeBuildVersion ||
     '';
 

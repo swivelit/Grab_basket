@@ -217,6 +217,74 @@ function sortRecommended(products = []) {
   });
 }
 
+function deriveCategory(product, service = 'food') {
+  const explicit = String(product?.category_name || product?.category || '').trim();
+  if (explicit) return explicit;
+
+  const name = String(product?.name || '').toLowerCase();
+
+  if (service === 'warehouse') {
+    if (/(fruit|vegetable|greens|banana|apple|tomato|onion|potato)/.test(name)) return 'Fresh';
+    if (/(milk|bread|egg|curd|paneer|rice|atta|oil)/.test(name)) return 'Essentials';
+    if (/(chips|snack|chocolate|cookie|cola|juice)/.test(name)) return 'Snacks';
+    return 'Store picks';
+  }
+
+  if (service === 'eatout') {
+    if (/(starter|soup|appetizer)/.test(name)) return 'Starters';
+    if (/(dessert|cake|ice cream|sweet)/.test(name)) return 'Desserts';
+    if (/(drink|juice|shake|coffee|tea)/.test(name)) return 'Drinks';
+    return 'Menu';
+  }
+
+  if (service === 'scenes') {
+    if (/(vip|premium)/.test(name)) return 'Premium';
+    if (/(family|group|couple)/.test(name)) return 'Group plans';
+    return 'Experiences';
+  }
+
+  if (/(biryani|rice|noodle|pasta)/.test(name)) return 'Mains';
+  if (/(burger|sandwich|wrap|pizza)/.test(name)) return 'Fast food';
+  if (/(drink|juice|shake|coffee|tea)/.test(name)) return 'Beverages';
+  if (/(dessert|cake|ice cream|sweet)/.test(name)) return 'Desserts';
+  return 'Recommended';
+}
+
+function pickEmoji(name = '', service = 'food') {
+  const value = String(name || '').toLowerCase();
+
+  if (service === 'warehouse') {
+    if (/(milk|curd|paneer)/.test(value)) return '🥛';
+    if (/(bread|toast|bun)/.test(value)) return '🍞';
+    if (/(fruit|apple|banana|orange)/.test(value)) return '🍎';
+    if (/(vegetable|tomato|potato|onion)/.test(value)) return '🥬';
+    if (/(chips|snack|cookie|chocolate)/.test(value)) return '🍪';
+    return '🛒';
+  }
+
+  if (service === 'eatout') {
+    if (/(dessert|cake|ice cream|sweet)/.test(value)) return '🍰';
+    if (/(drink|juice|shake|coffee|tea)/.test(value)) return '🥤';
+    if (/(pizza)/.test(value)) return '🍕';
+    if (/(burger|sandwich|wrap)/.test(value)) return '🍔';
+    return '🍽️';
+  }
+
+  if (service === 'scenes') {
+    if (/(vip|premium)/.test(value)) return '🎟️';
+    if (/(music|concert|dj)/.test(value)) return '🎵';
+    if (/(movie|cinema)/.test(value)) return '🎬';
+    return '✨';
+  }
+
+  if (/(biryani|rice)/.test(value)) return '🍛';
+  if (/(pizza)/.test(value)) return '🍕';
+  if (/(burger|sandwich|wrap)/.test(value)) return '🍔';
+  if (/(dessert|cake|ice cream|sweet)/.test(value)) return '🍰';
+  if (/(drink|juice|shake|coffee|tea)/.test(value)) return '🥤';
+  return '🍽️';
+}
+
 function LoadingState({ dark = false, label = 'Loading...' }) {
   return (
     <View style={[styles.feedbackCard, dark && styles.feedbackCardDark]}>

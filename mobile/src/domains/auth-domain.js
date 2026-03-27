@@ -163,7 +163,7 @@ export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole 
       refreshToken,
       email: authEmail,
       role: authRole,
-      accessTokenExpiresAt,
+      accessTokenExpiresAt: authTokenExpiresAt,
       refreshTokenExpiresAt,
     }).catch(() => {});
   }, [
