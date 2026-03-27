@@ -1,12 +1,11 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Application from 'expo-application';
 import { Platform } from 'react-native';
 
 import { API_CONFIG_ERROR, API_TIMEOUT_MS, buildApiUrl } from '../config';
 import { getAppVariant } from '../constants/app-shell';
+import { STORAGE_KEYS, buildScopedStorageKey, readStoredValue } from './storage';
 
 const APP_VARIANT = getAppVariant();
-const STORAGE_PREFIX = '@grab_basket';
 const DEFAULT_TIMEOUT_MS =
   Number.isFinite(Number(API_TIMEOUT_MS)) && Number(API_TIMEOUT_MS) > 0
     ? Number(API_TIMEOUT_MS)
@@ -17,22 +16,7 @@ const MAX_RETRY_DELAY_MS = 2500;
 const RETRYABLE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const RETRYABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
-let secureStoreModuleCache;
-
-export function buildScopedStorageKey(key, variant = APP_VARIANT) {
-  return `${STORAGE_PREFIX}/${variant}/${String(key || '').replace(/^\/+/, '')}`;
-}
-
-export const STORAGE_KEYS = {
-  authToken: buildScopedStorageKey('auth_token_v1'),
-  refreshToken: buildScopedStorageKey('auth_refresh_token_v1'),
-  authEmail: buildScopedStorageKey('auth_email_v1'),
-  authRole: buildScopedStorageKey('auth_role_v1'),
-  authTokenExpiresAt: buildScopedStorageKey('auth_token_expires_at_v1'),
-  refreshTokenExpiresAt: buildScopedStorageKey('auth_refresh_expires_at_v1'),
-  selectedAddressId: buildScopedStorageKey('selected_address_id_v1'),
-  pendingCheckoutAttempt: buildScopedStorageKey('pending_checkout_attempt_v1'),
-};
+export { STORAGE_KEYS, buildScopedStorageKey };
 
 export class ApiError extends Error {
   constructor(message, extras = {}) {
@@ -67,20 +51,6 @@ export class ApiError extends Error {
       attempt: this.attempt,
     };
   }
-}
-
-function getSecureStoreModule() {
-  if (secureStoreModuleCache !== undefined) {
-    return secureStoreModuleCache;
-  }
-
-  try {
-    secureStoreModuleCache = require('expo-secure-store');
-  } catch {
-    secureStoreModuleCache = null;
-  }
-
-  return secureStoreModuleCache;
 }
 
 function sleep(ms) {
@@ -174,7 +144,6 @@ function normalizeResponseHeaders(response) {
     response.headers.forEach((value, key) => {
       headers[key] = value;
     });
-    return headers;
   }
 
   return headers;
@@ -329,25 +298,6 @@ function parseResponseBody(raw, responseHeaders, parse) {
   }
 
   return raw;
-}
-
-async function readStoredValue(key) {
-  const secureStore = getSecureStoreModule();
-
-  if (secureStore?.getItemAsync) {
-    try {
-      const secureValue = await secureStore.getItemAsync(key);
-      if (secureValue) return secureValue;
-    } catch {
-      // Fall through to AsyncStorage.
-    }
-  }
-
-  try {
-    return await AsyncStorage.getItem(key);
-  } catch {
-    return null;
-  }
 }
 
 export async function readStoredAccessToken() {
@@ -636,8 +586,4 @@ export function apiDelete(path, options = {}) {
 export function getErrorMessage(error, fallback = 'Something went wrong') {
   if (error instanceof ApiError && error.message) return error.message;
   return normalizeErrorMessage(error, fallback);
-}
-
-export function isApiError(error) {
-  return error instanceof ApiError || error?.name === 'ApiError';
 }
