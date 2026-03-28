@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user, require_role
 from ..config import settings
 from ..db import get_db
-from ..models import FcmToken, Order, OrderEvent, User, Vendor
+from ..models import FcmToken, MoneyLedgerEntry, Order, OrderEvent, RefundCase, User, Vendor, WebhookDelivery
 from ..notifications import build_order_notification_data, send_push
 from ..schemas import (
     PaymentCheckoutSessionIn,
@@ -273,6 +273,7 @@ def _mark_order_paid(
         order.status = "CREATED"
     if not already_paid:
         _add_event_once(db, order, "PAYMENT_VERIFIED", note, actor_user_id=actor_user_id)
+        db.add(MoneyLedgerEntry(order_id=order.id, event_type="PAYMENT_CAPTURED", flow_direction="CREDIT", amount=float(order.total_amount or 0), provider_ref=str(payment_id or link_id or ""), idempotency_key=f"payment_captured:{order.id}:{payment_id or link_id}"))
         vendor = db.query(Vendor).filter(Vendor.id == order.vendor_id).first()
         send_push(
             _seller_tokens(db, vendor),
@@ -591,6 +592,17 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Invalid webhook payload") from exc
 
     event_name = str(payload.get("event") or "").strip()
+    event_id = str(payload.get("contains") or payload.get("id") or hashlib.sha256(raw_body).hexdigest())[:128]
+    existing = db.query(WebhookDelivery).filter(WebhookDelivery.provider == "razorpay", WebhookDelivery.event_id == event_id).first()
+    if existing:
+        existing.replay_count += 1
+        db.commit()
+        return {"ok": True, "duplicate": True, "delivery_id": existing.id}
+
+    delivery = WebhookDelivery(provider="razorpay", event_id=event_id, event_type=event_name, signature_hash=signature, payload_json=raw_body.decode("utf-8", errors="ignore"), status="RECEIVED")
+    db.add(delivery)
+    db.flush()
+
     payment_link_entity = (((payload.get("payload") or {}).get("payment_link") or {}).get("entity") or {})
     payment_entity = (((payload.get("payload") or {}).get("payment") or {}).get("entity") or {})
 
@@ -600,24 +612,30 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
     if event_name == "payment_link.paid" and payment_link_id:
         order = db.query(Order).filter(Order.payment_ref.like(f"RZP_LINK:{payment_link_id}%")).first()
         if order:
-            _mark_order_paid(
-                db,
-                order,
-                link_id=payment_link_id,
-                payment_id=payment_id,
-                note=f"Razorpay webhook confirmed payment link {payment_link_id}" + (f" · payment {payment_id}" if payment_id else ""),
-            )
-            db.commit()
-            db.refresh(order)
+            _mark_order_paid(db, order, link_id=payment_link_id, payment_id=payment_id, note=f"Razorpay webhook confirmed payment link {payment_link_id}" + (f" · payment {payment_id}" if payment_id else ""))
 
     if event_name in {"payment_link.expired", "payment_link.cancelled"} and payment_link_id:
         order = db.query(Order).filter(Order.payment_ref.like(f"RZP_LINK:{payment_link_id}%")).first()
         if order:
             _mark_order_payment_failed(db, order, gateway_status=event_name.split(".")[-1])
-            db.commit()
-            db.refresh(order)
+            db.add(MoneyLedgerEntry(order_id=order.id, event_type="PAYMENT_FAILED", flow_direction="DEBIT", amount=float(order.total_amount or 0), provider_ref=payment_link_id, idempotency_key=f"payment_failed:{order.id}:{payment_link_id}"))
 
-    return {"ok": True}
+    if event_name.startswith("refund."):
+        payment_ref = str(payment_entity.get("id") or payment_link_id or "")
+        order = db.query(Order).filter(Order.payment_ref.like(f"%{payment_ref}%")).first()
+        if order:
+            case = db.query(RefundCase).filter(RefundCase.order_id == order.id, RefundCase.payment_ref == payment_ref).first()
+            if not case:
+                case = RefundCase(order_id=order.id, payment_ref=payment_ref, amount=float(order.total_amount or 0), reason=f"Webhook {event_name}", status="REQUESTED")
+                db.add(case)
+            else:
+                case.status = "PROCESSING"
+            db.add(MoneyLedgerEntry(order_id=order.id, event_type="REFUND_INITIATED", flow_direction="DEBIT", amount=float(order.total_amount or 0), provider_ref=payment_ref, idempotency_key=f"refund:{order.id}:{payment_ref}"))
+
+    delivery.status = "PROCESSED"
+    delivery.processed_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True, "duplicate": False, "delivery_id": delivery.id}
 
 
 @router.post("/{order_id}/verify", response_model=PaymentVerifyOut, dependencies=[Depends(require_role("CUSTOMER"))])

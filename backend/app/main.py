@@ -12,7 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .db import Base, engine
+from .db import engine
 from .routers import ROUTERS
 
 
@@ -43,10 +43,6 @@ def _build_release_readiness_payload() -> dict:
 @app.on_event("startup")
 def _startup() -> None:
     readiness = _build_release_readiness_payload()
-
-    if settings.RUN_DB_CREATE_ON_STARTUP:
-        Base.metadata.create_all(bind=engine)
-        logger.warning("Database tables auto-created at startup. Use Alembic migrations outside development.")
 
     for warning in readiness["warnings"]:
         logger.warning("Release readiness warning: %s", warning)
