@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import unittest
 from datetime import timedelta
+
+os.environ.setdefault("APP_ENV", "development")
+os.environ.setdefault("GRABBASKET_DISABLE_DOTENV", "1")
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test-suite.db")
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

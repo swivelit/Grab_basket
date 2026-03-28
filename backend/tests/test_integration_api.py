@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
+
+os.environ.setdefault("APP_ENV", "development")
+os.environ.setdefault("GRABBASKET_DISABLE_DOTENV", "1")
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test-integration.db")
 
 try:
     from fastapi.testclient import TestClient

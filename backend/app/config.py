@@ -1,11 +1,25 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import List
 from urllib.parse import urlparse
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _settings_env_file():
+    disable_dotenv = str(os.getenv("GRABBASKET_DISABLE_DOTENV", "")).strip().lower()
+    if disable_dotenv in {"1", "true", "yes", "on"}:
+        return None
+
+    env_file_override = os.getenv("GRABBASKET_ENV_FILE")
+    if env_file_override is not None:
+        value = str(env_file_override).strip()
+        return value or None
+
+    return ".env"
 
 
 class Settings(BaseSettings):
@@ -240,5 +254,4 @@ class Settings(BaseSettings):
 
         return self
 
-
-settings = Settings()
+settings = Settings(_env_file=_settings_env_file())
