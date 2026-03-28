@@ -29,6 +29,24 @@ cd backend
 docker compose exec api python -m app.seed
 ```
 
+### Hermetic backend verification
+- Python 3.11+ is expected for local backend runs. CI uses Python 3.12.
+- `GRABBASKET_DISABLE_DOTENV=1` disables loading `backend/.env` so local production-like settings cannot leak into migrations or tests.
+
+```bash
+cd backend
+./scripts/verify_backend.sh
+```
+
+What it does:
+- creates or reuses `backend/.venv`
+- installs `backend/requirements.txt`
+- sets `APP_ENV=development`
+- sets `GRABBASKET_DISABLE_DOTENV=1`
+- sets `PYTHONDONTWRITEBYTECODE=1`
+- runs `alembic upgrade head`
+- runs `python -m unittest discover -s tests -p "test_*.py" -v`
+
 ---
 
 ## 2) Mobile app (Expo / React Native)

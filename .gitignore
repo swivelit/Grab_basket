@@ -1,3 +1,16 @@
 backend/.env
 mobile/.env
 dist/
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+*.db
+*.sqlite
+*.sqlite3
+*.tmp.db
+*.verify.db

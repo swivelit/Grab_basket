@@ -16,6 +16,7 @@ class MigrationSmokeTests(unittest.TestCase):
             env = os.environ.copy()
             env["DATABASE_URL"] = f"sqlite:///{db_path}"
             env.setdefault("APP_ENV", "development")
+            env["GRABBASKET_DISABLE_DOTENV"] = "1"
             command = [
                 sys.executable,
                 "-c",

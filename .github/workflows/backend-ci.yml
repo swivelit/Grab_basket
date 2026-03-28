@@ -14,7 +14,9 @@ jobs:
     env:
       DATABASE_URL: sqlite:///./ci.db
       APP_ENV: development
+      GRABBASKET_DISABLE_DOTENV: "1"
       RUN_DB_CREATE_ON_STARTUP: "false"
+      PYTHONDONTWRITEBYTECODE: "1"
       JWT_SECRET: test-secret-test-secret-test-secret
       RAZORPAY_WEBHOOK_SECRET: test_webhook
     steps:
