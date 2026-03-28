@@ -586,3 +586,89 @@ export function getErrorMessage(error, fallback = 'Something went wrong') {
   if (error instanceof ApiError && error.message) return error.message;
   return normalizeErrorMessage(error, fallback);
 }
+
+export function subscribeToOrderTimelineStream({
+  orderId,
+  token,
+  sinceId = 0,
+  onEvent,
+  onError,
+  onOpen,
+  reconnect = true,
+  maxBackoffMs = 15000,
+}) {
+  let disposed = false;
+  let cursor = Number(sinceId || 0);
+  let backoffMs = 1000;
+  let controller = null;
+
+  async function connect() {
+    if (disposed) return;
+    controller = new AbortController();
+    const response = await fetch(
+      buildApiUrl(`/platform/orders/${orderId}/timeline/stream?since_id=${cursor}`),
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'text/event-stream',
+          Authorization: `Bearer ${String(token || '').trim()}`,
+        },
+        signal: controller.signal,
+      }
+    );
+    if (!response.ok || !response.body) {
+      throw new Error(`Timeline stream unavailable (${response.status})`);
+    }
+    backoffMs = 1000;
+    if (typeof onOpen === 'function') onOpen();
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    while (!disposed) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split('\n\n');
+      buffer = chunks.pop() || '';
+      chunks.forEach((chunk) => {
+        const lines = chunk.split('\n');
+        const dataLine = lines.find((line) => line.startsWith('data: '));
+        const idLine = lines.find((line) => line.startsWith('id: '));
+        if (!dataLine) return;
+        try {
+          const payload = JSON.parse(dataLine.slice(6));
+          if (idLine) cursor = Math.max(cursor, Number(idLine.slice(4) || 0));
+          if (typeof payload?.id === 'number') cursor = Math.max(cursor, payload.id);
+          if (typeof onEvent === 'function') onEvent(payload);
+        } catch {
+          // ignore invalid event payload
+        }
+      });
+    }
+  }
+
+  async function run() {
+    while (!disposed) {
+      try {
+        await connect();
+      } catch (error) {
+        if (typeof onError === 'function') onError(error);
+      }
+      if (!reconnect || disposed) break;
+      await sleep(backoffMs);
+      backoffMs = Math.min(maxBackoffMs, Math.round(backoffMs * 1.8));
+    }
+  }
+
+  run().catch((error) => {
+    if (typeof onError === 'function') onError(error);
+  });
+
+  return {
+    close: () => {
+      disposed = true;
+      controller?.abort();
+    },
+  };
+}
