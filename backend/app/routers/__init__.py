@@ -1,0 +1,39 @@
+from __future__ import annotations
+
+from . import (
+    addresses,
+    admin,
+    auth,
+    loyalty,
+    me,
+    offers,
+    ops,
+    orders,
+    partner,
+    payments,
+    personalization,
+    reviews,
+    seller,
+    support,
+    tracking,
+    vendors,
+)
+
+ROUTERS = [
+    auth.router,
+    vendors.router,
+    orders.router,
+    payments.router,
+    seller.router,
+    partner.router,
+    addresses.router,
+    tracking.router,
+    me.router,
+    admin.router,
+    personalization.router,
+    reviews.router,
+    support.router,
+    offers.router,
+    loyalty.router,
+    ops.router,
+]
