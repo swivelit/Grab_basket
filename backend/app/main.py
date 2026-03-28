@@ -8,12 +8,30 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import Base, engine
-from .routers import auth, vendors, orders, seller, partner, addresses, tracking, admin, me, payments
+from .models import Order, PartnerLocation
+from .routers import (
+    addresses,
+    admin,
+    auth,
+    loyalty,
+    me,
+    offers,
+    orders,
+    partner,
+    personalization,
+    payments,
+    reviews,
+    seller,
+    support,
+    tracking,
+    vendors,
+)
 
 
 def _configure_logging() -> None:
@@ -188,6 +206,61 @@ def ready():
     }
 
 
+def _run_synthetic_probes() -> dict:
+    probes: dict[str, dict] = {}
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        probes["database_roundtrip"] = {"ok": True}
+    except Exception as exc:
+        probes["database_roundtrip"] = {"ok": False, "error": str(exc)}
+
+    try:
+        probes["payments_config"] = {
+            "ok": bool(settings.razorpay_enabled and settings.payment_webhook_ready),
+            "details": {
+                "razorpay_enabled": settings.razorpay_enabled,
+                "webhook_ready": settings.payment_webhook_ready,
+            },
+        }
+    except Exception as exc:
+        probes["payments_config"] = {"ok": False, "error": str(exc)}
+
+    try:
+        with Session(engine) as session:
+            active_order = (
+                session.query(Order.id)
+                .filter(Order.status.in_(["ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP", "PICKED_UP"]))
+                .first()
+            )
+            latest_partner_ping = session.query(PartnerLocation.id).order_by(PartnerLocation.created_at.desc()).first()
+
+        probes["tracking_pipeline"] = {
+            "ok": True,
+            "details": {
+                "has_active_partner_order": bool(active_order),
+                "has_partner_location_ping": bool(latest_partner_ping),
+            },
+        }
+    except Exception as exc:
+        probes["tracking_pipeline"] = {"ok": False, "error": str(exc)}
+
+    overall_ok = all(item.get("ok") for item in probes.values())
+    return {"ok": overall_ok, "probes": probes}
+
+
+@app.get("/health/synthetic")
+def health_synthetic():
+    result = _run_synthetic_probes()
+    readiness = _build_release_readiness_payload()
+    return {
+        "ok": result["ok"] and not readiness["errors"],
+        "synthetic": result,
+        "release_readiness": readiness,
+    }
+
+
 # Routers
 app.include_router(auth.router)
 app.include_router(vendors.router)
@@ -199,3 +272,8 @@ app.include_router(addresses.router)
 app.include_router(tracking.router)
 app.include_router(me.router)
 app.include_router(admin.router)
+app.include_router(personalization.router)
+app.include_router(reviews.router)
+app.include_router(support.router)
+app.include_router(offers.router)
+app.include_router(loyalty.router)

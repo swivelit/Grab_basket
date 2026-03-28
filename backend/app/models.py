@@ -321,6 +321,101 @@ class OrderItem(Base):
     product = relationship("Product")
 
 
+class OrderReview(Base):
+    __tablename__ = "order_reviews"
+    id = Column(Integer, primary_key=True)
+
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, unique=True, index=True)
+    vendor_id = Column(Integer, ForeignKey("vendors.id"), nullable=False, index=True)
+    customer_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    rating = Column(Integer, nullable=False)  # 1..5
+    review_text = Column(Text, default="", nullable=False)
+    tags = Column(Text, default="", nullable=False)  # comma-separated for now
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    order = relationship("Order", foreign_keys=[order_id])
+    vendor = relationship("Vendor", foreign_keys=[vendor_id])
+    customer = relationship("User", foreign_keys=[customer_id])
+
+
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+    id = Column(Integer, primary_key=True)
+
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
+    customer_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    vendor_id = Column(Integer, ForeignKey("vendors.id"), nullable=True, index=True)
+
+    category = Column(String(64), default="GENERAL", nullable=False)
+    status = Column(String(32), default="OPEN", nullable=False, index=True)
+    subject = Column(String(255), default="", nullable=False)
+    message = Column(Text, default="", nullable=False)
+    resolution_note = Column(Text, default="", nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    closed_at = Column(DateTime, nullable=True)
+
+    order = relationship("Order", foreign_keys=[order_id])
+    customer = relationship("User", foreign_keys=[customer_id])
+    vendor = relationship("Vendor", foreign_keys=[vendor_id])
+
+
+class Coupon(Base):
+    __tablename__ = "coupons"
+    id = Column(Integer, primary_key=True)
+
+    code = Column(String(64), nullable=False, unique=True, index=True)
+    title = Column(String(120), default="", nullable=False)
+    description = Column(Text, default="", nullable=False)
+    discount_type = Column(String(24), default="FLAT", nullable=False)  # FLAT / PERCENT
+    discount_value = Column(Float, default=0.0, nullable=False)
+    max_discount_amount = Column(Float, default=0.0, nullable=False)
+    min_order_amount = Column(Float, default=0.0, nullable=False)
+    active = Column(Boolean, default=True, nullable=False, index=True)
+
+    valid_from = Column(DateTime, nullable=True)
+    valid_to = Column(DateTime, nullable=True)
+    usage_limit_global = Column(Integer, default=0, nullable=False)  # 0 means unlimited
+    usage_limit_per_user = Column(Integer, default=1, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class CouponRedemption(Base):
+    __tablename__ = "coupon_redemptions"
+    id = Column(Integer, primary_key=True)
+
+    coupon_id = Column(Integer, ForeignKey("coupons.id"), nullable=False, index=True)
+    customer_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
+    discount_amount = Column(Float, default=0.0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    coupon = relationship("Coupon", foreign_keys=[coupon_id])
+    customer = relationship("User", foreign_keys=[customer_id])
+    order = relationship("Order", foreign_keys=[order_id])
+
+
+class LoyaltyMembership(Base):
+    __tablename__ = "loyalty_memberships"
+    id = Column(Integer, primary_key=True)
+
+    customer_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    tier = Column(String(32), default="BASIC", nullable=False)
+    points_balance = Column(Integer, default=0, nullable=False)
+    active = Column(Boolean, default=True, nullable=False)
+    joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    renewed_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+
+    customer = relationship("User", foreign_keys=[customer_id])
+
+
 # Helpful indexes for production-ish query patterns
 Index("ix_users_role_created", User.role, User.created_at)
 Index("ix_partner_locations_partner_created", PartnerLocation.partner_id, PartnerLocation.created_at)
@@ -334,3 +429,6 @@ Index("ix_products_vendor_available_sort", Product.vendor_id, Product.is_availab
 Index("ix_products_vendor_category", Product.vendor_id, Product.category)
 Index("ix_vendors_open_accepting", Vendor.is_open, Vendor.is_accepting_orders)
 Index("ix_refresh_tokens_user_created", RefreshToken.user_id, RefreshToken.created_at)
+Index("ix_order_reviews_vendor_created", OrderReview.vendor_id, OrderReview.created_at)
+Index("ix_support_tickets_customer_created", SupportTicket.customer_id, SupportTicket.created_at)
+Index("ix_coupon_redemptions_coupon_customer", CouponRedemption.coupon_id, CouponRedemption.customer_id)
