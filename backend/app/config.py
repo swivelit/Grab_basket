@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     RAZORPAY_WEBHOOK_SECRET: str | None = None
     PAYMENT_LINK_EXPIRE_MINUTES: int = Field(default=30)
     PAYMENT_LINK_REUSE_MINUTES: int = Field(default=15)
+    RELEASE_STAGED_ROLLOUT_PERCENT: int = Field(default=10, ge=1, le=100)
+    RELEASE_CRASH_FREE_MIN_PERCENT: float = Field(default=99.5, ge=90.0, le=100.0)
+    RELEASE_CHECKOUT_SUCCESS_MIN_PERCENT: float = Field(default=98.0, ge=80.0, le=100.0)
+    RELEASE_AUTO_ROLLBACK_ENABLED: bool = Field(default=True)
 
     @field_validator("APP_ENV", mode="before")
     @classmethod
@@ -167,6 +171,12 @@ class Settings(BaseSettings):
                 "FCM service-account credentials are not configured. Expo push tokens will still work, but direct native FCM sends are disabled."
             )
 
+        if self.is_prod and self.RELEASE_STAGED_ROLLOUT_PERCENT >= 100:
+            warnings.append("RELEASE_STAGED_ROLLOUT_PERCENT is 100 in production. Canary protection is effectively disabled.")
+
+        if self.is_prod and not self.RELEASE_AUTO_ROLLBACK_ENABLED:
+            errors.append("RELEASE_AUTO_ROLLBACK_ENABLED is false in production.")
+
         return {
             "errors": errors,
             "warnings": warnings,
@@ -179,6 +189,12 @@ class Settings(BaseSettings):
                 },
                 "push": {
                     "fcm_service_account_configured": self.push_ready,
+                },
+                "release_governance": {
+                    "staged_rollout_percent": self.RELEASE_STAGED_ROLLOUT_PERCENT,
+                    "crash_free_min_percent": self.RELEASE_CRASH_FREE_MIN_PERCENT,
+                    "checkout_success_min_percent": self.RELEASE_CHECKOUT_SUCCESS_MIN_PERCENT,
+                    "auto_rollback_enabled": self.RELEASE_AUTO_ROLLBACK_ENABLED,
                 },
             },
         }
