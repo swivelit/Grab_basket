@@ -534,3 +534,124 @@ class PartnerLocationOut(ORMModel):
     battery_level: Optional[float] = None
     is_mocked: bool = False
     created_at: datetime
+
+
+# ---------- Reviews ----------
+class OrderReviewCreateIn(BaseModel):
+    order_id: int
+    rating: int = Field(ge=1, le=5)
+    review_text: str = Field(default="", max_length=4000)
+    tags: list[str] = Field(default_factory=list, max_length=12)
+
+    @field_validator("review_text", mode="before")
+    @classmethod
+    def normalize_review_text(cls, value: Any) -> str:
+        return str(value or "").strip()
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def normalize_tags(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            raw_items = [part.strip() for part in value.split(",")]
+        elif isinstance(value, list):
+            raw_items = [str(item or "").strip() for item in value]
+        else:
+            return []
+        cleaned: list[str] = []
+        for item in raw_items:
+            if not item:
+                continue
+            if item not in cleaned:
+                cleaned.append(item[:64])
+        return cleaned[:12]
+
+
+class OrderReviewOut(ORMModel):
+    id: int
+    order_id: int
+    vendor_id: int
+    customer_id: int
+    rating: int
+    review_text: str = ""
+    tags: str = ""
+    created_at: datetime
+    updated_at: datetime
+
+
+# ---------- Support ----------
+class SupportTicketCreateIn(BaseModel):
+    order_id: Optional[int] = None
+    category: str = Field(default="GENERAL", max_length=64)
+    subject: str = Field(default="", max_length=255)
+    message: str = Field(min_length=4, max_length=4000)
+
+    @field_validator("category", "subject", "message", mode="before")
+    @classmethod
+    def normalize_ticket_fields(cls, value: Any) -> str:
+        return str(value or "").strip()
+
+
+class SupportTicketOut(ORMModel):
+    id: int
+    order_id: Optional[int] = None
+    customer_id: int
+    vendor_id: Optional[int] = None
+    category: str
+    status: str
+    subject: str
+    message: str
+    resolution_note: str = ""
+    created_at: datetime
+    updated_at: datetime
+    closed_at: Optional[datetime] = None
+
+
+# ---------- Offers / Coupons ----------
+class CouponOut(ORMModel):
+    id: int
+    code: str
+    title: str = ""
+    description: str = ""
+    discount_type: str
+    discount_value: float
+    max_discount_amount: float = 0.0
+    min_order_amount: float = 0.0
+    active: bool
+    valid_from: Optional[datetime] = None
+    valid_to: Optional[datetime] = None
+    usage_limit_global: int = 0
+    usage_limit_per_user: int = 1
+    created_at: datetime
+    updated_at: datetime
+
+
+class CouponApplyIn(BaseModel):
+    code: str = Field(min_length=2, max_length=64)
+    order_amount: float = Field(gt=0, le=500000)
+
+    @field_validator("code", mode="before")
+    @classmethod
+    def normalize_coupon_code(cls, value: Any) -> str:
+        return str(value or "").strip().upper()
+
+
+class CouponApplyOut(BaseModel):
+    ok: bool
+    code: str
+    discount_amount: float
+    final_amount: float
+    message: str
+
+
+# ---------- Loyalty ----------
+class LoyaltyMembershipOut(ORMModel):
+    id: int
+    customer_id: int
+    tier: str
+    points_balance: int
+    active: bool
+    joined_at: datetime
+    renewed_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
