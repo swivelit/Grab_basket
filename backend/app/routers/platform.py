@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -14,6 +16,9 @@ from ..models import AsyncJob, Order, OrderEvent, PartnerLocation, User, Vendor,
 from ..utils.geo import haversine_km
 
 router = APIRouter(prefix="/platform", tags=["platform"])
+
+_ROUTE_CACHE: dict[str, tuple[float, dict]] = {}
+_ROUTE_RL: dict[str, list[float]] = {}
 
 
 class DispatchRecalculationIn(BaseModel):
@@ -37,10 +42,34 @@ class WebhookIngestIn(BaseModel):
     payload: dict = Field(default_factory=dict)
 
 
+class RouteIntelligenceIn(BaseModel):
+    order_id: int
+    rider_lat: float | None = None
+    rider_lng: float | None = None
+    traffic_multiplier: float = Field(default=1.0, ge=0.4, le=3.0)
+
+
+def _route_key(body: RouteIntelligenceIn) -> str:
+    return f"{body.order_id}:{round(body.rider_lat or 0, 5)}:{round(body.rider_lng or 0, 5)}:{body.traffic_multiplier}"
+
+
+def _check_route_rate_limit(user: User, period_seconds: int = 60, limit: int = 60) -> None:
+    now = time.time()
+    key = f"{user.id}"
+    rows = [ts for ts in _ROUTE_RL.get(key, []) if ts >= now - period_seconds]
+    if len(rows) >= limit:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded for route intelligence")
+    rows.append(now)
+    _ROUTE_RL[key] = rows
+
+
 @router.get("/orders/{order_id}/timeline/stream")
 async def order_timeline_sse(
+    request: Request,
     order_id: int,
     since_id: int = 0,
+    heartbeat_seconds: float = Query(default=10.0, ge=3.0, le=30.0),
+    poll_seconds: float = Query(default=1.0, ge=0.25, le=10.0),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -48,10 +77,7 @@ async def order_timeline_sse(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    allowed = {
-        order.customer_id,
-        order.partner_id,
-    }
+    allowed = {order.customer_id, order.partner_id}
     vendor = db.query(Vendor).filter(Vendor.id == order.vendor_id).first()
     if vendor:
         allowed.add(vendor.seller_id)
@@ -59,9 +85,15 @@ async def order_timeline_sse(
     if user.role != "ADMIN" and user.id not in allowed:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    def gen():
+    async def gen():
         cursor = since_id
-        for _ in range(60):
+        last_heartbeat = time.monotonic()
+        yield "retry: 5000\n\n"
+        while True:
+            if await request.is_disconnected():
+                break
+
+            db.expire_all()
             rows = (
                 db.query(OrderEvent)
                 .filter(OrderEvent.order_id == order_id, OrderEvent.id > cursor)
@@ -80,9 +112,65 @@ async def order_timeline_sse(
                     "metadata_json": row.metadata_json,
                 }
                 yield f"id: {row.id}\nevent: order.timeline\ndata: {json.dumps(payload)}\n\n"
-            yield ": heartbeat\n\n"
+
+            now = time.monotonic()
+            if now - last_heartbeat >= heartbeat_seconds:
+                yield "event: heartbeat\ndata: {}\n\n"
+                last_heartbeat = now
+            await asyncio.sleep(poll_seconds)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@router.post("/dispatch/route-intelligence")
+def route_intelligence(
+    body: RouteIntelligenceIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("ADMIN", "SELLER", "PARTNER")),
+):
+    _check_route_rate_limit(user)
+    cache_key = _route_key(body)
+    now = time.time()
+    cached = _ROUTE_CACHE.get(cache_key)
+    if cached and cached[0] >= now:
+        return {"ok": True, "cached": True, **cached[1]}
+
+    order = db.query(Order).filter(Order.id == body.order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.delivery_lat is None or order.delivery_lng is None:
+        raise HTTPException(status_code=400, detail="Order delivery location missing")
+
+    rider_lat = body.rider_lat
+    rider_lng = body.rider_lng
+    if rider_lat is None or rider_lng is None:
+        latest = (
+            db.query(PartnerLocation)
+            .filter(PartnerLocation.partner_id == order.partner_id)
+            .order_by(PartnerLocation.id.desc())
+            .first()
+        )
+        if not latest:
+            raise HTTPException(status_code=409, detail="No rider location available")
+        rider_lat, rider_lng = latest.lat, latest.lng
+
+    distance_km = haversine_km(float(rider_lat), float(rider_lng), float(order.delivery_lat), float(order.delivery_lng))
+    speed_kmph = max(8.0, 22.0 / body.traffic_multiplier)
+    eta_minutes = max(3, int(round((distance_km / speed_kmph) * 60)))
+
+    geometry = [
+        {"latitude": float(rider_lat), "longitude": float(rider_lng)},
+        {"latitude": float(order.delivery_lat), "longitude": float(order.delivery_lng)},
+    ]
+    payload = {
+        "order_id": order.id,
+        "distance_km": round(distance_km, 3),
+        "eta_minutes": eta_minutes,
+        "polyline_points": geometry,
+        "provider": "internal_haversine_v1",
+    }
+    _ROUTE_CACHE[cache_key] = (now + 45, payload)
+    return {"ok": True, "cached": False, **payload}
 
 
 @router.post("/dispatch/recalculate")
