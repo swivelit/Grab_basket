@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from sqlalchemy import (
     Boolean,
     Column,
@@ -17,9 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from .db import Base
-
-def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+from .time import utc_now
 
 
 

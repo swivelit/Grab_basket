@@ -5,7 +5,7 @@ import io
 import json
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,7 @@ from .models import (
 )
 from .notifications import build_order_notification_data, send_push
 from .routers.seller import _maybe_mark_partner_available, _try_assign_partner
+from .time import utc_now
 
 logger = logging.getLogger("grabbasket.worker")
 
@@ -72,7 +73,7 @@ def _handle_partner_reassignment(db: Session, payload: dict) -> None:
     if not replacement:
         if previous_partner_id:
             order.partner_id = previous_partner_id
-            order.assigned_at = datetime.now(timezone.utc)
+            order.assigned_at = utc_now()
         raise RetryableJobError("no replacement partner available")
 
     _record_event(
@@ -145,7 +146,7 @@ def _handle_reconciliation_import(db: Session, payload: dict) -> None:
 
     report = PaymentReconciliationReport(
         provider=provider,
-        report_date=datetime.now(timezone.utc),
+        report_date=utc_now(),
         status="PROCESSED",
         file_uri=file_uri,
         summary_json=json.dumps(
@@ -154,7 +155,7 @@ def _handle_reconciliation_import(db: Session, payload: dict) -> None:
                 "mismatch_count": mismatch_count,
             }
         ),
-        processed_at=datetime.now(timezone.utc),
+        processed_at=utc_now(),
     )
     db.add(report)
 
@@ -166,7 +167,7 @@ def _handle_crm_nudge(db: Session, payload: dict) -> None:
 
 
 def _handle_stale_assignment_cleanup(db: Session, payload: dict) -> None:
-    stale_before = datetime.now(timezone.utc) - timedelta(minutes=int(payload.get("stale_minutes") or 15))
+    stale_before = utc_now() - timedelta(minutes=int(payload.get("stale_minutes") or 15))
     stale_orders = (
         db.query(Order)
         .filter(Order.status == "ASSIGNED_TO_PARTNER")
@@ -209,7 +210,7 @@ def _run_handler(db: Session, job: AsyncJob) -> None:
 
 
 def process_due_jobs(*, db: Session, queue_name: str | None = None, batch_size: int = 50) -> int:
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     query = db.query(AsyncJob).filter(AsyncJob.status.in_(["QUEUED", "RETRY"]), AsyncJob.run_after <= now)
     if queue_name:
         query = query.filter(AsyncJob.queue_name == queue_name)
@@ -236,8 +237,8 @@ def process_due_jobs(*, db: Session, queue_name: str | None = None, batch_size: 
                     PayoutRecord(
                         beneficiary_user_id=1,
                         beneficiary_type="SELLER",
-                        period_start=datetime.now(timezone.utc) - timedelta(days=1),
-                        period_end=datetime.now(timezone.utc),
+                        period_start=utc_now() - timedelta(days=1),
+                        period_end=utc_now(),
                         gross_amount=0,
                         net_amount=0,
                         status="PENDING",
@@ -255,7 +256,7 @@ def process_due_jobs(*, db: Session, queue_name: str | None = None, batch_size: 
             else:
                 backoff_seconds = min(600, 2 ** job.attempts)
                 job.status = "RETRY"
-                job.run_after = datetime.now(timezone.utc) + timedelta(seconds=backoff_seconds)
+                job.run_after = utc_now() + timedelta(seconds=backoff_seconds)
                 job.last_error = str(exc)
         except Exception as exc:  # noqa: BLE001
             metrics.incr("jobs.retried_total")
@@ -266,7 +267,7 @@ def process_due_jobs(*, db: Session, queue_name: str | None = None, batch_size: 
             else:
                 backoff_seconds = min(600, 2 ** job.attempts)
                 job.status = "RETRY"
-                job.run_after = datetime.now(timezone.utc) + timedelta(seconds=backoff_seconds)
+                job.run_after = utc_now() + timedelta(seconds=backoff_seconds)
                 job.last_error = str(exc)
         processed += 1
 
