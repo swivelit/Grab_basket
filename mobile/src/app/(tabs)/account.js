@@ -463,6 +463,16 @@ function AuthPanel({
   setPassword,
   loading,
   onSubmit,
+  challengeMode,
+  setChallengeMode,
+  challengeCode,
+  setChallengeCode,
+  challengeLoading,
+  challengeStatus,
+  challengeError,
+  onStartChallenge,
+  onVerifyChallenge,
+  onResendChallenge,
 }) {
   const isRegister = mode === 'register';
 
@@ -509,6 +519,42 @@ function AuthPanel({
           {isRegister ? 'Already have an account? Sign in' : 'New here? Create account'}
         </Text>
       </TouchableOpacity>
+
+      <View style={styles.authChallengeWrap}>
+        <Text style={styles.sectionSubtitle}>Account security</Text>
+        <View style={styles.filterRow}>
+          {['EMAIL_VERIFY', 'PASSWORD_RESET'].map((value) => (
+            <TouchableOpacity
+              key={value}
+              style={[styles.filterChip, challengeMode === value && styles.filterChipActive]}
+              onPress={() => setChallengeMode(value)}>
+              <Text style={[styles.filterChipText, challengeMode === value && styles.filterChipTextActive]}>
+                {value === 'EMAIL_VERIFY' ? 'Email verify' : 'Reset password'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Field
+          label="Challenge code"
+          value={challengeCode}
+          onChangeText={setChallengeCode}
+          placeholder="Enter code from email"
+          keyboardType="number-pad"
+        />
+        {challengeStatus ? <InlineNoticeCard title="Challenge" message={challengeStatus} /> : null}
+        {challengeError ? <InlineErrorCard title="Challenge error" message={challengeError} /> : null}
+        <View style={styles.inlineActionsRow}>
+          <TouchableOpacity style={styles.miniActionButton} disabled={challengeLoading} onPress={onStartChallenge}>
+            <Text style={styles.miniActionButtonText}>{challengeLoading ? 'Starting…' : 'Send code'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.miniActionButton} disabled={challengeLoading} onPress={onResendChallenge}>
+            <Text style={styles.miniActionButtonText}>Resend</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.miniActionButton} disabled={challengeLoading} onPress={onVerifyChallenge}>
+            <Text style={styles.miniActionButtonText}>{challengeLoading ? 'Checking…' : 'Verify'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </SectionCard>
   );
 }
@@ -675,11 +721,19 @@ function OrderDetailsSheet({
   onCancel,
   onRetryPayment,
   onOpenStore,
+  realtimeEvents = [],
 }) {
   const detailOrder = detail?.order || null;
   const status = detailOrder?.status || order?.status || 'CREATED';
   const partnerLocation = detail?.partner_latest_location || null;
-  const events = Array.isArray(detailOrder?.events) ? detailOrder.events : [];
+  const events = useMemo(() => {
+    const base = Array.isArray(detailOrder?.events) ? detailOrder.events : [];
+    const seen = new Set(base.map((item) => Number(item?.id || 0)));
+    const extra = (Array.isArray(realtimeEvents) ? realtimeEvents : []).filter(
+      (item) => !seen.has(Number(item?.id || 0))
+    );
+    return [...base, ...extra].sort((a, b) => Number(a?.id || 0) - Number(b?.id || 0));
+  }, [detailOrder?.events, realtimeEvents]);
   const items = getOrderItems(detailOrder || order);
 
   const canCancel = !['PICKED_UP', 'DELIVERED', 'CANCELLED_BY_CUSTOMER', 'REJECTED_BY_SELLER'].includes(
@@ -886,6 +940,8 @@ export default function AccountScreen() {
     login,
     register,
     logout,
+    startAuthChallenge,
+    verifyAuthChallenge,
     addresses,
     addressesLoading,
     defaultAddress,
@@ -894,11 +950,19 @@ export default function AccountScreen() {
     loadOrders,
     loadAddresses,
     ordersLoading,
+    subscribeOrderTimeline,
+    timelineEventsByOrder,
   } = useGrabBasket();
 
   const [authMode, setAuthMode] = useState('login');
   const [email, setEmail] = useState(String(authEmail || ''));
   const [password, setPassword] = useState('');
+  const [challengeMode, setChallengeMode] = useState('EMAIL_VERIFY');
+  const [challengeCode, setChallengeCode] = useState('');
+  const [challengeId, setChallengeId] = useState(0);
+  const [challengeLoading, setChallengeLoading] = useState(false);
+  const [challengeStatus, setChallengeStatus] = useState('');
+  const [challengeError, setChallengeError] = useState('');
 
   const [label, setLabel] = useState('Home');
   const [line1, setLine1] = useState('');
@@ -921,6 +985,12 @@ export default function AccountScreen() {
   const [inlineError, setInlineError] = useState('');
   const [inlineNotice, setInlineNotice] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
+  const realtimeEvents = useMemo(() => {
+    const orderId = Number(selectedOrder?.id || 0);
+    if (!orderId) return [];
+    const rows = timelineEventsByOrder?.[orderId];
+    return Array.isArray(rows) ? rows : [];
+  }, [selectedOrder?.id, timelineEventsByOrder]);
 
   useEffect(() => {
     setEmail(String(authEmail || ''));
@@ -1006,6 +1076,74 @@ export default function AccountScreen() {
       refreshDashboard().catch(() => {});
     }
   }, [authMode, email, login, password, refreshDashboard, register, showError]);
+
+
+
+  const triggerChallenge = useCallback(async ({ resend = false } = {}) => {
+    if (!email.trim()) {
+      setChallengeError('Enter an email first.');
+      return;
+    }
+
+    try {
+      setChallengeLoading(true);
+      setChallengeError('');
+      const response = await startAuthChallenge({
+        challengeType: challengeMode,
+        target: email,
+      });
+      const nextChallengeId = Number(response?.challenge_id || 0);
+      if (nextChallengeId) setChallengeId(nextChallengeId);
+      const devCode = String(response?.dev_code || '').trim();
+      const base = resend ? 'Code resent.' : 'Challenge started.';
+      setChallengeStatus(devCode ? `${base} Dev code: ${devCode}` : `${base} Check your inbox.`);
+    } catch (error) {
+      setChallengeError(getErrorMessage(error, 'Could not start challenge.'));
+    } finally {
+      setChallengeLoading(false);
+    }
+  }, [challengeMode, email, startAuthChallenge]);
+
+  const submitChallengeVerify = useCallback(async () => {
+    if (!challengeId) {
+      setChallengeError('Request a challenge before verifying.');
+      return;
+    }
+    if (!challengeCode.trim()) {
+      setChallengeError('Enter the challenge code.');
+      return;
+    }
+
+    try {
+      setChallengeLoading(true);
+      setChallengeError('');
+      const response = await verifyAuthChallenge({ challengeId, code: challengeCode });
+      setChallengeStatus(
+        challengeMode === 'PASSWORD_RESET'
+          ? 'Password reset challenge verified. Continue with your reset screen flow.'
+          : `Email verified at ${formatDateTime(response?.verified_at)}.`
+      );
+    } catch (error) {
+      setChallengeError(getErrorMessage(error, 'Could not verify challenge.'));
+    } finally {
+      setChallengeLoading(false);
+    }
+  }, [challengeCode, challengeId, challengeMode, verifyAuthChallenge]);
+
+  useEffect(() => {
+    const orderId = Number(selectedOrder?.id || 0);
+    if (!orderId || !authToken || typeof subscribeOrderTimeline !== 'function') return undefined;
+
+    const stream = subscribeOrderTimeline({
+      orderId,
+      sinceId: Number(realtimeEvents[realtimeEvents.length - 1]?.id || 0),
+      onError: () => {
+        // transient disconnects are expected; stream helper reconnects with backoff.
+      },
+    });
+
+    return () => stream?.close?.();
+  }, [authToken, realtimeEvents, selectedOrder?.id, subscribeOrderTimeline]);
 
   const saveAddress = useCallback(async () => {
     try {
@@ -1615,6 +1753,7 @@ export default function AccountScreen() {
         onCancel={cancelOrder}
         onRetryPayment={retryPendingPayment}
         onOpenStore={() => openStoreFromOrder(selectedOrder)}
+        realtimeEvents={realtimeEvents}
       />
     </SafeAreaView>
   );
@@ -1893,6 +2032,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: COLORS.text,
+  },
+  authChallengeWrap: {
+    marginTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.line,
+    paddingTop: 12,
+    gap: 8,
+  },
+  inlineActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  miniActionButton: {
+    backgroundColor: COLORS.brandSoft,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  miniActionButtonText: {
+    color: COLORS.brand,
+    fontSize: 12,
+    fontWeight: '700',
   },
   linkText: {
     fontSize: 13,

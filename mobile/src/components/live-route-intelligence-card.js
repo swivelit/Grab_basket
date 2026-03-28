@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Constants from 'expo-constants';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -33,28 +32,6 @@ const COLORS = {
   warningSoft: '#FFF6DE',
   black: '#241A14',
 };
-
-const GOOGLE_MAPS_API_KEY = String(
-  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
-    Constants?.expoConfig?.extra?.googleMaps?.apiKey ||
-    ''
-).trim();
-
-function safeJsonParse(raw, fallback = null) {
-  try {
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function createHttpError(message, extras = {}) {
-  const error = new Error(message);
-  Object.entries(extras).forEach(([key, value]) => {
-    error[key] = value;
-  });
-  return error;
-}
 
 function hasCoordinatePair(value) {
   return (
@@ -117,25 +94,6 @@ function buildMapsUrl(destination) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encoded}&travelmode=driving`;
 }
 
-function formatLatLng(point) {
-  return `${Number(point.latitude).toFixed(6)},${Number(point.longitude).toFixed(6)}`;
-}
-
-function parseDurationSeconds(value) {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.max(0, Math.round(value));
-  }
-
-  if (typeof value !== 'string') {
-    return 0;
-  }
-
-  const match = value.trim().match(/^([\d.]+)s$/i);
-  if (!match) return 0;
-
-  return Math.max(0, Math.round(Number(match[1]) || 0));
-}
-
 function formatDuration(value) {
   const totalSeconds = Math.max(0, Math.round(Number(value || 0)));
   if (!totalSeconds) return '—';
@@ -146,6 +104,15 @@ function formatDuration(value) {
   if (hours && minutes) return `${hours}h ${minutes}m`;
   if (hours) return `${hours}h`;
   return `${Math.max(1, minutes)}m`;
+}
+
+function parseDurationSeconds(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.round(value));
+  }
+  if (typeof value !== 'string') return 0;
+  const match = value.trim().match(/^([\d.]+)s$/i);
+  return match ? Math.max(0, Math.round(Number(match[1]) || 0)) : 0;
 }
 
 function formatDistanceMeters(value) {
@@ -170,49 +137,6 @@ function haversineDistanceMeters(start, end) {
     Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2) * Math.cos(lat1) * Math.cos(lat2);
 
   return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function decodePolyline(encoded = '') {
-  if (!encoded) return [];
-
-  let index = 0;
-  let latitude = 0;
-  let longitude = 0;
-  const coordinates = [];
-
-  while (index < encoded.length) {
-    let result = 0;
-    let shift = 0;
-    let byte;
-
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20 && index < encoded.length + 1);
-
-    const deltaLat = result & 1 ? ~(result >> 1) : result >> 1;
-    latitude += deltaLat;
-
-    result = 0;
-    shift = 0;
-
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20 && index < encoded.length + 1);
-
-    const deltaLng = result & 1 ? ~(result >> 1) : result >> 1;
-    longitude += deltaLng;
-
-    coordinates.push({
-      latitude: latitude / 1e5,
-      longitude: longitude / 1e5,
-    });
-  }
-
-  return coordinates;
 }
 
 function makeRouteCacheKey(plan) {
@@ -256,7 +180,6 @@ function buildRoutePlan({ orderId, orderStatus, riderPoint, pickupPoint, dropPoi
       legLabels: ['To customer'],
       summaryLabel: 'To customer',
       etaLabel: 'ETA to drop',
-      orderId: null,
     };
   }
 
@@ -309,7 +232,6 @@ function buildRoutePlan({ orderId, orderStatus, riderPoint, pickupPoint, dropPoi
       legLabels: ['Active leg'],
       summaryLabel: 'Rider → drop',
       etaLabel: 'ETA',
-      orderId: null,
     };
   }
 
@@ -344,152 +266,7 @@ function buildFallbackRoute(plan, reason = '') {
   };
 }
 
-async function fetchRoutesApiRoute(plan, apiKey) {
-  const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': apiKey,
-      'X-Goog-FieldMask':
-        'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.legs.distanceMeters,routes.legs.duration',
-    },
-    body: JSON.stringify({
-      origin: {
-        location: {
-          latLng: {
-            latitude: Number(plan.origin.latitude),
-            longitude: Number(plan.origin.longitude),
-          },
-        },
-      },
-      destination: {
-        location: {
-          latLng: {
-            latitude: Number(plan.destination.latitude),
-            longitude: Number(plan.destination.longitude),
-          },
-        },
-      },
-      intermediates: (plan.waypoints || []).map((point) => ({
-        location: {
-          latLng: {
-            latitude: Number(point.latitude),
-            longitude: Number(point.longitude),
-          },
-        },
-      })),
-      travelMode: 'DRIVE',
-      routingPreference: 'TRAFFIC_AWARE',
-      polylineQuality: 'OVERVIEW',
-      polylineEncoding: 'ENCODED_POLYLINE',
-      languageCode: 'en-IN',
-      units: 'METRIC',
-    }),
-  });
-
-  const raw = await response.text();
-  const payload = safeJsonParse(raw, {});
-
-  if (!response.ok) {
-    const message =
-      payload?.error?.message || payload?.message || `Routes API failed with status ${response.status}`;
-    throw createHttpError(message, { status: response.status, payload });
-  }
-
-  const route = Array.isArray(payload?.routes) ? payload.routes[0] : null;
-  const encodedPolyline = route?.polyline?.encodedPolyline;
-
-  if (!route || !encodedPolyline) {
-    throw new Error('Routes API returned no route geometry.');
-  }
-
-  const legs = Array.isArray(route.legs)
-    ? route.legs.map((leg, index) =>
-        normalizeRouteLeg({
-          leg,
-          label: plan?.legLabels?.[index],
-          index,
-          source: 'routes-api',
-        })
-      )
-    : [];
-
-  return {
-    source: 'google-routes',
-    isFallback: false,
-    message: '',
-    coordinates: decodePolyline(encodedPolyline),
-    distanceMeters: Number(route.distanceMeters || 0),
-    durationSeconds: parseDurationSeconds(route.duration),
-    legs,
-  };
-}
-
-async function fetchDirectionsApiRoute(plan, apiKey) {
-  const params = new URLSearchParams({
-    origin: formatLatLng(plan.origin),
-    destination: formatLatLng(plan.destination),
-    mode: 'driving',
-    departure_time: 'now',
-    key: apiKey,
-  });
-
-  if (plan?.waypoints?.length) {
-    params.set('waypoints', `optimize:false|${plan.waypoints.map((point) => formatLatLng(point)).join('|')}`);
-  }
-
-  const response = await fetch(`https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`);
-  const raw = await response.text();
-  const payload = safeJsonParse(raw, {});
-
-  if (!response.ok) {
-    throw createHttpError(payload?.error_message || `Directions API failed with status ${response.status}`, {
-      status: response.status,
-      payload,
-    });
-  }
-
-  if (payload?.status !== 'OK') {
-    throw createHttpError(
-      payload?.error_message || payload?.status || 'Directions API did not return a route.',
-      {
-        status: response.status,
-        payload,
-      }
-    );
-  }
-
-  const route = Array.isArray(payload?.routes) ? payload.routes[0] : null;
-  const encodedPolyline = route?.overview_polyline?.points;
-
-  if (!route || !encodedPolyline) {
-    throw new Error('Directions API returned no route geometry.');
-  }
-
-  const legs = Array.isArray(route.legs)
-    ? route.legs.map((leg, index) =>
-        normalizeRouteLeg({
-          leg,
-          label: plan?.legLabels?.[index],
-          index,
-          source: 'directions-api',
-        })
-      )
-    : [];
-
-  return {
-    source: 'google-directions',
-    isFallback: false,
-    message: '',
-    coordinates: decodePolyline(encodedPolyline),
-    distanceMeters: legs.reduce((total, leg) => total + leg.distanceMeters, 0),
-    durationSeconds: legs.reduce((total, leg) => total + leg.durationSeconds, 0),
-    legs,
-  };
-}
-
-async function getRoutePreview(plan, apiKey) {
+async function getRoutePreview(plan) {
   if (!plan || !hasCoordinatePair(plan.origin) || !hasCoordinatePair(plan.destination)) {
     return null;
   }
@@ -511,14 +288,6 @@ async function getRoutePreview(plan, apiKey) {
       },
     });
     if (payload?.ok && Array.isArray(payload?.polyline_points) && payload.polyline_points.length >= 2) {
-      const legs = [
-        normalizeRouteLeg({
-          leg: { distanceMeters: Number(payload.distance_km || 0) * 1000, duration: `${Math.max(60, Number(payload.eta_minutes || 0) * 60)}s` },
-          label: plan?.summaryLabel || 'Active leg',
-          index: 0,
-          source: 'backend',
-        }),
-      ];
       routeData = {
         source: 'backend-route-intelligence',
         isFallback: false,
@@ -526,7 +295,14 @@ async function getRoutePreview(plan, apiKey) {
         coordinates: payload.polyline_points,
         distanceMeters: Number(payload.distance_km || 0) * 1000,
         durationSeconds: Math.max(60, Number(payload.eta_minutes || 0) * 60),
-        legs,
+        legs: [
+          {
+            key: 'backend-0',
+            label: plan?.summaryLabel || 'Active leg',
+            distanceMeters: Number(payload.distance_km || 0) * 1000,
+            durationSeconds: Math.max(60, Number(payload.eta_minutes || 0) * 60),
+          },
+        ],
       };
     }
   } catch {
@@ -541,10 +317,8 @@ async function getRoutePreview(plan, apiKey) {
     updatedAt: Date.now(),
     data: routeData,
   });
-
   return routeData;
 }
-
 
 function RouteStatTile({ label, value, accent = COLORS.text }) {
   return (
@@ -618,7 +392,7 @@ export default function LiveRouteIntelligenceCard({
 
     setRouteLoading(true);
 
-    getRoutePreview(routePlan, GOOGLE_MAPS_API_KEY)
+    getRoutePreview(routePlan)
       .then((data) => {
         if (!isMounted) return;
         setRoutePreview(data);
