@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
@@ -31,7 +31,7 @@ def _calculate_discount(coupon: Coupon, order_amount: float) -> float:
 
 @router.get("/coupons", response_model=list[CouponOut])
 def list_coupons(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     return (
         db.query(Coupon)
         .filter(Coupon.active == True)  # noqa: E712
@@ -48,7 +48,7 @@ def apply_coupon(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     coupon = db.query(Coupon).filter(func.upper(Coupon.code) == payload.code.upper()).first()
     if not coupon:
         raise HTTPException(status_code=404, detail="Coupon not found")

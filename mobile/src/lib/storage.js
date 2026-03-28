@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Crypto from 'expo-crypto';
 
 import { getAppVariant } from '../constants/app-shell';
 
@@ -236,11 +235,7 @@ export async function readOrCreateDeviceId() {
   }
 
   if (!next) {
-    try {
-      next = await Crypto.randomUUID();
-    } catch {
-      next = fallbackRandomId();
-    }
+    next = fallbackRandomId();
   }
 
   await writeStoredValue(STORAGE_KEYS.deviceId, next);

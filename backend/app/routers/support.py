@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -69,7 +69,7 @@ def close_ticket(
         raise HTTPException(status_code=404, detail="Ticket not found")
 
     ticket.status = "CLOSED"
-    ticket.closed_at = datetime.utcnow()
+    ticket.closed_at = datetime.now(timezone.utc)
     if not ticket.resolution_note:
         ticket.resolution_note = "Closed by customer"
 

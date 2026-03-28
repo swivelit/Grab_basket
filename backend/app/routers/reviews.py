@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -58,7 +58,7 @@ def upsert_review(
         review.rating = int(payload.rating)
         review.review_text = payload.review_text
         review.tags = ",".join(payload.tags)
-        review.updated_at = datetime.utcnow()
+        review.updated_at = datetime.now(timezone.utc)
     else:
         review = OrderReview(
             order_id=order.id,
