@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -13,11 +14,33 @@ from starlette.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import engine
+from .metrics import metrics
 from .routers import ROUTERS
+
+
+class JsonLogFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "ts": int(time.time() * 1000),
+        }
+        request_id = getattr(record, "request_id", None)
+        if request_id:
+            payload["request_id"] = request_id
+        return json.dumps(payload, default=str)
 
 
 def _configure_logging() -> None:
     level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+    if settings.LOG_JSON:
+        handler = logging.StreamHandler()
+        handler.setFormatter(JsonLogFormatter())
+        root = logging.getLogger()
+        root.handlers = [handler]
+        root.setLevel(level)
+        return
     logging.basicConfig(level=level)
 
 
@@ -97,10 +120,12 @@ async def request_context(request: Request, call_next):
     request.state.request_id = req_id
 
     start = time.time()
+    metrics.incr('http.requests_total')
     response = None
     try:
         response = await call_next(request)
     except Exception:
+        metrics.incr('http.errors_total')
         logger.exception("Unhandled error", extra={"request_id": req_id})
         return JSONResponse(
             status_code=500,
@@ -113,6 +138,7 @@ async def request_context(request: Request, call_next):
     finally:
         dur_ms = int((time.time() - start) * 1000)
         status = getattr(response, "status_code", "?")
+        metrics.observe('http.request_latency_ms', dur_ms)
         logger.info(
             "%s %s -> %s (%sms)",
             request.method,
@@ -168,6 +194,11 @@ def health():
         "database": "ok" if db_ok else "error",
         "release_readiness": readiness,
     }
+
+
+@app.get("/metrics")
+def get_metrics():
+    return metrics.snapshot()
 
 
 @app.get("/ready")

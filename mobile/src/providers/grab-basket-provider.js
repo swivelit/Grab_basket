@@ -94,6 +94,7 @@ export function GrabBasketProvider({ children }) {
     isCustomerApp,
     sessionReady: auth.sessionReady,
     isAuthenticated: auth.isAuthenticated,
+    authToken: auth.authToken,
     activeService,
     authorizedRequest: auth.authorizedRequest,
     cart: cart.cart,
@@ -215,6 +216,8 @@ export function GrabBasketProvider({ children }) {
     placingOrder: orders.placingOrder,
     placeDemoOrder: orders.placeOrder,
     placeOrder: orders.placeOrder,
+    timelineEventsByOrder: orders.timelineEventsByOrder,
+    subscribeOrderTimeline: orders.subscribeOrderTimeline,
 
     sessionReady: auth.sessionReady,
     isAuthenticated: auth.isAuthenticated,
@@ -226,6 +229,9 @@ export function GrabBasketProvider({ children }) {
     login: auth.login,
     register: auth.register,
     logout: auth.logout,
+    deviceId: auth.deviceId,
+    startAuthChallenge: auth.startAuthChallenge,
+    verifyAuthChallenge: auth.verifyAuthChallenge,
 
     addresses: addresses.addresses,
     addressesLoading: addresses.addressesLoading,
