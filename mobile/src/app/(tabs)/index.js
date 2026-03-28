@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { Image } from 'expo-image';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -14,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { buildApiUrl } from '../../config';
 import { useGrabBasket } from '../../../App';
 
 const PALETTE = {
@@ -205,6 +207,109 @@ function initials(name = '') {
     .join('')
     .slice(0, 2)
     .toUpperCase();
+}
+
+function isAbsoluteUrl(value = '') {
+  return /^https?:\/\//i.test(String(value || '').trim());
+}
+
+function resolveMediaUrl(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (isAbsoluteUrl(raw)) return raw;
+
+  try {
+    return buildApiUrl(raw.startsWith('/') ? raw : `/${raw}`);
+  } catch {
+    // If API base URL isn't available for some reason, fall back to the raw value.
+    return raw;
+  }
+}
+
+function parseCuisineTags(rawValue = '') {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return [];
+  return raw
+    .split(/[,|·]/)
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+}
+
+function formatRatingLabel(vendor) {
+  const ratingText = getVendorRating(vendor);
+  const count = Number(vendor?.total_ratings || 0);
+
+  if (ratingText === 'New' || !Number.isFinite(count) || count <= 0) {
+    return ratingText;
+  }
+
+  if (count >= 1000) {
+    return `${ratingText} (${Math.round(count / 100) / 10}k)`;
+  }
+
+  return `${ratingText} (${count})`;
+}
+
+function formatDistance(vendor) {
+  const distance = Number(vendor?.distance_km);
+  if (!Number.isFinite(distance) || distance <= 0) return '';
+  if (distance < 1) return `${Math.round(distance * 10) / 10} km`;
+  return `${Math.round(distance * 10) / 10} km`;
+}
+
+function getVendorTrustBadges(vendor) {
+  const badges = [];
+  const gstin = String(vendor?.gstin || '').trim();
+  const supportPhone = String(vendor?.support_phone || '').trim();
+  const supportEmail = String(vendor?.support_email || '').trim();
+
+  if (gstin) badges.push('GST verified');
+  if (supportPhone || supportEmail) badges.push('Support');
+
+  return badges.slice(0, 2);
+}
+
+function buildVendorMetaLine(vendor, service = 'food') {
+  const parts = [];
+
+  const rating = formatRatingLabel(vendor);
+  if (rating) parts.push(`★ ${rating}`);
+
+  const eta = estimateEta(vendor, service);
+  if (eta) parts.push(eta);
+
+  const distance = formatDistance(vendor);
+  if (distance) parts.push(distance);
+
+  const priceBucket = String(vendor?.price_bucket || '').trim();
+  if (priceBucket) parts.push(priceBucket);
+
+  const cuisines = parseCuisineTags(vendor?.cuisine_tags).slice(0, 2);
+  if (cuisines.length) parts.push(cuisines.join(' · '));
+
+  return parts.join(' · ');
+}
+
+function buildVendorDetailLine(vendor, service = 'food') {
+  const parts = [];
+
+  const cuisines = parseCuisineTags(vendor?.cuisine_tags).slice(0, 3);
+  if (cuisines.length) parts.push(cuisines.join(' · '));
+
+  const priceBucket = String(vendor?.price_bucket || '').trim();
+  if (priceBucket) parts.push(priceBucket);
+
+  const minOrder = Number(vendor?.min_order_amount || 0);
+  if (service !== 'eatout' && service !== 'scenes' && Number.isFinite(minOrder) && minOrder > 0) {
+    parts.push(`Min ${money(minOrder)}`);
+  }
+
+  const prep = Number(vendor?.avg_prep_time_min || 0);
+  if (service === 'eatout' && Number.isFinite(prep) && prep > 0) {
+    parts.push(`${Math.max(5, Math.round(prep))} min prep`);
+  }
+
+  return parts.join(' · ');
 }
 
 function estimateEta(vendor, service = 'food') {
@@ -513,6 +618,9 @@ function QuickTile({ title, subtitle, icon, large = false }) {
 
 function VendorRailCard({ vendor, service, favorite, onToggleFavorite, onPress, dark = false }) {
   const tone = getCardTone(vendor?.name, dark);
+  const coverUri = resolveMediaUrl(vendor?.cover_image_url || vendor?.banner_image_url || vendor?.logo_image_url);
+  const logoUri = resolveMediaUrl(vendor?.logo_image_url);
+  const trustBadges = getVendorTrustBadges(vendor);
 
   return (
     <TouchableOpacity
@@ -520,11 +628,25 @@ function VendorRailCard({ vendor, service, favorite, onToggleFavorite, onPress, 
       onPress={onPress}
       style={[styles.vendorRailCard, dark && styles.vendorRailCardDark]}>
       <View style={[styles.vendorRailVisual, { backgroundColor: tone.bg }]}>
+        {coverUri ? (
+          <Image
+            source={{ uri: coverUri }}
+            style={styles.vendorRailImage}
+            contentFit="cover"
+            transition={180}
+          />
+        ) : null}
+
+        <View style={[styles.vendorRailOverlay, dark && styles.vendorRailOverlayDark]} />
+
         <View style={[styles.vendorOfferBadge, { backgroundColor: tone.accent }]}>
           <Text style={styles.vendorOfferBadgeText}>{getOfferLabel(vendor, service)}</Text>
         </View>
 
-        <TouchableOpacity activeOpacity={0.9} onPress={onToggleFavorite} style={styles.favoriteButton}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={onToggleFavorite}
+          style={[styles.favoriteButton, dark && styles.favoriteButtonDark]}>
           <Ionicons
             name={favorite ? 'heart' : 'heart-outline'}
             size={16}
@@ -532,8 +654,31 @@ function VendorRailCard({ vendor, service, favorite, onToggleFavorite, onPress, 
           />
         </TouchableOpacity>
 
-        <View style={[styles.vendorMonogram, { borderColor: tone.accent }]}>
-          <Text style={[styles.vendorMonogramText, dark && styles.vendorMonogramTextDark]}>{initials(vendor?.name)}</Text>
+        <View style={styles.vendorRailBottomRow}>
+          <View style={[styles.vendorLogoWrap, { borderColor: tone.accent }]}>
+            {logoUri ? (
+              <Image
+                source={{ uri: logoUri }}
+                style={styles.vendorLogoImage}
+                contentFit="cover"
+                transition={180}
+              />
+            ) : (
+              <Text style={[styles.vendorLogoText, dark && styles.vendorLogoTextDark]}>
+                {initials(vendor?.name)}
+              </Text>
+            )}
+          </View>
+
+          <View style={[styles.vendorBadgeRow, styles.vendorBadgeRowEnd]}>
+            {trustBadges.map((badge) => (
+              <View key={badge} style={[styles.vendorMiniBadge, dark && styles.vendorMiniBadgeDark]}>
+                <Text style={[styles.vendorMiniBadgeText, dark && styles.vendorMiniBadgeTextDark]}>
+                  {badge}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
       </View>
 
@@ -541,11 +686,19 @@ function VendorRailCard({ vendor, service, favorite, onToggleFavorite, onPress, 
         {vendor?.name}
       </Text>
       <Text style={[styles.vendorMeta, dark && styles.vendorMetaDark]} numberOfLines={1}>
-        ★ {getVendorRating(vendor)} · {estimateEta(vendor, service)}
+        {buildVendorMetaLine(vendor, service)}
       </Text>
-      <Text style={[styles.vendorSubline, dark && styles.vendorSublineDark]} numberOfLines={2}>
-        {getVendorNote(vendor, service)}
-      </Text>
+
+      {service !== 'scenes' ? (
+        <Text style={[styles.vendorSubline, dark && styles.vendorSublineDark]} numberOfLines={2}>
+          {buildVendorDetailLine(vendor, service) || getVendorNote(vendor, service)}
+        </Text>
+      ) : (
+        <Text style={[styles.vendorSubline, dark && styles.vendorSublineDark]} numberOfLines={2}>
+          {getVendorNote(vendor, service)}
+        </Text>
+      )}
+
       <Text style={[styles.vendorDeliveryLine, dark && styles.vendorDeliveryLineDark]}>
         {getDeliveryLine(vendor, service)}
       </Text>
@@ -555,11 +708,29 @@ function VendorRailCard({ vendor, service, favorite, onToggleFavorite, onPress, 
 
 function VendorListCard({ vendor, service, favorite, onToggleFavorite, onPress }) {
   const tone = getCardTone(vendor?.name);
+  const thumbUri = resolveMediaUrl(vendor?.logo_image_url || vendor?.cover_image_url || vendor?.banner_image_url);
+  const trustBadges = getVendorTrustBadges(vendor);
+  const closed = vendor?.open_now === false || vendor?.is_open === false;
 
   return (
     <TouchableOpacity activeOpacity={0.94} onPress={onPress} style={styles.vendorListCard}>
       <View style={[styles.vendorListThumb, { backgroundColor: tone.bg }]}>
-        <Text style={styles.vendorListThumbText}>{initials(vendor?.name)}</Text>
+        {thumbUri ? (
+          <Image
+            source={{ uri: thumbUri }}
+            style={styles.vendorListThumbImage}
+            contentFit="cover"
+            transition={180}
+          />
+        ) : (
+          <Text style={styles.vendorListThumbText}>{initials(vendor?.name)}</Text>
+        )}
+
+        {closed ? (
+          <View style={styles.vendorListThumbOverlay}>
+            <Text style={styles.vendorListThumbOverlayText}>Closed</Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={{ flex: 1 }}>
@@ -575,15 +746,29 @@ function VendorListCard({ vendor, service, favorite, onToggleFavorite, onPress }
         </View>
 
         <Text style={styles.vendorListMeta} numberOfLines={1}>
-          ★ {getVendorRating(vendor)} · {estimateEta(vendor, service)} · {getDeliveryLine(vendor, service)}
+          {buildVendorMetaLine(vendor, service)} · {getDeliveryLine(vendor, service)}
         </Text>
-        <Text style={styles.vendorListCopy} numberOfLines={2}>{getVendorNote(vendor, service)}</Text>
+
+        <Text style={styles.vendorListCopy} numberOfLines={2}>
+          {buildVendorDetailLine(vendor, service) || getVendorNote(vendor, service)}
+        </Text>
 
         <View style={styles.vendorListBottomRow}>
-          <View style={styles.vendorTagPill}>
-            <Text style={styles.vendorTagPillText}>{getOfferLabel(vendor, service)}</Text>
+          <View style={styles.vendorBadgeRow}>
+            <View style={styles.vendorTagPill}>
+              <Text style={styles.vendorTagPillText}>{getOfferLabel(vendor, service)}</Text>
+            </View>
+
+            {trustBadges.map((badge) => (
+              <View key={badge} style={styles.vendorTagPillSoft}>
+                <Text style={styles.vendorTagPillSoftText}>{badge}</Text>
+              </View>
+            ))}
           </View>
-          <Text style={styles.vendorListAction}>Open</Text>
+
+          <Text style={[styles.vendorListAction, closed && styles.vendorListActionClosed]}>
+            {closed ? 'Closed' : 'Open'}
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -1387,6 +1572,74 @@ const styles = StyleSheet.create({
     padding: 14,
     justifyContent: 'space-between',
     marginBottom: 12,
+    overflow: 'hidden',
+  },
+  vendorRailImage: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 24,
+  },
+  vendorRailOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  vendorRailOverlayDark: {
+    backgroundColor: 'rgba(0,0,0,0.25)',
+  },
+  vendorRailBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  vendorLogoWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 2,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  vendorLogoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  vendorLogoText: {
+    color: PALETTE.brownDark,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  vendorLogoTextDark: {
+    color: PALETTE.sceneText,
+  },
+  vendorBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  vendorBadgeRowEnd: {
+    justifyContent: 'flex-end',
+  },
+  vendorMiniBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  vendorMiniBadgeDark: {
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
+  vendorMiniBadgeText: {
+    color: PALETTE.brownDark,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  vendorMiniBadgeTextDark: {
+    color: '#ffffff',
   },
   vendorOfferBadge: {
     alignSelf: 'flex-start',
@@ -1409,6 +1662,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  favoriteButtonDark: {
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.20)',
   },
   vendorMonogram: {
     width: 52,
@@ -1478,6 +1736,23 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  vendorListThumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  vendorListThumbOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.42)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vendorListThumbOverlayText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.4,
   },
   vendorListThumbText: {
     color: PALETTE.brownDark,
@@ -1532,48 +1807,59 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
   },
+  vendorTagPillSoft: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: PALETTE.peach100,
+  },
+  vendorTagPillSoftText: {
+    color: PALETTE.brownDark,
+    fontSize: 11,
+    fontWeight: '900',
+  },
   vendorListAction: {
     color: PALETTE.peach600,
     fontSize: 13,
     fontWeight: '900',
   },
+  vendorListActionClosed: {
+    color: PALETTE.subtle,
+  },
+
   quickTile: {
     borderRadius: 22,
     padding: 14,
     backgroundColor: PALETTE.surface,
     borderWidth: 1,
     borderColor: PALETTE.border,
-    minHeight: 108,
-    justifyContent: 'space-between',
+    marginBottom: 10,
   },
   quickTileLarge: {
-    minHeight: 228,
+    paddingVertical: 18,
   },
   quickTileIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: PALETTE.peach50,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   quickTileTitle: {
     color: PALETTE.text,
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 14,
     fontWeight: '900',
+    marginBottom: 4,
   },
   quickTileTitleLarge: {
-    fontSize: 24,
-    lineHeight: 28,
+    fontSize: 18,
   },
   quickTileSubtitle: {
     color: PALETTE.muted,
     fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '700',
-    marginTop: 6,
+    fontWeight: '600',
   },
   dineGrid: {
     flexDirection: 'row',
@@ -1584,140 +1870,84 @@ const styles = StyleSheet.create({
   },
   dineColumnRight: {
     flex: 1,
-    gap: 12,
   },
   dealCard: {
-    width: 160,
+    width: 170,
+    padding: 14,
     borderRadius: 22,
-    padding: 12,
     backgroundColor: PALETTE.surface,
     borderWidth: 1,
     borderColor: PALETTE.border,
   },
   dealVisual: {
-    height: 110,
+    height: 96,
     borderRadius: 20,
-    marginBottom: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    padding: 14,
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
   dealVisualEmoji: {
-    fontSize: 34,
+    fontSize: 26,
   },
   dealPricePill: {
-    position: 'absolute',
-    bottom: 10,
-    left: 10,
+    alignSelf: 'flex-start',
     borderRadius: 999,
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 6,
   },
   dealPricePillText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
   },
   dealBrand: {
-    color: PALETTE.subtle,
+    color: PALETTE.muted,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   dealName: {
-    color: PALETTE.text,
-    fontSize: 15,
-    fontWeight: '900',
     marginTop: 4,
-    marginBottom: 10,
-  },
-  addButton: {
-    height: 36,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: PALETTE.peach50,
-  },
-  addButtonText: {
-    color: PALETTE.peach600,
-    fontSize: 13,
+    color: PALETTE.text,
+    fontSize: 14,
     fontWeight: '900',
+    marginBottom: 10,
   },
   qtyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 14,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    backgroundColor: PALETTE.peach50,
+    gap: 10,
+    justifyContent: 'center',
   },
   qtyButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: PALETTE.surface,
   },
   qtyText: {
     color: PALETTE.text,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '900',
-  },
-  sceneGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 14,
-  },
-  sceneCard: {
-    width: '48.2%',
-    borderRadius: 22,
-    padding: 12,
-    backgroundColor: '#1D1712',
-    borderWidth: 1,
-    borderColor: PALETTE.sceneBorder,
-  },
-  scenePoster: {
-    height: 118,
-    borderRadius: 18,
-    marginBottom: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sceneDatePill: {
-    position: 'absolute',
-    left: 10,
-    top: 10,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  sceneDateText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '900',
+    minWidth: 22,
     textAlign: 'center',
   },
-  sceneTitle: {
-    color: PALETTE.sceneText,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '900',
-    marginBottom: 5,
+  addButton: {
+    borderRadius: 16,
+    paddingVertical: 10,
+    backgroundColor: PALETTE.peach50,
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+    alignItems: 'center',
   },
-  sceneSub: {
-    color: PALETTE.sceneMuted,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  scenePrice: {
-    color: PALETTE.peach300,
+  addButtonText: {
+    color: PALETTE.peach600,
     fontSize: 12,
     fontWeight: '900',
+    letterSpacing: 0.6,
   },
   feedbackCard: {
     borderRadius: 22,
@@ -1726,8 +1956,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: PALETTE.border,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    gap: 10,
   },
   feedbackCardDark: {
     backgroundColor: '#1D1712',
@@ -1735,8 +1964,8 @@ const styles = StyleSheet.create({
   },
   feedbackTitle: {
     color: PALETTE.text,
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '900',
     textAlign: 'center',
   },
   feedbackTitleDark: {
@@ -1744,12 +1973,68 @@ const styles = StyleSheet.create({
   },
   feedbackSubtitle: {
     color: PALETTE.muted,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
+    lineHeight: 17,
   },
   feedbackSubtitleDark: {
     color: PALETTE.sceneMuted,
+  },
+  sceneGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    paddingBottom: 4,
+  },
+  sceneCard: {
+    width: '47.5%',
+    backgroundColor: '#1D1712',
+    borderWidth: 1,
+    borderColor: PALETTE.sceneBorder,
+    borderRadius: 22,
+    padding: 12,
+  },
+  scenePoster: {
+    height: 110,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  sceneDatePill: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  sceneDateText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '900',
+    textAlign: 'center',
+    lineHeight: 12,
+  },
+  sceneTitle: {
+    color: PALETTE.sceneText,
+    fontSize: 14,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  sceneSub: {
+    color: PALETTE.sceneMuted,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  scenePrice: {
+    color: PALETTE.peach300,
+    fontSize: 12,
+    fontWeight: '900',
   },
 });
