@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
+  Share,
   StatusBar,
   StyleSheet,
   Text,
@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useGrabBasket } from '../../../App';
+import InlineNoticeCard from '../../components/inline-notice-card';
 
 const COLORS = {
   page: '#f6f7fb',
@@ -444,10 +445,15 @@ export default function VendorDetailsScreen() {
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [shareNotice, setShareNotice] = useState(null);
 
   useEffect(() => {
     if (vendor?.id) rememberStore(vendor.id);
   }, [vendor, rememberStore]);
+
+  useEffect(() => {
+    setShareNotice(null);
+  }, [vendor?.id]);
 
   useEffect(() => {
     if (!vendor) return undefined;
@@ -482,6 +488,43 @@ export default function VendorDetailsScreen() {
 
   const sameVendorCart = cartCount > 0 && String(cart.vendorId) === String(vendor?.id);
   const otherVendorCart = cartCount > 0 && cart.vendorId && String(cart.vendorId) !== String(vendor?.id);
+
+  const handleShareStore = useCallback(async () => {
+    if (!vendor) return;
+
+    try {
+      const shareLines = [vendor.name, getHeroSubtitle(vendor, activeService), vendor?.address]
+        .filter(Boolean)
+        .join('\n');
+      const shareUrl = vendor?.id ? `grab-basket://store/${vendor.id}` : '';
+      const message = shareUrl ? `${shareLines}\n${shareUrl}` : shareLines;
+
+      const result = await Share.share({
+        title: vendor.name || 'Store',
+        message,
+      });
+
+      if (result?.action === Share.dismissedAction) {
+        return;
+      }
+
+      setShareNotice({
+        tone: 'success',
+        title: 'Store ready to share',
+        message: 'The native share sheet opened for this store.',
+      });
+    } catch (error) {
+      if (/cancel/i.test(String(error?.message || ''))) {
+        return;
+      }
+
+      setShareNotice({
+        tone: 'warning',
+        title: 'Share unavailable',
+        message: 'Could not open the native share sheet on this device.',
+      });
+    }
+  }, [activeService, vendor]);
 
   if (vendorsLoading && !vendor) {
     return (
@@ -536,9 +579,7 @@ export default function VendorDetailsScreen() {
               <TouchableOpacity
                 activeOpacity={0.92}
                 style={styles.heroIconButton}
-                onPress={() =>
-                  Alert.alert('Share', 'Connect this action to native share for deep-linking the store.')
-                }>
+                onPress={handleShareStore}>
                 <Ionicons name="share-social-outline" size={18} color="#ffffff" />
               </TouchableOpacity>
 
@@ -557,7 +598,7 @@ export default function VendorDetailsScreen() {
 
           <View style={styles.heroContent}>
             <View style={styles.heroTitleRow}>
-              <View style={[styles.heroMonogram, { backgroundColor: theme.pillBg }]}>
+              <View style={[styles.heroMonogram, { backgroundColor: theme.pillBg }]}> 
                 <Text style={styles.heroMonogramText}>{initials(vendor.name)}</Text>
               </View>
 
@@ -614,6 +655,17 @@ export default function VendorDetailsScreen() {
             />
             <Ionicons name="options-outline" size={20} color={isDark ? '#ffffff' : theme.primary} />
           </View>
+
+          {shareNotice ? (
+            <View style={styles.noticeWrap}>
+              <InlineNoticeCard
+                tone={shareNotice.tone}
+                title={shareNotice.title}
+                message={shareNotice.message}
+                onDismiss={() => setShareNotice(null)}
+              />
+            </View>
+          ) : null}
 
           {otherVendorCart ? (
             <View style={[styles.warningBanner, isDark && styles.warningBannerDark]}>
@@ -943,6 +995,9 @@ const styles = StyleSheet.create({
   },
   searchInputDark: {
     color: '#ffffff',
+  },
+  noticeWrap: {
+    marginTop: 12,
   },
 
   warningBanner: {
