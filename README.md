@@ -43,9 +43,16 @@ What it does:
 - installs `backend/requirements.txt`
 - sets `APP_ENV=development`
 - sets `GRABBASKET_DISABLE_DOTENV=1`
+- sets `DATABASE_URL=sqlite:///backend/.verify.db`
+- sets `RUN_DB_CREATE_ON_STARTUP=false`
 - sets `PYTHONDONTWRITEBYTECODE=1`
 - runs `alembic upgrade head`
 - runs `python -m unittest discover -s tests -p "test_*.py" -v`
+
+### Root verification entrypoint
+- `make backend-verify` runs `backend/scripts/verify_backend.sh`
+- `make mobile-verify` runs `cd mobile && npm run lint`
+- `make verify` runs both in sequence
 
 ---
 
@@ -70,6 +77,8 @@ npm run lint
 npm run test
 npm run test:watch
 ```
+
+For release-candidate local verification, only `npm run lint` is required from `mobile/`. Node.js and npm must be installed locally.
 
 ---
 
