@@ -29,3 +29,13 @@ This checklist maps the requested roadmap items to concrete repository coverage.
 
 - The newly added P1/P2 backend endpoints are functional scaffolds designed to unblock app integration and iteration.
 - Future hardening should include abuse/fraud controls, admin moderation tooling, and dedicated integration tests per new endpoint.
+
+## Remaining gap vs Swiggy-level standards
+
+The following still need additional build-out to truly match Swiggy-grade production standards:
+
+- Full SLO operations stack (error budgets, paging, runbooks, incident automation).
+- Strong anti-fraud/abuse engines for offers, refunds, and account behavior.
+- Mature experiment platform with assignment governance, holdouts, and results pipelines.
+- Deep marketplace intelligence (real-time ETA prediction, prep variance controls, partner batching).
+- Automated release promotion gates using live crash-free and checkout-SLA metrics from observability vendors.

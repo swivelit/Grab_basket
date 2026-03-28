@@ -13,22 +13,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import Base, engine
-from .routers import (
-    addresses,
-    admin,
-    auth,
-    loyalty,
-    me,
-    offers,
-    orders,
-    partner,
-    payments,
-    reviews,
-    seller,
-    support,
-    tracking,
-    vendors,
-)
+from .routers import ROUTERS
 
 
 def _configure_logging() -> None:
@@ -203,18 +188,5 @@ def ready():
     }
 
 
-# Routers
-app.include_router(auth.router)
-app.include_router(vendors.router)
-app.include_router(orders.router)
-app.include_router(payments.router)
-app.include_router(seller.router)
-app.include_router(partner.router)
-app.include_router(addresses.router)
-app.include_router(tracking.router)
-app.include_router(me.router)
-app.include_router(admin.router)
-app.include_router(reviews.router)
-app.include_router(support.router)
-app.include_router(offers.router)
-app.include_router(loyalty.router)
+for router in ROUTERS:
+    app.include_router(router)
