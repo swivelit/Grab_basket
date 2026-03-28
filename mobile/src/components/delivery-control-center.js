@@ -388,7 +388,10 @@ export default function DeliveryControlCenter() {
   });
 
   const statusData = statusQuery.data || null;
-  const allOrders = Array.isArray(ordersQuery.data) ? ordersQuery.data : [];
+  const allOrders = useMemo(
+    () => (Array.isArray(ordersQuery.data) ? ordersQuery.data : []),
+    [ordersQuery.data]
+  );
   const visibleOrders = useMemo(() => filterOrders(allOrders, search, filterKey), [allOrders, filterKey, search]);
   const activeOrder = useMemo(
     () =>

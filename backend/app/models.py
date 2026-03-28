@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import (
     Boolean,
     Column,
@@ -17,6 +17,11 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from .db import Base
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 
 
 class User(Base):
@@ -35,8 +40,8 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     is_partner_available = Column(Boolean, default=False, nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     vendor = relationship("Vendor", back_populates="seller", uselist=False)
     customer_addresses = relationship(
@@ -66,8 +71,8 @@ class FcmToken(Base):
     app_version = Column(String(64), default="", nullable=False)
     device_name = Column(String(255), default="", nullable=False)
     device_id = Column(String(255), default="", nullable=False, index=True)
-    last_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_seen_at = Column(DateTime, default=utc_now, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
     user = relationship("User", back_populates="fcm_tokens")
 
@@ -84,7 +89,7 @@ class RefreshToken(Base):
     expires_at = Column(DateTime, nullable=False, index=True)
     last_used_at = Column(DateTime, nullable=True)
     revoked_at = Column(DateTime, nullable=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
     user = relationship("User", back_populates="refresh_tokens")
 
@@ -130,8 +135,8 @@ class Vendor(Base):
     open_time = Column(Time, nullable=True)   # e.g. 09:00
     close_time = Column(Time, nullable=True)  # e.g. 23:00
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     seller = relationship("User", back_populates="vendor")
     products = relationship("Product", back_populates="vendor", cascade="all, delete-orphan")
@@ -168,8 +173,8 @@ class Product(Base):
     avg_rating = Column(Float, default=0.0, nullable=False)
     total_ratings = Column(Integer, default=0, nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     vendor = relationship("Vendor", back_populates="products")
 
@@ -195,8 +200,8 @@ class CustomerAddress(Base):
 
     is_default = Column(Boolean, default=False, nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     customer = relationship("User", back_populates="customer_addresses")
 
@@ -214,7 +219,7 @@ class PartnerLocation(Base):
     battery_level = Column(Float, nullable=True)
     is_mocked = Column(Boolean, default=False, nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
     partner = relationship("User", back_populates="partner_locations")
 
@@ -268,8 +273,8 @@ class Order(Base):
     delivered_at = Column(DateTime, nullable=True)
     cancelled_at = Column(DateTime, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     vendor = relationship("Vendor", back_populates="orders")
     items = relationship(
@@ -297,7 +302,7 @@ class OrderEvent(Base):
     actor_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     metadata_json = Column(Text, default="", nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
     order = relationship("Order", back_populates="events")
     actor_user = relationship("User", foreign_keys=[actor_user_id])
@@ -334,8 +339,8 @@ class OrderReview(Base):
     review_text = Column(Text, default="", nullable=False)
     tags = Column(Text, default="", nullable=False)  # comma-separated for now
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     order = relationship("Order", foreign_keys=[order_id])
     vendor = relationship("Vendor", foreign_keys=[vendor_id])
@@ -356,8 +361,8 @@ class SupportTicket(Base):
     message = Column(Text, default="", nullable=False)
     resolution_note = Column(Text, default="", nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
     closed_at = Column(DateTime, nullable=True)
 
     order = relationship("Order", foreign_keys=[order_id])
@@ -383,8 +388,8 @@ class Coupon(Base):
     usage_limit_global = Column(Integer, default=0, nullable=False)  # 0 means unlimited
     usage_limit_per_user = Column(Integer, default=1, nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
 
 class CouponRedemption(Base):
@@ -395,7 +400,7 @@ class CouponRedemption(Base):
     customer_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
     discount_amount = Column(Float, default=0.0, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
     coupon = relationship("Coupon", foreign_keys=[coupon_id])
     customer = relationship("User", foreign_keys=[customer_id])
@@ -410,7 +415,7 @@ class LoyaltyMembership(Base):
     tier = Column(String(32), default="BASIC", nullable=False)
     points_balance = Column(Integer, default=0, nullable=False)
     active = Column(Boolean, default=True, nullable=False)
-    joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    joined_at = Column(DateTime, default=utc_now, nullable=False)
     renewed_at = Column(DateTime, nullable=True)
     expires_at = Column(DateTime, nullable=True)
 
@@ -431,7 +436,7 @@ class MoneyLedgerEntry(Base):
     provider_ref = Column(String(128), default="", nullable=False, index=True)
     idempotency_key = Column(String(128), default="", nullable=False, index=True)
     metadata_json = Column(Text, default="", nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
 
 class PaymentReconciliationReport(Base):
@@ -444,7 +449,7 @@ class PaymentReconciliationReport(Base):
     file_uri = Column(String(2048), default="", nullable=False)
     mismatch_count = Column(Integer, default=0, nullable=False)
     processed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
 
 class WebhookDelivery(Base):
@@ -456,7 +461,7 @@ class WebhookDelivery(Base):
     event_id = Column(String(128), nullable=False, index=True)
     event_type = Column(String(64), default="", nullable=False, index=True)
     signature_hash = Column(String(128), default="", nullable=False, index=True)
-    received_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    received_at = Column(DateTime, default=utc_now, nullable=False)
     processed_at = Column(DateTime, nullable=True)
     status = Column(String(24), default="RECEIVED", nullable=False, index=True)
     payload_json = Column(Text, default="", nullable=False)
@@ -477,8 +482,8 @@ class RefundCase(Base):
     attempts = Column(Integer, default=0, nullable=False)
     next_retry_at = Column(DateTime, nullable=True, index=True)
     requested_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
 
 class DisputeCase(Base):
@@ -492,8 +497,8 @@ class DisputeCase(Base):
     reason = Column(Text, default="", nullable=False)
     due_by = Column(DateTime, nullable=True)
     evidence_json = Column(Text, default="", nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
 
 class PayoutRecord(Base):
@@ -509,7 +514,7 @@ class PayoutRecord(Base):
     net_amount = Column(Float, nullable=False)
     status = Column(String(24), default="PENDING", nullable=False, index=True)
     settlement_ref = Column(String(128), default="", nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
     settled_at = Column(DateTime, nullable=True)
 
 
@@ -522,7 +527,7 @@ class MoneyAuditTrail(Base):
     source_system = Column(String(64), default="backend", nullable=False)
     before_json = Column(Text, default="", nullable=False)
     after_json = Column(Text, default="", nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
 
 class AuthChallenge(Base):
@@ -536,7 +541,7 @@ class AuthChallenge(Base):
     expires_at = Column(DateTime, nullable=False, index=True)
     attempts = Column(Integer, default=0, nullable=False)
     metadata_json = Column(Text, default="", nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
     verified_at = Column(DateTime, nullable=True)
 
 
@@ -551,7 +556,7 @@ class AuthRiskEvent(Base):
     risk_score = Column(Integer, default=0, nullable=False)
     reason = Column(Text, default="", nullable=False)
     blocked = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
 
 class UserBlocklist(Base):
@@ -563,7 +568,7 @@ class UserBlocklist(Base):
     reason = Column(Text, default="", nullable=False)
     active = Column(Boolean, default=True, nullable=False, index=True)
     blocked_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
     expires_at = Column(DateTime, nullable=True)
 
 
@@ -576,11 +581,11 @@ class AsyncJob(Base):
     payload_json = Column(Text, default="", nullable=False)
     attempts = Column(Integer, default=0, nullable=False)
     max_attempts = Column(Integer, default=5, nullable=False)
-    run_after = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    run_after = Column(DateTime, default=utc_now, nullable=False, index=True)
     last_error = Column(Text, default="", nullable=False)
     dead_letter_reason = Column(Text, default="", nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
 
 class ComplianceArtifact(Base):
@@ -590,7 +595,7 @@ class ComplianceArtifact(Base):
     version = Column(String(32), nullable=False)
     uri = Column(String(2048), default="", nullable=False)
     active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
 
 class PrivacyRequest(Base):
@@ -600,7 +605,7 @@ class PrivacyRequest(Base):
     request_type = Column(String(32), nullable=False, index=True)  # ACCOUNT_DELETE / DATA_EXPORT
     status = Column(String(24), default="PENDING", nullable=False, index=True)
     output_uri = Column(String(2048), default="", nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
     processed_at = Column(DateTime, nullable=True)
 
 

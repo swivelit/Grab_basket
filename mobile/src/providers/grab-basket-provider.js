@@ -106,10 +106,12 @@ export function GrabBasketProvider({ children }) {
     defaultAddress: addresses.defaultAddress,
   });
 
+  const refreshProfile = auth.refreshProfile;
+
   useEffect(() => {
     if (!auth.sessionReady || !auth.isAuthenticated) return;
-    auth.refreshProfile().catch(() => {});
-  }, [auth.sessionReady, auth.isAuthenticated, auth.refreshProfile]);
+    refreshProfile().catch(() => {});
+  }, [auth.isAuthenticated, auth.sessionReady, refreshProfile]);
 
   const pastOrders = useMemo(() => {
     if (pastOrderFilter === 'all') return orders.orderHistory;

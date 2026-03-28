@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -58,7 +58,7 @@ class BackendHardeningTests(unittest.TestCase):
             payload_json=json.dumps({}),
             attempts=0,
             max_attempts=2,
-            run_after=datetime.utcnow() - timedelta(seconds=1),
+            run_after=datetime.now(timezone.utc) - timedelta(seconds=1),
         )
         self.db.add(job)
         self.db.commit()
@@ -67,7 +67,7 @@ class BackendHardeningTests(unittest.TestCase):
         self.db.refresh(job)
         self.assertEqual(job.status, "RETRY")
 
-        job.run_after = datetime.utcnow() - timedelta(seconds=1)
+        job.run_after = datetime.now(timezone.utc) - timedelta(seconds=1)
         self.db.commit()
         process_due_jobs(db=self.db)
         self.db.refresh(job)

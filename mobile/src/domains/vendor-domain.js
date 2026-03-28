@@ -124,7 +124,10 @@ export function useVendorDomain({ activeService, activeShortcut, homeSearch, def
     }, [activeService, debouncedSearch, defaultAddress]),
   });
 
-  const vendors = Array.isArray(vendorsQuery.data) ? vendorsQuery.data : [];
+  const vendors = useMemo(
+    () => (Array.isArray(vendorsQuery.data) ? vendorsQuery.data : []),
+    [vendorsQuery.data]
+  );
   const rawVendorsError = vendorsQuery.error
     ? normalizeErrorMessage(vendorsQuery.error, 'Could not load stores.')
     : '';
@@ -167,7 +170,10 @@ export function useVendorDomain({ activeService, activeShortcut, homeSearch, def
     }, [topVendors]),
   });
 
-  const homeDeals = Array.isArray(homeDealsQuery.data) ? homeDealsQuery.data : [];
+  const homeDeals = useMemo(
+    () => (Array.isArray(homeDealsQuery.data) ? homeDealsQuery.data : []),
+    [homeDealsQuery.data]
+  );
   const homeDealsLoading = topVendorIds.length > 0 ? homeDealsQuery.isLoading : false;
 
   const rememberSearch = useCallback((term) => {

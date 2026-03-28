@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session, joinedload
@@ -288,7 +288,7 @@ def create_order(
         tax_amount=tax_amount,
         discount_amount=0.0,
         total_amount=total_amount,
-        payment_ref=f"PAY-{payment_method}-{int(datetime.utcnow().timestamp())}",
+        payment_ref=f"PAY-{payment_method}-{int(datetime.now(timezone.utc).timestamp())}",
     )
     db.add(order)
     db.flush()
@@ -366,7 +366,7 @@ def cancel_order(order_id: int, reason: str = "", db: Session = Depends(get_db),
 
     partner_id = order.partner_id
     order.partner_id = None
-    order.cancelled_at = datetime.utcnow()
+    order.cancelled_at = datetime.now(timezone.utc)
     order.cancellation_reason = (reason or "Cancelled by customer").strip()[:500]
 
     release_inventory_for_order(

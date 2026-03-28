@@ -25,7 +25,7 @@ LOCATION_DEDUP_SPEED_DELTA = 2.5
 
 
 def _utcnow() -> datetime:
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)
 
 
 def _user_tokens(db: Session, user_id: int) -> list[str]:
