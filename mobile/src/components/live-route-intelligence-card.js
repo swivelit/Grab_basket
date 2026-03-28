@@ -106,15 +106,6 @@ function formatDuration(value) {
   return `${Math.max(1, minutes)}m`;
 }
 
-function parseDurationSeconds(value) {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.max(0, Math.round(value));
-  }
-  if (typeof value !== 'string') return 0;
-  const match = value.trim().match(/^([\d.]+)s$/i);
-  return match ? Math.max(0, Math.round(Number(match[1]) || 0)) : 0;
-}
-
 function formatDistanceMeters(value) {
   const meters = Math.max(0, Number(value || 0));
   if (!meters) return '—';
@@ -146,20 +137,6 @@ function makeRouteCacheKey(plan) {
     destination: roundPoint(plan?.destination),
     waypoints: Array.isArray(plan?.waypoints) ? plan.waypoints.map((point) => roundPoint(point)) : [],
   });
-}
-
-function normalizeRouteLeg({ leg, label, index, source }) {
-  const distanceMeters = Number(leg?.distanceMeters ?? leg?.distance?.value ?? 0);
-  const durationSeconds = Number(
-    leg?.duration_in_traffic?.value ?? leg?.duration?.value ?? parseDurationSeconds(leg?.duration)
-  );
-
-  return {
-    key: `${source || 'route'}-${index}`,
-    label: label || `Leg ${index + 1}`,
-    distanceMeters: Number.isFinite(distanceMeters) ? distanceMeters : 0,
-    durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : 0,
-  };
 }
 
 function buildRoutePlan({ orderId, orderStatus, riderPoint, pickupPoint, dropPoint }) {
@@ -357,7 +334,7 @@ export default function LiveRouteIntelligenceCard({
 
   const navigationStop = useMemo(
     () => getCurrentNavigationStop(orderStatus, pickupPoint, dropPoint),
-    [dropPoint?.latitude, dropPoint?.longitude, orderStatus, pickupPoint?.latitude, pickupPoint?.longitude]
+    [dropPoint, orderStatus, pickupPoint]
   );
 
   const routePlan = useMemo(
@@ -369,15 +346,7 @@ export default function LiveRouteIntelligenceCard({
         pickupPoint,
         dropPoint,
       }),
-    [
-      dropPoint?.latitude,
-      dropPoint?.longitude,
-      orderStatus,
-      pickupPoint?.latitude,
-      pickupPoint?.longitude,
-      riderPoint?.latitude,
-      riderPoint?.longitude,
-    ]
+    [dropPoint, orderId, orderStatus, pickupPoint, riderPoint]
   );
 
   useEffect(() => {
@@ -418,19 +387,11 @@ export default function LiveRouteIntelligenceCard({
   const routeCoordinates = useMemo(() => {
     const points = Array.isArray(routePreview?.coordinates) ? routePreview.coordinates.filter(hasCoordinatePair) : [];
     return points.length >= 2 ? points : [pickupPoint, dropPoint].filter(hasCoordinatePair);
-  }, [dropPoint?.latitude, dropPoint?.longitude, pickupPoint?.latitude, pickupPoint?.longitude, routePreview?.coordinates]);
+  }, [dropPoint, pickupPoint, routePreview?.coordinates]);
 
   const mapRegion = useMemo(
     () => buildRegion(routeCoordinates.length ? routeCoordinates : [pickupPoint, dropPoint, riderPoint]),
-    [
-      dropPoint?.latitude,
-      dropPoint?.longitude,
-      pickupPoint?.latitude,
-      pickupPoint?.longitude,
-      riderPoint?.latitude,
-      riderPoint?.longitude,
-      routeCoordinates,
-    ]
+    [dropPoint, pickupPoint, riderPoint, routeCoordinates]
   );
 
   useEffect(() => {
@@ -459,15 +420,7 @@ export default function LiveRouteIntelligenceCard({
     }, 120);
 
     return () => clearTimeout(timer);
-  }, [
-    dropPoint?.latitude,
-    dropPoint?.longitude,
-    pickupPoint?.latitude,
-    pickupPoint?.longitude,
-    riderPoint?.latitude,
-    riderPoint?.longitude,
-    routeCoordinates,
-  ]);
+  }, [dropPoint, pickupPoint, riderPoint, routeCoordinates]);
 
   const openRoute = useCallback(async () => {
     const url = buildMapsUrl(navigationStop);

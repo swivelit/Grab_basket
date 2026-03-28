@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -22,7 +22,7 @@ def get_membership(db: Session = Depends(get_db), user: User = Depends(get_curre
     )
 
     if not membership:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         membership = LoyaltyMembership(
             customer_id=user.id,
             tier="BASIC",

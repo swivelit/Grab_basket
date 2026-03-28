@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 
 try:
     from fastapi.testclient import TestClient
 except Exception:  # pragma: no cover - optional local dependency
     TestClient = None
 from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import sessionmaker
 
 from app.db import Base, get_db
 from app.main import app
+from app import models  # noqa: F401
 from app.models import Order, OrderEvent, PartnerLocation, User, Vendor
 
 
@@ -19,7 +21,11 @@ from app.models import Order, OrderEvent, PartnerLocation, User, Vendor
 class IntegrationApiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+        cls.engine = create_engine(
+            "sqlite+pysqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
         cls.Session = sessionmaker(autocommit=False, autoflush=False, bind=cls.engine)
         Base.metadata.create_all(bind=cls.engine)
 
@@ -33,6 +39,11 @@ class IntegrationApiTests(unittest.TestCase):
         app.dependency_overrides[get_db] = override_get_db
         cls.client = TestClient(app)
 
+    def setUp(self):
+        with self.engine.begin() as connection:
+            Base.metadata.drop_all(bind=connection)
+            Base.metadata.create_all(bind=connection)
+
     @classmethod
     def tearDownClass(cls):
         app.dependency_overrides.clear()
@@ -41,15 +52,22 @@ class IntegrationApiTests(unittest.TestCase):
         return {"Authorization": f"Bearer {token}"}
 
     def _register(self, email: str, role: str = "CUSTOMER", device_id: str = "device-1"):
-        return self.client.post(
+        response = self.client.post(
             "/auth/register",
             json={"email": email, "password": "secret123", "role": role, "device_id": device_id},
         )
+        self.assertEqual(
+            response.status_code,
+            200,
+            msg=f"Register failed for {email}: status={response.status_code} body={response.text}",
+        )
+        data = response.json()
+        self.assertIn("access_token", data, msg=f"Register payload missing access_token: {data}")
+        self.assertIn("refresh_token", data, msg=f"Register payload missing refresh_token: {data}")
+        return data
 
     def test_auth_register_login_refresh_logout_device_bound_flow(self):
-        register = self._register("int_customer@example.com", device_id="ios-1")
-        self.assertEqual(register.status_code, 200)
-        session = register.json()
+        session = self._register("int_customer@example.com", device_id="ios-1")
 
         refreshed = self.client.post(
             "/auth/refresh",
@@ -85,7 +103,7 @@ class IntegrationApiTests(unittest.TestCase):
         self.assertEqual(verify.json()["status"], "VERIFIED")
 
     def test_route_intelligence_stale_scan_sse_smoke(self):
-        admin = self._register("admin_route@example.com", role="ADMIN", device_id="admin-device").json()
+        admin = self._register("admin_route@example.com", role="ADMIN", device_id="admin-device")
 
         db = self.Session()
         seller = User(email="seller_route@example.com", password_hash="x", role="SELLER")
@@ -108,7 +126,7 @@ class IntegrationApiTests(unittest.TestCase):
         )
         db.add(order)
         db.flush()
-        db.add(PartnerLocation(partner_id=partner.id, lat=12.95, lng=77.58, created_at=datetime.utcnow()))
+        db.add(PartnerLocation(partner_id=partner.id, lat=12.95, lng=77.58, created_at=datetime.now(timezone.utc)))
         db.add(OrderEvent(order_id=order.id, status="CREATED", note="created"))
         db.commit()
         db.close()
@@ -136,7 +154,7 @@ class IntegrationApiTests(unittest.TestCase):
             self.assertTrue("retry:" in chunk or "event:" in chunk)
 
     def test_webhook_ingest_idempotency_replay(self):
-        admin = self._register("admin_webhook@example.com", role="ADMIN", device_id="admin-device2").json()
+        admin = self._register("admin_webhook@example.com", role="ADMIN", device_id="admin-device2")
         payload = {
             "provider": "razorpay",
             "event_id": "evt_123",

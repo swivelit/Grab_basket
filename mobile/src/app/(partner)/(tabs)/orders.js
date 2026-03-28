@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Linking,
-  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -16,7 +14,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { Marker, Polyline } from 'react-native-maps';
 
 import { useGrabBasket } from '../../../../App';
 import InlineConfirmCard from '../../../components/inline-confirm-card';
@@ -483,56 +480,6 @@ function normalizeCoordinate(lat, lng) {
   }
 
   return { latitude, longitude };
-}
-
-function buildMapRegion(points = []) {
-  const usable = points.filter(hasCoordinate);
-  if (!usable.length) {
-    return {
-      latitude: 12.9716,
-      longitude: 77.5946,
-      latitudeDelta: 0.08,
-      longitudeDelta: 0.08,
-    };
-  }
-
-  const latitudes = usable.map((point) => point.latitude);
-  const longitudes = usable.map((point) => point.longitude);
-  const minLat = Math.min(...latitudes);
-  const maxLat = Math.max(...latitudes);
-  const minLng = Math.min(...longitudes);
-  const maxLng = Math.max(...longitudes);
-
-  return {
-    latitude: (minLat + maxLat) / 2,
-    longitude: (minLng + maxLng) / 2,
-    latitudeDelta: Math.max(0.02, (maxLat - minLat) * 1.7 || 0.02),
-    longitudeDelta: Math.max(0.02, (maxLng - minLng) * 1.7 || 0.02),
-  };
-}
-
-function getTrackingStop({ orderStatus, pickupPoint, dropPoint }) {
-  return String(orderStatus || '').toUpperCase() === 'PICKED_UP' ? dropPoint : pickupPoint || dropPoint;
-}
-
-function buildRouteUrl(destination, { pickup } = {}) {
-  if (!hasCoordinate(destination)) return '';
-
-  const destinationLat = Number(destination.latitude).toFixed(6);
-  const destinationLng = Number(destination.longitude).toFixed(6);
-  const destinationParam = `${destinationLat},${destinationLng}`;
-
-  const origin = hasCoordinate(pickup)
-    ? `${Number(pickup.latitude).toFixed(6)},${Number(pickup.longitude).toFixed(6)}`
-    : '';
-
-  if (Platform.OS === 'ios') {
-    return `http://maps.apple.com/?${origin ? `saddr=${origin}&` : ''}daddr=${destinationParam}&dirflg=d`;
-  }
-
-  return `https://www.google.com/maps/dir/?api=1&destination=${destinationParam}${
-    origin ? `&origin=${origin}` : ''
-  }&travelmode=driving`;
 }
 
 function SellerLiveTrackingCard({ order, vendor, tracking, loading, onRefresh }) {

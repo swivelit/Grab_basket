@@ -76,7 +76,6 @@ export default function CartScreen() {
   const router = useRouter();
   const {
     activeService,
-    cart,
     cartItems,
     cartVendor,
     cartSubtotal,

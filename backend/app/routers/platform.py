@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -247,7 +247,7 @@ def stale_location_scan(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("ADMIN")),
 ):
-    cutoff = datetime.utcnow() - timedelta(seconds=max(60, min(stale_after_seconds, 3600)))
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=max(60, min(stale_after_seconds, 3600)))
     active_orders = (
         db.query(Order)
         .filter(Order.partner_id.isnot(None), Order.status.in_(["ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP", "PICKED_UP"]))
@@ -291,7 +291,7 @@ def enqueue_job(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("ADMIN", "SELLER")),
 ):
-    run_after = datetime.utcnow() + timedelta(seconds=body.delay_seconds)
+    run_after = datetime.now(timezone.utc) + timedelta(seconds=body.delay_seconds)
     job = AsyncJob(
         queue_name=body.queue_name,
         job_type=body.job_type,
@@ -319,7 +319,7 @@ def ingest_webhook(
         existing.replay_count += 1
         if existing.replay_count >= 3 and existing.status != "DEAD_LETTER":
             existing.status = "DEAD_LETTER"
-            existing.dead_lettered_at = datetime.utcnow()
+            existing.dead_lettered_at = datetime.now(timezone.utc)
             existing.error_message = "Repeated replay detected"
         metrics.incr("webhook.duplicate_total")
         db.commit()
@@ -332,7 +332,7 @@ def ingest_webhook(
         signature_hash=body.signature_hash,
         payload_json=json.dumps(body.payload),
         status="PROCESSED",
-        processed_at=datetime.utcnow(),
+        processed_at=datetime.now(timezone.utc),
     )
     db.add(delivery)
     metrics.incr("webhook.processed_total")

@@ -17,9 +17,6 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useGrabBasket } from '../../../../App';
-import InlineConfirmCard from '../../../components/inline-confirm-card';
-import InlineErrorCard from '../../../components/inline-error-card';
-import InlineNoticeCard from '../../../components/inline-notice-card';
 import { getErrorMessage, requestJson } from '../../../lib/api-client';
 
 const COLORS = {
@@ -94,15 +91,6 @@ async function request(path, token, { method = 'GET', body, query } = {}) {
 
 function money(value) {
   return `₹${Number(value || 0).toFixed(0)}`;
-}
-
-function formatStatus(status = '') {
-  return (
-    String(status || '')
-      .replace(/_/g, ' ')
-      .toLowerCase()
-      .replace(/\b\w/g, (char) => char.toUpperCase()) || 'Unknown'
-  );
 }
 
 function getStatusTone(status = '') {
@@ -864,6 +852,33 @@ export default function PartnerCatalogScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: tabBarHeight + 20 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+        <View style={styles.feedbackStack}>
+          {inlineError ? (
+            <SectionCard title="Catalog issue" subtitle={inlineError}>
+              <PrimaryButton label="Dismiss" icon="close-outline" onPress={clearError} tone="muted" />
+            </SectionCard>
+          ) : null}
+          {inlineNotice ? (
+            <SectionCard title={inlineNotice.title || 'Updated'} subtitle={inlineNotice.message || ''}>
+              <PrimaryButton label="Dismiss" icon="checkmark-outline" onPress={clearNotice} tone="muted" />
+            </SectionCard>
+          ) : null}
+          {pendingDeleteProduct ? (
+            <SectionCard
+              title="Delete product?"
+              subtitle={`This will permanently remove ${pendingDeleteProduct.name || 'this item'} from your catalog.`}>
+              <View style={styles.buttonRow}>
+                <PrimaryButton label="Delete" icon="trash-outline" onPress={confirmDeleteProduct} tone="danger" />
+                <PrimaryButton
+                  label="Cancel"
+                  icon="close-outline"
+                  onPress={() => setPendingDeleteProduct(null)}
+                  tone="muted"
+                />
+              </View>
+            </SectionCard>
+          ) : null}
+        </View>
         <SectionCard title={productForm.id ? 'Edit menu item' : 'Add menu item'} subtitle="Swiggy-level seller apps need menu control, availability control, and real stock visibility.">
           <TextField label="Item name" value={productForm.name} onChangeText={(value) => setProductForm((current) => ({ ...current, name: value }))} placeholder="Paneer Tikka Wrap" />
           <TextField label="Description" value={productForm.description} onChangeText={(value) => setProductForm((current) => ({ ...current, description: value }))} placeholder="Short item description" multiline />
