@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Image } from 'expo-image';
 import {
   ActivityIndicator,
   ScrollView,
@@ -15,6 +16,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useGrabBasket } from '../../../App';
 import InlineNoticeCard from '../../components/inline-notice-card';
+import { APP_ENV } from '../../config';
+import { captureEvent } from '../../lib/telemetry';
+import { FEATURE_FLAGS } from '../../constants/feature-flags';
+import { ANALYTICS_EVENTS, ANALYTICS_TAXONOMY_VERSION } from '../../constants/analytics-taxonomy';
 
 const COLORS = {
   page: '#f6f7fb',
@@ -163,6 +168,48 @@ function getHeroSubtitle(vendor, service = 'food') {
   return vendor?.description || 'Popular local store with fast delivery and strong value.';
 }
 
+function getVendorImage(vendor) {
+  const candidate =
+    vendor?.cover_image_url || vendor?.banner_image_url || vendor?.logo_image_url || '';
+  return String(candidate || '').trim();
+}
+
+function getTrustSignals(vendor) {
+  const signals = [];
+  const ratingCount = Number(vendor?.total_ratings || 0);
+
+  if (ratingCount >= 100) signals.push(`${ratingCount}+ verified ratings`);
+  if (String(vendor?.gstin || '').trim()) signals.push('GST verified merchant');
+  if (String(vendor?.support_phone || '').trim() || String(vendor?.support_email || '').trim()) {
+    signals.push('Help & refund support available');
+  }
+  if (vendor?.can_deliver !== false) signals.push('Reliable fulfillment zone');
+
+  return signals.slice(0, 3);
+}
+
+function getReviewHighlights(vendor) {
+  const base = [];
+  const rating = Number(vendor?.avg_rating || 0);
+  const ratingCount = Number(vendor?.total_ratings || 0);
+
+  if (rating >= 4.5) base.push('Customers praise consistent quality and packing.');
+  if (ratingCount >= 200) base.push('Large repeat-customer base with strong trust signals.');
+  if (vendor?.is_busy) base.push('High demand right now — popular pick this hour.');
+  if (vendor?.open_now === false) base.push('Currently closed, but reviews are visible for confidence.');
+  if (base.length === 0) base.push('Be first to review after your order to help future customers.');
+
+  return base.slice(0, 2);
+}
+
+function getCouponMessage(vendor, service = 'food') {
+  if (service === 'eatout') return 'Use code TABLE25 for up to 25% off on bill payments.';
+  if (service === 'warehouse') return 'Use code MARTSAVE for free delivery on eligible baskets.';
+  if (service === 'scenes') return 'Use code SCENE20 to unlock early-bird passes.';
+  if (Number(vendor?.total_ratings || 0) >= 150) return 'Use code TRUST30 for up to ₹120 off.';
+  return 'Use code FIRSTTRUST for a welcome discount on this store.';
+}
+
 function getProductBadge(product, service = 'food') {
   const explicitBadge = String(product?.badge_text || '').trim();
   if (explicitBadge) return explicitBadge;
@@ -201,7 +248,24 @@ function getProductBadge(product, service = 'food') {
   return 'Popular';
 }
 
-function sortRecommended(products = []) {
+function getVendorPreferenceBoost(product, profile = {}) {
+  if (!profile || !product) return 0;
+
+  const name = String(product?.name || '').toLowerCase();
+  const category = String(product?.category_name || product?.category || '').toLowerCase();
+  const preferredTerms = Array.isArray(profile?.topTerms) ? profile.topTerms : [];
+  const preferredCategories = Array.isArray(profile?.topCategories) ? profile.topCategories : [];
+
+  let boost = 0;
+
+  if (preferredCategories.some((term) => category.includes(term))) boost += 30;
+  if (preferredTerms.some((term) => name.includes(term))) boost += 20;
+  if (profile?.vendorRepeatScore > 0) boost += Math.min(40, profile.vendorRepeatScore * 6);
+
+  return boost;
+}
+
+function sortRecommended(products = [], profile = null) {
   return [...products].sort((a, b) => {
     const score = (item) => {
       const discount = Math.max(0, Number(item?.original_price || 0) - Number(item?.price || 0));
@@ -210,7 +274,8 @@ function sortRecommended(products = []) {
         (item?.is_featured ? 300 : 0) +
         Math.round(Number(item?.avg_rating || 0) * 40) +
         Math.min(discount, 200) +
-        Math.max(0, 100 - Number(item?.price || 0))
+        Math.max(0, 100 - Number(item?.price || 0)) +
+        (FEATURE_FLAGS.personalizationRanking ? getVendorPreferenceBoost(item, profile) : 0)
       );
     };
 
@@ -284,6 +349,40 @@ function pickEmoji(name = '', service = 'food') {
   if (/(dessert|cake|ice cream|sweet)/.test(value)) return '🍰';
   if (/(drink|juice|shake|coffee|tea)/.test(value)) return '🥤';
   return '🍽️';
+}
+
+function buildPersonalizationProfile(orderHistory = [], vendor) {
+  const orders = Array.isArray(orderHistory) ? orderHistory : [];
+  const vendorId = String(vendor?.id || '');
+  const vendorOrders = orders.filter(
+    (order) => String(order?.vendor_id || order?.vendorId || '') === vendorId
+  );
+
+  const topTerms = [];
+  const topCategories = [];
+
+  vendorOrders.forEach((order) => {
+    const items = Array.isArray(order?.items) ? order.items : [];
+    items.forEach((item) => {
+      const name = String(item?.name || item?.name_snapshot || '').toLowerCase();
+      const category = String(item?.category || item?.category_name || '').toLowerCase();
+      if (name) topTerms.push(...name.split(/\s+/).slice(0, 2));
+      if (category) topCategories.push(category);
+    });
+  });
+
+  return {
+    vendorRepeatScore: vendorOrders.length,
+    topTerms: Array.from(new Set(topTerms)).slice(0, 6),
+    topCategories: Array.from(new Set(topCategories)).slice(0, 4),
+  };
+}
+
+function getLoyaltyCopy(profile) {
+  if (!FEATURE_FLAGS.loyaltyMembership) return '';
+  if ((profile?.vendorRepeatScore || 0) >= 5) return 'GB Plus Gold: extra perks unlocked for this merchant.';
+  if ((profile?.vendorRepeatScore || 0) >= 2) return 'GB Plus Silver: add one more order to unlock larger rewards.';
+  return 'Join GB Plus for member-only pricing, support priority, and reorder cashback.';
 }
 
 function LoadingState({ dark = false, label = 'Loading...' }) {
@@ -428,6 +527,7 @@ export default function VendorDetailsScreen() {
     toggleFavorite,
     rememberStore,
     rememberSearch,
+    orderHistory,
     cart,
     cartCount,
     cartTotal,
@@ -484,7 +584,15 @@ export default function VendorDetailsScreen() {
     return products.filter((item) => deriveCategory(item, activeService) === selectedCategory);
   }, [products, activeService, selectedCategory]);
 
-  const recommendedProducts = useMemo(() => sortRecommended(products).slice(0, 4), [products]);
+  const personalizationProfile = useMemo(
+    () => buildPersonalizationProfile(orderHistory, vendor),
+    [orderHistory, vendor]
+  );
+
+  const recommendedProducts = useMemo(
+    () => sortRecommended(products, personalizationProfile).slice(0, 4),
+    [products, personalizationProfile]
+  );
 
   const sameVendorCart = cartCount > 0 && String(cart.vendorId) === String(vendor?.id);
   const otherVendorCart = cartCount > 0 && cart.vendorId && String(cart.vendorId) !== String(vendor?.id);
@@ -513,6 +621,12 @@ export default function VendorDetailsScreen() {
         title: 'Store ready to share',
         message: 'The native share sheet opened for this store.',
       });
+      captureEvent(ANALYTICS_EVENTS.consumerStoreShareOpened, {
+        taxonomy_version: ANALYTICS_TAXONOMY_VERSION,
+        service: activeService,
+        vendor_id: String(vendor?.id || ''),
+        app_env: APP_ENV,
+      });
     } catch (error) {
       if (/cancel/i.test(String(error?.message || ''))) {
         return;
@@ -525,6 +639,19 @@ export default function VendorDetailsScreen() {
       });
     }
   }, [activeService, vendor]);
+
+  useEffect(() => {
+    if (!vendor?.id) return;
+
+    captureEvent(ANALYTICS_EVENTS.consumerStoreViewed, {
+      taxonomy_version: ANALYTICS_TAXONOMY_VERSION,
+      vendor_id: String(vendor.id),
+      service: activeService,
+      personalization_enabled: FEATURE_FLAGS.personalizationRanking,
+      premium_trust_cards_enabled: FEATURE_FLAGS.premiumTrustCards,
+      app_env: APP_ENV,
+    });
+  }, [activeService, vendor?.id]);
 
   if (vendorsLoading && !vendor) {
     return (
@@ -598,8 +725,16 @@ export default function VendorDetailsScreen() {
 
           <View style={styles.heroContent}>
             <View style={styles.heroTitleRow}>
-              <View style={[styles.heroMonogram, { backgroundColor: theme.pillBg }]}> 
-                <Text style={styles.heroMonogramText}>{initials(vendor.name)}</Text>
+              <View style={[styles.heroMonogram, { backgroundColor: theme.pillBg }]}>
+                {getVendorImage(vendor) ? (
+                  <Image
+                    source={{ uri: getVendorImage(vendor) }}
+                    style={styles.heroImage}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <Text style={styles.heroMonogramText}>{initials(vendor.name)}</Text>
+                )}
               </View>
 
               <View style={{ flex: 1 }}>
@@ -679,6 +814,63 @@ export default function VendorDetailsScreen() {
               </Text>
             </View>
           ) : null}
+
+          {FEATURE_FLAGS.premiumTrustCards ? (
+            <View style={[styles.trustCard, isDark && styles.trustCardDark]}>
+            <View style={styles.trustHeaderRow}>
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={17}
+                color={isDark ? '#ffffff' : theme.primary}
+              />
+              <Text style={[styles.trustTitle, isDark && styles.trustTitleDark]}>
+                Trust & transparency
+              </Text>
+            </View>
+
+            {getTrustSignals(vendor).map((signal) => (
+              <Text key={signal} style={[styles.trustPoint, isDark && styles.trustPointDark]}>
+                • {signal}
+              </Text>
+            ))}
+            </View>
+          ) : null}
+
+          <View style={[styles.couponCard, isDark && styles.couponCardDark]}>
+            <View style={styles.couponHeader}>
+              <Text style={[styles.couponTitle, isDark && styles.couponTitleDark]}>Offers & coupons</Text>
+              <Ionicons name="pricetags-outline" size={16} color={isDark ? '#ffffff' : theme.primary} />
+            </View>
+            <Text style={[styles.couponText, isDark && styles.couponTextDark]}>
+              {getCouponMessage(vendor, activeService)}
+            </Text>
+          </View>
+
+          {FEATURE_FLAGS.loyaltyMembership ? (
+            <View style={[styles.membershipCard, isDark && styles.membershipCardDark]}>
+              <View style={styles.membershipHeader}>
+                <Ionicons name="diamond-outline" size={16} color={isDark ? '#ffffff' : theme.primary} />
+                <Text style={[styles.membershipTitle, isDark && styles.membershipTitleDark]}>GB Plus membership</Text>
+              </View>
+              <Text style={[styles.membershipText, isDark && styles.membershipTextDark]}>
+                {getLoyaltyCopy(personalizationProfile)}
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={[styles.reviewCard, isDark && styles.reviewCardDark]}>
+            <View style={styles.reviewHeader}>
+              <Text style={[styles.reviewTitle, isDark && styles.reviewTitleDark]}>Ratings & reviews</Text>
+              <Text style={[styles.reviewScore, isDark && styles.reviewScoreDark]}>
+                {getVendorRating(vendor)} ★
+              </Text>
+            </View>
+            {getReviewHighlights(vendor).map((line) => (
+              <Text key={line} style={[styles.reviewLine, isDark && styles.reviewLineDark]}>
+                {line}
+              </Text>
+            ))}
+          </View>
 
           {activeService !== 'eatout' && activeService !== 'scenes' ? (
             <View style={[styles.savingsCard, isDark && styles.savingsCardDark]}>
@@ -909,6 +1101,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 22,
+  },
   heroMonogramText: {
     color: '#ffffff',
     fontSize: 24,
@@ -1024,6 +1221,161 @@ const styles = StyleSheet.create({
   },
   warningTextDark: {
     color: '#ffffff',
+  },
+
+  trustCard: {
+    marginTop: 12,
+    borderRadius: 16,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  trustCardDark: {
+    backgroundColor: COLORS.darkCard,
+    borderColor: COLORS.darkBorder,
+  },
+  trustHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  trustTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  trustTitleDark: {
+    color: '#ffffff',
+  },
+  trustPoint: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  trustPointDark: {
+    color: COLORS.darkMuted,
+  },
+  couponCard: {
+    marginTop: 12,
+    borderRadius: 16,
+    backgroundColor: COLORS.orangeSoft,
+    borderWidth: 1,
+    borderColor: '#ffd5b6',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  couponCardDark: {
+    backgroundColor: COLORS.darkCard,
+    borderColor: COLORS.darkBorder,
+  },
+  couponHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  couponTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  couponTitleDark: {
+    color: '#ffffff',
+  },
+  couponText: {
+    marginTop: 6,
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  couponTextDark: {
+    color: COLORS.darkMuted,
+  },
+  reviewCard: {
+    marginTop: 12,
+    borderRadius: 16,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  reviewCardDark: {
+    backgroundColor: COLORS.darkCard,
+    borderColor: COLORS.darkBorder,
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  reviewTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  reviewTitleDark: {
+    color: '#ffffff',
+  },
+  reviewScore: {
+    color: COLORS.orange,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  reviewScoreDark: {
+    color: '#ffffff',
+  },
+  reviewLine: {
+    marginTop: 6,
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  reviewLineDark: {
+    color: COLORS.darkMuted,
+  },
+  membershipCard: {
+    marginTop: 12,
+    borderRadius: 16,
+    backgroundColor: COLORS.blueSoft,
+    borderWidth: 1,
+    borderColor: '#cddfff',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  membershipCardDark: {
+    backgroundColor: COLORS.darkCard,
+    borderColor: COLORS.darkBorder,
+  },
+  membershipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  membershipTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  membershipTitleDark: {
+    color: '#ffffff',
+  },
+  membershipText: {
+    marginTop: 6,
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  membershipTextDark: {
+    color: COLORS.darkMuted,
   },
 
   savingsCard: {

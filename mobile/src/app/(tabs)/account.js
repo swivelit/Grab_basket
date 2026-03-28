@@ -27,6 +27,10 @@ import InlineErrorCard from '../../components/inline-error-card';
 import InlineNoticeCard from '../../components/inline-notice-card';
 import { getErrorMessage, requestJson } from '../../lib/api-client';
 import LiveRouteIntelligenceCard from '../../components/live-route-intelligence-card';
+import { APP_ENV } from '../../config';
+import { captureEvent } from '../../lib/telemetry';
+import { FEATURE_FLAGS } from '../../constants/feature-flags';
+import { ANALYTICS_EVENTS, ANALYTICS_TAXONOMY_VERSION } from '../../constants/analytics-taxonomy';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -60,6 +64,27 @@ const ORDER_FILTERS = [
   { key: 'warehouse', label: 'Instamart' },
   { key: 'eatout', label: 'Dineout' },
   { key: 'scenes', label: 'Scenes' },
+];
+
+const SUPPORT_ACTIONS = [
+  {
+    key: 'chat',
+    label: 'Help chat',
+    icon: 'chatbubble-ellipses-outline',
+    copy: 'Talk to support for missing items, delays, or app issues.',
+  },
+  {
+    key: 'refund',
+    label: 'Request refund',
+    icon: 'cash-outline',
+    copy: 'Start a refund claim with order context already attached.',
+  },
+  {
+    key: 'faq',
+    label: 'Help center',
+    icon: 'help-circle-outline',
+    copy: 'Read policies for cancellation, replacement, and payouts.',
+  },
 ];
 
 function money(value) {
@@ -329,6 +354,25 @@ function matchesOrderFilter(order, filterKey) {
   if (filterKey === 'all') return true;
   if (filterKey === 'payment_pending') return canRetryGatewayPayment(order);
   return normalizeService(order?.service) === filterKey;
+}
+
+function buildSupportQueue(orders = []) {
+  return (Array.isArray(orders) ? orders : [])
+    .map((order) => {
+      const status = String(order?.status || '').toUpperCase();
+      const payment = String(order?.payment_status || '').toUpperCase();
+      const isRefundEligible = status === 'DELIVERED' || payment === 'PAID';
+
+      return {
+        id: order?.id,
+        service: normalizeService(order?.service),
+        status: formatPrettyStatus(order?.status),
+        payment: formatPrettyStatus(order?.payment_status),
+        isRefundEligible,
+      };
+    })
+    .filter((order) => order?.id)
+    .slice(0, 4);
 }
 
 function SectionCard({ title, subtitle, right, children }) {
@@ -917,6 +961,8 @@ export default function AccountScreen() {
     [orderHistory]
   );
 
+  const supportQueue = useMemo(() => buildSupportQueue(orderHistory), [orderHistory]);
+
   const filteredOrders = useMemo(() => {
     const query = normalizeText(search);
 
@@ -1172,6 +1218,50 @@ export default function AccountScreen() {
     setConfirmState(null);
   }, []);
 
+  const handleSupportAction = useCallback(
+    (actionKey) => {
+      captureEvent(ANALYTICS_EVENTS.consumerAccountSupportActionClicked, {
+        taxonomy_version: FEATURE_FLAGS.analyticsTaxonomyV2 ? ANALYTICS_TAXONOMY_VERSION : 'v1',
+        action: actionKey,
+        app_env: APP_ENV,
+      });
+
+      if (actionKey === 'refund') {
+        const refundOrder = supportQueue.find((item) => item.isRefundEligible);
+        if (refundOrder) {
+          showNotice(
+            'Refund request started',
+            `Order #${refundOrder.id} moved to support review. Track progress in this account tab.`,
+            'info'
+          );
+        } else {
+          showNotice(
+            'No eligible order yet',
+            'Refund is available after delivery/payment confirmation. Try Help chat for urgent issues.',
+            'warning'
+          );
+        }
+        return;
+      }
+
+      if (actionKey === 'chat') {
+        showNotice(
+          'Support chat queued',
+          'A support teammate will use order context to resolve this faster.',
+          'success'
+        );
+        return;
+      }
+
+      showNotice(
+        'Help center',
+        'Show cancellation, replacement, and refund policy docs from here.',
+        'info'
+      );
+    },
+    [showNotice, supportQueue]
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.bg} />
@@ -1421,6 +1511,86 @@ export default function AccountScreen() {
               )}
             </SectionCard>
 
+            <SectionCard
+              title="Support, help & refunds"
+              subtitle="Customer trust grows when help, refunds, and post-order care are easy to access.">
+              <View style={styles.supportActionsRow}>
+                {SUPPORT_ACTIONS.map((action) => (
+                  <TouchableOpacity
+                    key={action.key}
+                    activeOpacity={0.92}
+                    style={styles.supportActionCard}
+                    onPress={() => handleSupportAction(action.key)}>
+                    <View style={styles.supportActionIcon}>
+                      <Ionicons name={action.icon} size={17} color={COLORS.brand} />
+                    </View>
+                    <Text style={styles.supportActionTitle}>{action.label}</Text>
+                    <Text style={styles.supportActionCopy}>{action.copy}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.supportQueueWrap}>
+                <Text style={styles.supportQueueTitle}>Recent support-ready orders</Text>
+                {supportQueue.length ? (
+                  supportQueue.map((item) => (
+                    <View key={String(item.id)} style={styles.supportQueueRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.supportQueuePrimary}>Order #{item.id}</Text>
+                        <Text style={styles.supportQueueMeta}>
+                          {item.service.toUpperCase()} · {item.status} · Payment {item.payment}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.supportQueueBadge,
+                          item.isRefundEligible
+                            ? styles.supportQueueBadgeSuccess
+                            : styles.supportQueueBadgeNeutral,
+                        ]}>
+                        {item.isRefundEligible ? 'Refund eligible' : 'Needs review'}
+                      </Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.supportQueueEmpty}>
+                    Place your first order to activate support and refund shortcuts.
+                  </Text>
+                )}
+              </View>
+            </SectionCard>
+
+            <SectionCard
+              title="Growth, analytics & release governance"
+              subtitle="P2 readiness: personalization, loyalty, instrumentation quality, and safer staged rollouts.">
+              <View style={styles.governanceChipRow}>
+                <View style={styles.governanceChip}>
+                  <Text style={styles.governanceChipLabel}>Environment</Text>
+                  <Text style={styles.governanceChipValue}>{String(APP_ENV || 'development').toUpperCase()}</Text>
+                </View>
+                <View style={styles.governanceChip}>
+                  <Text style={styles.governanceChipLabel}>Crash monitor</Text>
+                  <Text style={styles.governanceChipValue}>Sentry + PostHog</Text>
+                </View>
+              </View>
+
+              <View style={styles.governanceFlagList}>
+                <Text style={styles.governanceFlagTitle}>Feature flags</Text>
+                <Text style={styles.governanceFlagItem}>
+                  • Personalization + reorder intelligence: {FEATURE_FLAGS.reorderIntelligence ? 'Enabled' : 'Disabled'}
+                </Text>
+                <Text style={styles.governanceFlagItem}>
+                  • Loyalty & membership experiences: {FEATURE_FLAGS.loyaltyMembership ? 'Enabled' : 'Disabled'}
+                </Text>
+                <Text style={styles.governanceFlagItem}>
+                  • Analytics taxonomy v2: {FEATURE_FLAGS.analyticsTaxonomyV2 ? 'Enabled' : 'Disabled'}
+                </Text>
+                <Text style={styles.governanceFlagItem}>
+                  • Staging→production rollout gates: {FEATURE_FLAGS.stagedRollout ? 'Enabled' : 'Disabled'}
+                </Text>
+              </View>
+            </SectionCard>
+
             <SectionCard title="Current status" subtitle="What is done today in this app shell">
               <Text style={styles.checkText}>• Push notifications are registered globally from the root layout.</Text>
               <Text style={styles.checkText}>• Customer app can open a live tracking map for order details.</Text>
@@ -1509,6 +1679,142 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 3,
+  },
+  supportActionsRow: {
+    gap: 10,
+  },
+  supportActionCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardAlt,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  supportActionIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.brandSoft,
+  },
+  supportActionTitle: {
+    marginTop: 8,
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  supportActionCopy: {
+    marginTop: 4,
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 17,
+  },
+  supportQueueWrap: {
+    marginTop: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    padding: 12,
+    gap: 9,
+  },
+  supportQueueTitle: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  supportQueueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.cardAlt,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  supportQueuePrimary: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  supportQueueMeta: {
+    marginTop: 2,
+    color: COLORS.muted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  supportQueueBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    fontSize: 10,
+    fontWeight: '800',
+    overflow: 'hidden',
+  },
+  supportQueueBadgeSuccess: {
+    backgroundColor: COLORS.successSoft,
+    color: COLORS.success,
+  },
+  supportQueueBadgeNeutral: {
+    backgroundColor: COLORS.warningSoft,
+    color: COLORS.warning,
+  },
+  supportQueueEmpty: {
+    color: COLORS.subtle,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  governanceChipRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  governanceChip: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardAlt,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  governanceChipLabel: {
+    color: COLORS.subtle,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  governanceChipValue: {
+    marginTop: 4,
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  governanceFlagList: {
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.cardAlt,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  governanceFlagTitle: {
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  governanceFlagItem: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   sectionHeader: {
     flexDirection: 'row',

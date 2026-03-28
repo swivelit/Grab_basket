@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { Stack, useGlobalSearchParams, usePathname } from 'expo-router';
 import * as TaskManager from 'expo-task-manager';
@@ -17,6 +17,8 @@ import {
   trackScreen,
   wrapWithSentry,
 } from '../lib/telemetry';
+import { evaluateReleaseGovernance } from '../lib/release-governance';
+import { ANALYTICS_TAXONOMY_VERSION } from '../constants/analytics-taxonomy';
 
 const APP_VARIANT = getAppVariant();
 const IS_NATIVE_RUNTIME = Platform.OS === 'android' || Platform.OS === 'ios';
@@ -132,13 +134,10 @@ function registerDeliveryLocationTask() {
 
     TaskManager.defineTask(
       DELIVERY_LOCATION_TASK_NAME,
-      async ({
-        data,
-        error,
-      }: {
-        data?: DeliveryLocationTaskPayload;
-        error?: Error | null;
-      }) => {
+      async (taskBody) => {
+        const data = taskBody?.data as DeliveryLocationTaskPayload | undefined;
+        const error = taskBody?.error;
+
         if (!IS_DELIVERY_APP) {
           return;
         }
@@ -210,13 +209,43 @@ registerDeliveryLocationTask();
 function TelemetryBootstrap() {
   const pathname = usePathname();
   const searchParams = useGlobalSearchParams();
+  const initialPathRef = useRef(pathname || '/');
 
   useEffect(() => {
     hydrateTelemetryUser();
     captureEvent('app_opened', {
       app_variant: APP_VARIANT,
-      initial_path: pathname || '/',
+      initial_path: initialPathRef.current,
     });
+
+    const governance = evaluateReleaseGovernance();
+    captureEvent('release_governance_evaluated', {
+      taxonomy_version: ANALYTICS_TAXONOMY_VERSION,
+      app_variant: APP_VARIANT,
+      app_env: governance.appEnv,
+      governance_ready: governance.isReady,
+      issue_count: governance.issues.length,
+      ...governance.flagsSnapshot,
+    });
+
+    if (!governance.isReady) {
+      captureException(new Error('Release governance check failed'), {
+        level: 'warning',
+        tags: {
+          area: 'release-governance',
+          app_variant: APP_VARIANT,
+        },
+        extras: governance,
+      });
+
+      if (governance.enforceReleaseGates) {
+        throw new Error(
+          `Release governance gates failed: ${governance.issues
+            .map((issue) => issue.code)
+            .join(', ')}`
+        );
+      }
+    }
 
     return () => {
       flushTelemetry().catch(() => {
