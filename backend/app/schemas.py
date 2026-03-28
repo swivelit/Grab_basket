@@ -21,6 +21,7 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6, max_length=72)
     role: str  # CUSTOMER / SELLER / PARTNER / ADMIN
+    device_id: str = Field(default="", max_length=255)
 
     @field_validator("role", mode="before")
     @classmethod
@@ -34,6 +35,7 @@ class RegisterIn(BaseModel):
 class LoginIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6, max_length=72)
+    device_id: str = Field(default="", max_length=255)
 
 
 class Token(BaseModel):
@@ -47,10 +49,22 @@ class Token(BaseModel):
 
 class RefreshTokenIn(BaseModel):
     refresh_token: str = Field(min_length=20, max_length=4096)
+    device_id: str = Field(default="", max_length=255)
 
 
 class LogoutIn(BaseModel):
     refresh_token: str = Field(min_length=20, max_length=4096)
+    device_id: str = Field(default="", max_length=255)
+
+
+class AuthChallengeCreateIn(BaseModel):
+    challenge_type: str = Field(pattern="^(EMAIL_VERIFY|PASSWORD_RESET|PHONE_OTP)$")
+    target: str = Field(min_length=3, max_length=255)
+
+
+class AuthChallengeVerifyIn(BaseModel):
+    challenge_id: int
+    code: str = Field(min_length=4, max_length=16)
 
 
 # ---------- FCM ----------

@@ -13,6 +13,7 @@ import MapView, { Marker, Polyline } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 
 import InlineNoticeCard from './inline-notice-card';
+import { requestJson } from '../lib/api-client';
 
 const ROUTE_CACHE_TTL_MS = 2 * 60 * 1000;
 const ROUTE_CACHE = new Map();
@@ -237,7 +238,7 @@ function normalizeRouteLeg({ leg, label, index, source }) {
   };
 }
 
-function buildRoutePlan({ orderStatus, riderPoint, pickupPoint, dropPoint }) {
+function buildRoutePlan({ orderId, orderStatus, riderPoint, pickupPoint, dropPoint }) {
   const status = String(orderStatus || '').toUpperCase();
   const hasRider = hasCoordinatePair(riderPoint);
   const hasPickup = hasCoordinatePair(pickupPoint);
@@ -247,6 +248,7 @@ function buildRoutePlan({ orderStatus, riderPoint, pickupPoint, dropPoint }) {
     if (!hasDrop) return null;
 
     return {
+      orderId: Number(orderId || 0),
       orderStatus: status,
       origin: riderPoint || pickupPoint || dropPoint,
       destination: dropPoint,
@@ -254,11 +256,13 @@ function buildRoutePlan({ orderStatus, riderPoint, pickupPoint, dropPoint }) {
       legLabels: ['To customer'],
       summaryLabel: 'To customer',
       etaLabel: 'ETA to drop',
+      orderId: null,
     };
   }
 
   if (hasRider && hasPickup && hasDrop) {
     return {
+      orderId: Number(orderId || 0),
       orderStatus: status,
       origin: riderPoint,
       destination: dropPoint,
@@ -271,6 +275,7 @@ function buildRoutePlan({ orderStatus, riderPoint, pickupPoint, dropPoint }) {
 
   if (hasPickup && hasDrop) {
     return {
+      orderId: Number(orderId || 0),
       orderStatus: status,
       origin: pickupPoint,
       destination: dropPoint,
@@ -283,6 +288,7 @@ function buildRoutePlan({ orderStatus, riderPoint, pickupPoint, dropPoint }) {
 
   if (hasRider && hasPickup) {
     return {
+      orderId: Number(orderId || 0),
       orderStatus: status,
       origin: riderPoint,
       destination: pickupPoint,
@@ -295,6 +301,7 @@ function buildRoutePlan({ orderStatus, riderPoint, pickupPoint, dropPoint }) {
 
   if (hasRider && hasDrop) {
     return {
+      orderId: Number(orderId || 0),
       orderStatus: status,
       origin: riderPoint,
       destination: dropPoint,
@@ -302,6 +309,7 @@ function buildRoutePlan({ orderStatus, riderPoint, pickupPoint, dropPoint }) {
       legLabels: ['Active leg'],
       summaryLabel: 'Rider → drop',
       etaLabel: 'ETA',
+      orderId: null,
     };
   }
 
@@ -493,25 +501,40 @@ async function getRoutePreview(plan, apiKey) {
   }
 
   let routeData = null;
-
-  if (apiKey) {
-    try {
-      routeData = await fetchRoutesApiRoute(plan, apiKey);
-    } catch (routesError) {
-      try {
-        routeData = await fetchDirectionsApiRoute(plan, apiKey);
-      } catch (directionsError) {
-        routeData = buildFallbackRoute(
-          plan,
-          directionsError?.message || routesError?.message || 'Live route service unavailable.'
-        );
-      }
+  try {
+    const payload = await requestJson('/platform/dispatch/route-intelligence', {
+      method: 'POST',
+      body: {
+        order_id: Number(plan?.orderId || 0),
+        rider_lat: Number(plan?.origin?.latitude || 0),
+        rider_lng: Number(plan?.origin?.longitude || 0),
+      },
+    });
+    if (payload?.ok && Array.isArray(payload?.polyline_points) && payload.polyline_points.length >= 2) {
+      const legs = [
+        normalizeRouteLeg({
+          leg: { distanceMeters: Number(payload.distance_km || 0) * 1000, duration: `${Math.max(60, Number(payload.eta_minutes || 0) * 60)}s` },
+          label: plan?.summaryLabel || 'Active leg',
+          index: 0,
+          source: 'backend',
+        }),
+      ];
+      routeData = {
+        source: 'backend-route-intelligence',
+        isFallback: false,
+        message: '',
+        coordinates: payload.polyline_points,
+        distanceMeters: Number(payload.distance_km || 0) * 1000,
+        durationSeconds: Math.max(60, Number(payload.eta_minutes || 0) * 60),
+        legs,
+      };
     }
-  } else {
-    routeData = buildFallbackRoute(
-      plan,
-      'Set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY to enable turn-aware route geometry and live ETA.'
-    );
+  } catch {
+    routeData = null;
+  }
+
+  if (!routeData) {
+    routeData = buildFallbackRoute(plan, 'Live route unavailable. Showing a straight-line preview.');
   }
 
   ROUTE_CACHE.set(cacheKey, {
@@ -521,6 +544,7 @@ async function getRoutePreview(plan, apiKey) {
 
   return routeData;
 }
+
 
 function RouteStatTile({ label, value, accent = COLORS.text }) {
   return (
@@ -534,6 +558,7 @@ function RouteStatTile({ label, value, accent = COLORS.text }) {
 }
 
 export default function LiveRouteIntelligenceCard({
+  orderId,
   orderStatus,
   pickupPoint,
   dropPoint,
@@ -564,6 +589,7 @@ export default function LiveRouteIntelligenceCard({
   const routePlan = useMemo(
     () =>
       buildRoutePlan({
+        orderId,
         orderStatus,
         riderPoint,
         pickupPoint,
