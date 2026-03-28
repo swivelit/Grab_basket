@@ -2,27 +2,39 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Optional
 from uuid import uuid4
 
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import get_db
 from .models import RefreshToken, User
+from .time import utc_now, utc_now_naive
+
+try:
+    from jose import JWTError, jwt
+except ImportError:  # pragma: no cover - local fallback when python-jose is unavailable
+    import jwt as pyjwt
+    from jwt import InvalidTokenError as JWTError
+
+    class _JwtCompat:
+        @staticmethod
+        def encode(payload: dict, secret: str, algorithm: str) -> str:
+            return pyjwt.encode(payload, secret, algorithm=algorithm)
+
+        @staticmethod
+        def decode(token: str, secret: str, algorithms: list[str]) -> dict:
+            return pyjwt.decode(token, secret, algorithms=algorithms)
+
+    jwt = _JwtCompat()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
 
 def _normalize_password(password: str) -> str:
     raw = (password or "").encode("utf-8")
@@ -39,8 +51,8 @@ def verify_password(password: str, password_hash: str) -> bool:
     return pwd_context.verify(_normalize_password(password), password_hash)
 
 
-def _jwt_expiry(minutes: int) -> tuple[datetime, int]:
-    now = _utcnow()
+def _jwt_expiry(minutes: int):
+    now = utc_now()
     expires_at = now + timedelta(minutes=minutes)
     return now, int(expires_at.timestamp())
 
@@ -72,7 +84,7 @@ def _issue_refresh_token(
     device_id: str = "",
 ) -> str:
     raw_token = secrets.token_urlsafe(settings.REFRESH_TOKEN_BYTES)
-    now = _utcnow()
+    now = utc_now()
     refresh_row = RefreshToken(
         user_id=user.id,
         token_hash=_hash_refresh_token(raw_token),
@@ -80,7 +92,7 @@ def _issue_refresh_token(
         user_agent=(user_agent or "")[:512],
         ip_address=(ip_address or "")[:64],
         device_id=(device_id or "")[:255],
-        expires_at=(now + timedelta(minutes=settings.REFRESH_TOKEN_MINUTES)).replace(tzinfo=None),
+        expires_at=utc_now_naive() + timedelta(minutes=settings.REFRESH_TOKEN_MINUTES),
         last_used_at=None,
         revoked_at=None,
     )
@@ -141,7 +153,7 @@ def rotate_refresh_token(
     device_id: str = "",
 ) -> dict:
     row = _refresh_row_for_token(db, refresh_token)
-    now = _utcnow().replace(tzinfo=None)
+    now = utc_now_naive()
 
     if not row or row.revoked_at is not None or row.expires_at <= now:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
@@ -185,7 +197,7 @@ def revoke_refresh_token(db: Session, refresh_token: str, *, device_id: str = ""
         return False
 
     if row.revoked_at is None:
-        row.revoked_at = _utcnow().replace(tzinfo=None)
+        row.revoked_at = utc_now_naive()
         row.last_used_at = row.revoked_at
     return True
 

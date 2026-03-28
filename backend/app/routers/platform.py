@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -14,6 +14,7 @@ from ..auth import get_current_user, require_role
 from ..db import get_db
 from ..metrics import metrics
 from ..models import AsyncJob, Order, OrderEvent, PartnerLocation, User, Vendor, WebhookDelivery
+from ..time import coerce_utc, utc_now
 from ..utils.geo import haversine_km
 
 router = APIRouter(prefix="/platform", tags=["platform"])
@@ -71,6 +72,7 @@ async def order_timeline_sse(
     since_id: int = 0,
     heartbeat_seconds: float = Query(default=10.0, ge=3.0, le=30.0),
     poll_seconds: float = Query(default=1.0, ge=0.25, le=10.0),
+    max_events: int = Query(default=0, ge=0, le=100),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -88,6 +90,7 @@ async def order_timeline_sse(
 
     async def gen():
         cursor = since_id
+        emitted = 0
         metrics.incr("sse.active_connections", 1)
         last_heartbeat = time.monotonic()
         yield "retry: 5000\n\n"
@@ -115,10 +118,16 @@ async def order_timeline_sse(
                         "metadata_json": row.metadata_json,
                     }
                     yield f"id: {row.id}\nevent: order.timeline\ndata: {json.dumps(payload)}\n\n"
+                    emitted += 1
+                    if max_events and emitted >= max_events:
+                        return
 
                 now = time.monotonic()
                 if now - last_heartbeat >= heartbeat_seconds:
                     yield "event: heartbeat\ndata: {}\n\n"
+                    emitted += 1
+                    if max_events and emitted >= max_events:
+                        return
                     last_heartbeat = now
                 await asyncio.sleep(poll_seconds)
         finally:
@@ -247,7 +256,7 @@ def stale_location_scan(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("ADMIN")),
 ):
-    cutoff = datetime.now(timezone.utc) - timedelta(seconds=max(60, min(stale_after_seconds, 3600)))
+    cutoff = utc_now() - timedelta(seconds=max(60, min(stale_after_seconds, 3600)))
     active_orders = (
         db.query(Order)
         .filter(Order.partner_id.isnot(None), Order.status.in_(["ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP", "PICKED_UP"]))
@@ -262,7 +271,8 @@ def stale_location_scan(
             .order_by(PartnerLocation.id.desc())
             .first()
         )
-        if not latest or latest.created_at < cutoff:
+        latest_created_at = coerce_utc(latest.created_at) if latest else None
+        if not latest_created_at or latest_created_at < cutoff:
             flagged.append(order.id)
             db.add(
                 OrderEvent(
@@ -291,7 +301,7 @@ def enqueue_job(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("ADMIN", "SELLER")),
 ):
-    run_after = datetime.now(timezone.utc) + timedelta(seconds=body.delay_seconds)
+    run_after = utc_now() + timedelta(seconds=body.delay_seconds)
     job = AsyncJob(
         queue_name=body.queue_name,
         job_type=body.job_type,
@@ -319,7 +329,7 @@ def ingest_webhook(
         existing.replay_count += 1
         if existing.replay_count >= 3 and existing.status != "DEAD_LETTER":
             existing.status = "DEAD_LETTER"
-            existing.dead_lettered_at = datetime.now(timezone.utc)
+            existing.dead_lettered_at = utc_now()
             existing.error_message = "Repeated replay detected"
         metrics.incr("webhook.duplicate_total")
         db.commit()
@@ -332,7 +342,7 @@ def ingest_webhook(
         signature_hash=body.signature_hash,
         payload_json=json.dumps(body.payload),
         status="PROCESSED",
-        processed_at=datetime.now(timezone.utc),
+        processed_at=utc_now(),
     )
     db.add(delivery)
     metrics.incr("webhook.processed_total")

@@ -11,6 +11,7 @@ from ..db import get_db
 from ..models import FcmToken, Order, OrderEvent, PartnerLocation, User
 from ..notifications import build_order_notification_data, send_push
 from ..schemas import OrderOut, PartnerLocationIn
+from ..time import utc_now
 from ..utils.geo import haversine_km
 
 router = APIRouter(prefix="/partner", tags=["partner"])
@@ -22,11 +23,6 @@ LOCATION_DEDUP_DISTANCE_METERS = 12
 LOCATION_DEDUP_WINDOW_SECONDS = 20
 LOCATION_DEDUP_HEADING_DELTA = 12
 LOCATION_DEDUP_SPEED_DELTA = 2.5
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
 
 def _user_tokens(db: Session, user_id: int) -> list[str]:
     return [row.token for row in db.query(FcmToken).filter(FcmToken.user_id == user_id).all()]
@@ -87,7 +83,7 @@ def _seconds_since(created_at: datetime | None) -> float:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
 
-    return max(0.0, (datetime.now(timezone.utc) - value).total_seconds())
+    return max(0.0, (utc_now() - value).total_seconds())
 
 
 def _should_reuse_latest_location(latest: PartnerLocation | None, payload: PartnerLocationIn) -> bool:
@@ -168,7 +164,7 @@ def _order_summary(db: Session, partner_id: int) -> dict:
 
 
 def _touch_pickup_timestamps(order: Order) -> datetime:
-    now = _utcnow()
+    now = utc_now()
     if order.assigned_at is None:
         order.assigned_at = now
     if order.picked_up_at is None:
@@ -177,7 +173,7 @@ def _touch_pickup_timestamps(order: Order) -> datetime:
 
 
 def _touch_delivery_timestamps(order: Order) -> datetime:
-    now = _utcnow()
+    now = utc_now()
     if order.assigned_at is None:
         order.assigned_at = now
     if order.picked_up_at is None:

@@ -2,24 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..models import AuthChallenge, AuthRiskEvent, UserBlocklist
+from ..time import coerce_utc, utc_now
 
 _RATE_BUCKETS: dict[tuple[str, str], list[float]] = {}
-
-
-def _coerce_utc(value: datetime | None) -> datetime | None:
-    if value is None:
-        return None
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
-
 
 def check_rate_limit(action: str, key: str, *, max_attempts: int, window_seconds: int) -> None:
     now = time.time()
@@ -46,8 +38,8 @@ def ensure_not_blocked(db: Session, *, email: str = "", device_id: str = "") -> 
         return
 
     blocked = query.first()
-    blocked_expires_at = _coerce_utc(blocked.expires_at) if blocked else None
-    if blocked and (blocked_expires_at is None or blocked_expires_at >= datetime.now(timezone.utc)):
+    blocked_expires_at = coerce_utc(blocked.expires_at) if blocked else None
+    if blocked and (blocked_expires_at is None or blocked_expires_at >= utc_now()):
         raise HTTPException(status_code=403, detail="Access blocked")
 
 
@@ -93,7 +85,7 @@ def create_challenge(
         challenge_type=challenge_type,
         target=target,
         code_hash=hash_challenge_code(code),
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes),
+        expires_at=utc_now() + timedelta(minutes=ttl_minutes),
         status="PENDING",
     )
     db.add(row)
@@ -107,8 +99,8 @@ def verify_challenge(db: Session, *, challenge_id: int, code: str) -> AuthChalle
         raise HTTPException(status_code=404, detail="Challenge not found")
     if row.status != "PENDING":
         raise HTTPException(status_code=400, detail="Challenge already used")
-    expires_at = _coerce_utc(row.expires_at)
-    if expires_at and expires_at < datetime.now(timezone.utc):
+    expires_at = coerce_utc(row.expires_at)
+    if expires_at and expires_at < utc_now():
         row.status = "EXPIRED"
         raise HTTPException(status_code=400, detail="Challenge expired")
 
@@ -119,5 +111,5 @@ def verify_challenge(db: Session, *, challenge_id: int, code: str) -> AuthChalle
         raise HTTPException(status_code=400, detail="Invalid challenge code")
 
     row.status = "VERIFIED"
-    row.verified_at = datetime.now(timezone.utc)
+    row.verified_at = utc_now()
     return row
