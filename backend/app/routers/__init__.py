@@ -11,6 +11,7 @@ from . import (
     orders,
     partner,
     payments,
+    platform,
     personalization,
     reviews,
     seller,
@@ -36,4 +37,5 @@ ROUTERS = [
     offers.router,
     loyalty.router,
     ops.router,
+    platform.router,
 ]

@@ -4,38 +4,35 @@ This checklist maps the requested roadmap items to concrete repository coverage.
 
 ## P0 — core reliability
 
-- [x] App.js split into domain modules (`auth`, `cart`, `vendors`, `orders`, `addresses`, `pricing`) via `mobile/src/domains/*` and provider wiring.
-- [x] Shared API client with timeout, retries, request IDs, auth headers, normalized errors in `mobile/src/lib/api-client.js`.
-- [x] Scoped storage keys per app variant in `mobile/src/lib/storage.js`.
-- [x] CI + lint + tests + migrations in `.github/workflows/mobile-ci.yml`, `mobile/package.json` scripts, and `backend/alembic` revisions.
-- [x] Inline error cards and stale-while-refresh behavior (`inline-error-card`, `useCachedQuery`, `keepPreviousData`).
+- [x] Domain split + shared client patterns in `mobile/src/domains/*` and `mobile/src/lib/*`.
+- [x] Existing backend auth/orders/payments scaffold.
+- [x] Baseline CI/migrations/test scripts in repo.
+- [x] SSE order timeline stream foundation (`/platform/orders/{id}/timeline/stream`).
+- [x] Route + ETA recalculation foundation with traffic + prep variance (`/platform/dispatch/recalculate`).
+- [x] Stale-location detection with reassignment escalation job enqueue (`/platform/dispatch/stale-location-scan`).
 
-## P1 — improve customer trust
+## P1 — payments, risk, and control plane foundations
 
-- [x] Real merchant images, richer listing cards, and metadata in tab/reorder UI and vendor model fields.
-- [x] Ratings/reviews flow: added backend review APIs (`/reviews`) and rating aggregation onto vendors.
-- [x] Support/help/refund flow: added support ticket APIs (`/support/tickets`) with close flow; refund status already in orders.
-- [x] Coupon/offers engine: added coupon listing/apply APIs (`/offers/coupons`, `/offers/coupons/apply`) with usage checks.
-- [x] Better order tracking and post-order experience: existing tracking/order endpoints + reorder experience screens.
+- [x] Payment ledger table (`money_ledger_entries`).
+- [x] Reconciliation report ingestion model (`payment_reconciliation_reports`).
+- [x] Webhook replay/dead-letter tracking (`webhook_deliveries`) + replay-protection API (`/platform/webhooks/ingest`).
+- [x] Refund/dispute/payout/audit data models (`refund_cases`, `dispute_cases`, `payout_records`, `money_audit_trail`).
+- [x] Auth challenge and abuse-control models (`auth_challenges`, `auth_risk_events`, `user_blocklist`).
+- [x] Async worker queue persistence (`async_jobs`) + enqueue API (`/platform/jobs/enqueue`).
+- [x] Compliance + privacy request records (`compliance_artifacts`, `privacy_requests`).
 
-## P2 — growth and premium polish
+## P2 — documentation and repo hygiene
 
-- [x] Personalization/ranking/reorder intelligence foundations present in vendor ranking heuristics + reorder UX.
-- [x] Membership/loyalty: added membership API (`/loyalty/membership`) with persistent customer membership record.
-- [x] Analytics taxonomy + feature flags centralized in `mobile/src/constants/*` and telemetry integration.
-- [x] Release governance staging/prod + crash monitoring + rollout control in settings and mobile governance checks.
+- [x] Root README aligned with real mobile stack (Expo/React Native, not Flutter).
+- [x] Production hardening roadmap section added to README.
 
-## Notes
+## Remaining implementation work to fully match the requested list
 
-- The newly added P1/P2 backend endpoints are functional scaffolds designed to unblock app integration and iteration.
-- Future hardening should include abuse/fraud controls, admin moderation tooling, and dedicated integration tests per new endpoint.
+The following are intentionally **not yet fully wired end-to-end** and remain planned:
 
-## Remaining gap vs Swiggy-level standards
-
-The following still need additional build-out to truly match Swiggy-grade production standards:
-
-- Full SLO operations stack (error budgets, paging, runbooks, incident automation).
-- Strong anti-fraud/abuse engines for offers, refunds, and account behavior.
-- Mature experiment platform with assignment governance, holdouts, and results pipelines.
-- Deep marketplace intelligence (real-time ETA prediction, prep variance controls, partner batching).
-- Automated release promotion gates using live crash-free and checkout-SLA metrics from observability vendors.
+- Redis-backed worker runtime, backoff executor, DLQ consumer, and scheduled jobs.
+- OTP/email verification/password reset delivery providers and user-facing auth flows.
+- CAPTCHA, device-binding enforcement, suspicious-login policy engine, and admin moderation console UX.
+- Merchant/rider/refund/fraud operational consoles and dashboards in UI.
+- Full automated test matrix (contract/integration/race/e2e/load).
+- Merchant compliance automation and complete production deployment runbooks.
