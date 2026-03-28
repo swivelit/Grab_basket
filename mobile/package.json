@@ -21,7 +21,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test:unit": "node --experimental-default-type=module --test ./tests",
+    "test:unit": "node --experimental-default-type=module --test ./tests/*.test.js",
     "ci": "npm run lint && npm run typecheck && npm run test:unit"
   },
   "dependencies": {
