@@ -633,7 +633,7 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
             db.add(MoneyLedgerEntry(order_id=order.id, event_type="REFUND_INITIATED", flow_direction="DEBIT", amount=float(order.total_amount or 0), provider_ref=payment_ref, idempotency_key=f"refund:{order.id}:{payment_ref}"))
 
     delivery.status = "PROCESSED"
-    delivery.processed_at = datetime.utcnow()
+    delivery.processed_at = datetime.now(timezone.utc)
     db.commit()
     return {"ok": True, "duplicate": False, "delivery_id": delivery.id}
 
@@ -706,7 +706,7 @@ def verify_payment(order_id: int, payload: PaymentVerifyIn, db: Session = Depend
         OrderEvent(
             order_id=order.id,
             status="PAYMENT_VERIFIED",
-            note=f"Payment verified on server · {' · '.join(verification_note_parts)} · token {verification_token[:12]} · {datetime.utcnow().isoformat()}Z",
+            note=f"Payment verified on server · {' · '.join(verification_note_parts)} · token {verification_token[:12]} · {datetime.now(timezone.utc).isoformat()}Z",
             actor_user_id=user.id,
         )
     )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
@@ -82,7 +82,7 @@ def _vendor_open_order_count(db: Session, vendor_id: int) -> int:
 def _is_sla_breach_risk(order: Order) -> bool:
     if order.delivery_eta_minutes is None:
         return False
-    age_minutes = (datetime.utcnow() - order.created_at).total_seconds() / 60
+    age_minutes = (datetime.now(timezone.utc) - order.created_at).total_seconds() / 60
     return age_minutes >= max(15, int(order.delivery_eta_minutes) - 5)
 
 
@@ -105,7 +105,7 @@ def _zone_bucket(lat: float | None, lng: float | None) -> tuple[int, int] | None
 def _within_timeout(order: Order, timeout_minutes: int) -> bool:
     if order.assigned_at is None:
         return True
-    return datetime.utcnow() - order.assigned_at <= timedelta(minutes=timeout_minutes)
+    return datetime.now(timezone.utc) - order.assigned_at <= timedelta(minutes=timeout_minutes)
 
 
 def _assignment_is_stale(order: Order) -> bool:
@@ -186,7 +186,7 @@ def _latest_partner_locations(db: Session, partner_ids: list[int]) -> dict[int, 
 def _partner_latest_loc_is_stale(loc: PartnerLocation | None) -> bool:
     if not loc:
         return True
-    return datetime.utcnow() - loc.created_at > timedelta(minutes=STALE_LOCATION_MINUTES)
+    return datetime.now(timezone.utc) - loc.created_at > timedelta(minutes=STALE_LOCATION_MINUTES)
 
 
 def _partner_score_for_order(
@@ -345,7 +345,7 @@ def _try_assign_partner(db: Session, order: Order, vendor: Vendor | None) -> Use
             continue
 
         order.partner_id = pid
-        order.assigned_at = datetime.utcnow()
+        order.assigned_at = datetime.now(timezone.utc)
         _add_event(db, order, "ASSIGNED_TO_PARTNER", "Partner assigned", actor_user_id=None)
         return partner_by_id.get(pid) or db.query(User).filter(User.id == pid).first()
 
@@ -496,7 +496,7 @@ def accept_order(order_id: int, db: Session = Depends(get_db), user: User = Depe
         db.rollback()
         raise HTTPException(status_code=409, detail=str(error)) from error
 
-    order.accepted_at = datetime.utcnow()
+    order.accepted_at = datetime.now(timezone.utc)
     _add_event(db, order, "ACCEPTED_BY_SELLER", "Accepted by seller", actor_user_id=user.id)
     assigned_partner = _try_assign_partner(db, order, v)
 
@@ -590,7 +590,7 @@ def mark_ready(order_id: int, db: Session = Depends(get_db), user: User = Depend
             "SLA breach risk detected; dispatch prioritized for nearest available rider",
             actor_user_id=None,
         )
-    order.ready_for_pickup_at = datetime.utcnow()
+    order.ready_for_pickup_at = datetime.now(timezone.utc)
     _add_event(db, order, "READY_FOR_PICKUP", "Ready for pickup", actor_user_id=user.id)
 
     db.commit()

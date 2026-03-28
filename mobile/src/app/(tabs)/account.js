@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Linking as RNLinking,
   Modal,
-  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -13,7 +11,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -245,65 +242,6 @@ function hasCoordinate(point) {
       Number.isFinite(Number(point.latitude)) &&
       Number.isFinite(Number(point.longitude))
   );
-}
-
-function buildMapRegion(points = []) {
-  const usable = points.filter(hasCoordinate);
-
-  if (!usable.length) {
-    return {
-      latitude: 12.9716,
-      longitude: 77.5946,
-      latitudeDelta: 0.08,
-      longitudeDelta: 0.08,
-    };
-  }
-
-  const latitudes = usable.map((point) => point.latitude);
-  const longitudes = usable.map((point) => point.longitude);
-  const minLat = Math.min(...latitudes);
-  const maxLat = Math.max(...latitudes);
-  const minLng = Math.min(...longitudes);
-  const maxLng = Math.max(...longitudes);
-
-  return {
-    latitude: (minLat + maxLat) / 2,
-    longitude: (minLng + maxLng) / 2,
-    latitudeDelta: Math.max(0.02, (maxLat - minLat) * 1.6 || 0.02),
-    longitudeDelta: Math.max(0.02, (maxLng - minLng) * 1.6 || 0.02),
-  };
-}
-
-function buildRouteUrl(destination, { pickup, rider, orderStatus } = {}) {
-  if (!hasCoordinate(destination)) return '';
-
-  const start =
-    String(orderStatus || '').toUpperCase() === 'PICKED_UP' && hasCoordinate(rider)
-      ? rider
-      : hasCoordinate(pickup)
-        ? pickup
-        : hasCoordinate(rider)
-          ? rider
-          : null;
-
-  if (Platform.OS === 'ios') {
-    if (hasCoordinate(start)) {
-      return `http://maps.apple.com/?saddr=${start.latitude},${start.longitude}&daddr=${destination.latitude},${destination.longitude}`;
-    }
-    return `http://maps.apple.com/?daddr=${destination.latitude},${destination.longitude}`;
-  }
-
-  if (hasCoordinate(start)) {
-    return `https://www.google.com/maps/dir/?api=1&origin=${start.latitude},${start.longitude}&destination=${destination.latitude},${destination.longitude}&travelmode=driving`;
-  }
-
-  return `https://www.google.com/maps/search/?api=1&query=${destination.latitude},${destination.longitude}`;
-}
-
-function getTrackingStop({ orderStatus, pickupPoint, dropPoint }) {
-  return String(orderStatus || '').toUpperCase() === 'PICKED_UP'
-    ? dropPoint
-    : pickupPoint || dropPoint;
 }
 
 function getOrderItems(order) {
@@ -1463,6 +1401,16 @@ export default function AccountScreen() {
             setPassword={setPassword}
             loading={authLoading}
             onSubmit={submitAuth}
+            challengeMode={challengeMode}
+            setChallengeMode={setChallengeMode}
+            challengeCode={challengeCode}
+            setChallengeCode={setChallengeCode}
+            challengeLoading={challengeLoading}
+            challengeStatus={challengeStatus}
+            challengeError={challengeError}
+            onStartChallenge={() => triggerChallenge({ resend: false })}
+            onResendChallenge={() => triggerChallenge({ resend: true })}
+            onVerifyChallenge={submitChallengeVerify}
           />
         ) : (
           <>
