@@ -19,6 +19,10 @@ import { useGrabBasket } from '../../../../App';
 import InlineErrorCard from '../../../components/inline-error-card';
 import InlineNoticeCard from '../../../components/inline-notice-card';
 import { getErrorMessage, requestJson } from '../../../lib/api-client';
+import { APP_ENV } from '../../../config';
+import { captureEvent } from '../../../lib/telemetry';
+import { FEATURE_FLAGS } from '../../../constants/feature-flags';
+import { ANALYTICS_EVENTS, ANALYTICS_TAXONOMY_VERSION } from '../../../constants/analytics-taxonomy';
 
 const COLORS = {
   page: '#FFF9F3',
@@ -722,6 +726,11 @@ export default function DeliveryOrdersScreen() {
 
   const pickup = useCallback(
     (orderId) => {
+      captureEvent(ANALYTICS_EVENTS.deliveryOrderPickupTapped, {
+        taxonomy_version: ANALYTICS_TAXONOMY_VERSION,
+        order_id: String(orderId || ''),
+        app_env: APP_ENV,
+      });
       runAction(async () => {
         await request(`/partner/orders/${orderId}/pickup`, authToken, { method: 'POST' });
       }, `Order #${orderId} marked as picked up.`);
@@ -731,6 +740,11 @@ export default function DeliveryOrdersScreen() {
 
   const deliver = useCallback(
     (orderId) => {
+      captureEvent(ANALYTICS_EVENTS.deliveryOrderDeliverTapped, {
+        taxonomy_version: ANALYTICS_TAXONOMY_VERSION,
+        order_id: String(orderId || ''),
+        app_env: APP_ENV,
+      });
       runAction(async () => {
         await request(`/partner/orders/${orderId}/deliver`, authToken, { method: 'POST' });
       }, `Order #${orderId} marked as delivered.`);
@@ -749,11 +763,28 @@ export default function DeliveryOrdersScreen() {
     () => queryState.data.items.filter((item) => !ACTIVE_STATUSES.includes(String(item.status || '').toUpperCase())),
     [queryState.data.items]
   );
+  const customerImpact = useMemo(() => {
+    const delivered = completedOrders.filter((item) => String(item?.status || '').toUpperCase() === 'DELIVERED').length;
+    const active = activeOrders.length;
+    const pendingPickup = activeOrders.filter((item) =>
+      ['ASSIGNED_TO_PARTNER', 'READY_FOR_PICKUP'].includes(String(item?.status || '').toUpperCase())
+    ).length;
+
+    return { delivered, active, pendingPickup };
+  }, [activeOrders, completedOrders]);
 
   const isQueryActive = Boolean(normalizeText(debouncedSearch)) || filterKey !== 'all' || sortBy !== 'relevance';
   const activeControlCount = Number(filterKey !== 'all') + Number(sortBy !== 'relevance');
   const activeFilterDef = FILTERS.find((item) => item.key === filterKey) || FILTERS[0];
   const activeSortDef = SORT_OPTIONS.find((item) => item.key === sortBy) || SORT_OPTIONS[0];
+
+  useEffect(() => {
+    captureEvent(ANALYTICS_EVENTS.deliveryOrdersScreenViewed, {
+      taxonomy_version: ANALYTICS_TAXONOMY_VERSION,
+      app_env: APP_ENV,
+      staged_rollout: FEATURE_FLAGS.stagedRollout,
+    });
+  }, []);
 
   if (!sessionReady) {
     return (
@@ -834,6 +865,39 @@ export default function DeliveryOrdersScreen() {
           ) : null}
         </SectionCard>
 
+        <SectionCard
+          title="Customer trust signals"
+          subtitle="Delivery reliability drives ratings, review tone, refunds, and repeat intent on the customer app.">
+          <View style={styles.trustStatsRow}>
+            <View style={styles.trustStatCard}>
+              <Text style={styles.trustStatValue}>{customerImpact.active}</Text>
+              <Text style={styles.trustStatLabel}>Active trips</Text>
+            </View>
+            <View style={styles.trustStatCard}>
+              <Text style={styles.trustStatValue}>{customerImpact.pendingPickup}</Text>
+              <Text style={styles.trustStatLabel}>Awaiting pickup</Text>
+            </View>
+            <View style={styles.trustStatCard}>
+              <Text style={styles.trustStatValue}>{customerImpact.delivered}</Text>
+              <Text style={styles.trustStatLabel}>Delivered today</Text>
+            </View>
+          </View>
+          <Text style={styles.trustCopy}>
+            Fast pickup confirmations and clear delivery completion reduce support tickets and refund pressure.
+          </Text>
+        </SectionCard>
+
+        <SectionCard
+          title="Release governance"
+          subtitle="Rollout controls protect production while validating trust metrics in staging first.">
+          <View style={styles.governanceWrap}>
+            <Text style={styles.governanceText}>Environment: {String(APP_ENV || 'development').toUpperCase()}</Text>
+            <Text style={styles.governanceText}>Staged rollout: {FEATURE_FLAGS.stagedRollout ? 'Enabled' : 'Disabled'}</Text>
+            <Text style={styles.governanceText}>Crash monitoring: {FEATURE_FLAGS.crashMonitoring ? 'Enabled' : 'Disabled'}</Text>
+            <Text style={styles.governanceText}>Rollout control: {FEATURE_FLAGS.rolloutControl ? 'Enabled' : 'Disabled'}</Text>
+          </View>
+        </SectionCard>
+
         <SectionCard title="Assigned orders" subtitle="Fast rider actions matter more than decorative screens.">
           {queryState.isLoading ? (
             <EmptyState icon="refresh-outline" title="Loading delivery queue" subtitle="Preparing cached search results for the rider app." />
@@ -899,6 +963,53 @@ const styles = StyleSheet.create({
   cardHeader: { gap: 4, marginBottom: 14 },
   cardTitle: { fontSize: 17, fontWeight: '800', color: COLORS.text },
   cardSubtitle: { fontSize: 13, lineHeight: 19, color: COLORS.muted },
+  trustStatsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  trustStatCard: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.surfaceAlt,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+  },
+  trustStatValue: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  trustStatLabel: {
+    marginTop: 4,
+    color: COLORS.muted,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  trustCopy: {
+    marginTop: 10,
+    color: COLORS.subtle,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  governanceWrap: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.surfaceAlt,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  governanceText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
   querySearchBar: {
     minHeight: 54,
     borderRadius: 16,
