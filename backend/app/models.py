@@ -416,6 +416,192 @@ class LoyaltyMembership(Base):
     customer = relationship("User", foreign_keys=[customer_id])
 
 
+class MoneyLedgerEntry(Base):
+    __tablename__ = "money_ledger_entries"
+    id = Column(Integer, primary_key=True)
+
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    counterparty_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    event_type = Column(String(64), nullable=False, index=True)
+    flow_direction = Column(String(16), nullable=False, index=True)  # CREDIT / DEBIT
+    amount = Column(Float, nullable=False)
+    currency = Column(String(8), default="INR", nullable=False)
+    provider_ref = Column(String(128), default="", nullable=False, index=True)
+    idempotency_key = Column(String(128), default="", nullable=False, index=True)
+    metadata_json = Column(Text, default="", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class PaymentReconciliationReport(Base):
+    __tablename__ = "payment_reconciliation_reports"
+    id = Column(Integer, primary_key=True)
+
+    provider = Column(String(32), nullable=False, index=True)
+    report_date = Column(DateTime, nullable=False, index=True)
+    status = Column(String(24), default="PENDING", nullable=False, index=True)
+    file_uri = Column(String(2048), default="", nullable=False)
+    mismatch_count = Column(Integer, default=0, nullable=False)
+    processed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WebhookDelivery(Base):
+    __tablename__ = "webhook_deliveries"
+    id = Column(Integer, primary_key=True)
+
+    provider = Column(String(32), nullable=False, index=True)
+    event_id = Column(String(128), nullable=False, index=True)
+    event_type = Column(String(64), default="", nullable=False, index=True)
+    signature_hash = Column(String(128), default="", nullable=False, index=True)
+    received_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    processed_at = Column(DateTime, nullable=True)
+    status = Column(String(24), default="RECEIVED", nullable=False, index=True)
+    payload_json = Column(Text, default="", nullable=False)
+    error_message = Column(Text, default="", nullable=False)
+    replay_count = Column(Integer, default=0, nullable=False)
+    dead_lettered_at = Column(DateTime, nullable=True)
+
+
+class RefundCase(Base):
+    __tablename__ = "refund_cases"
+    id = Column(Integer, primary_key=True)
+
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
+    payment_ref = Column(String(128), default="", nullable=False, index=True)
+    amount = Column(Float, nullable=False)
+    reason = Column(Text, default="", nullable=False)
+    status = Column(String(32), default="REQUESTED", nullable=False, index=True)
+    attempts = Column(Integer, default=0, nullable=False)
+    next_retry_at = Column(DateTime, nullable=True, index=True)
+    requested_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class DisputeCase(Base):
+    __tablename__ = "dispute_cases"
+    id = Column(Integer, primary_key=True)
+
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=True, index=True)
+    provider_dispute_id = Column(String(128), nullable=False, unique=True, index=True)
+    status = Column(String(32), default="OPEN", nullable=False, index=True)
+    amount = Column(Float, nullable=False)
+    reason = Column(Text, default="", nullable=False)
+    due_by = Column(DateTime, nullable=True)
+    evidence_json = Column(Text, default="", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class PayoutRecord(Base):
+    __tablename__ = "payout_records"
+    id = Column(Integer, primary_key=True)
+
+    beneficiary_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    beneficiary_type = Column(String(24), nullable=False, index=True)  # SELLER / PARTNER
+    period_start = Column(DateTime, nullable=False)
+    period_end = Column(DateTime, nullable=False)
+    gross_amount = Column(Float, nullable=False)
+    commission_amount = Column(Float, default=0.0, nullable=False)
+    net_amount = Column(Float, nullable=False)
+    status = Column(String(24), default="PENDING", nullable=False, index=True)
+    settlement_ref = Column(String(128), default="", nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    settled_at = Column(DateTime, nullable=True)
+
+
+class MoneyAuditTrail(Base):
+    __tablename__ = "money_audit_trail"
+    id = Column(Integer, primary_key=True)
+    ledger_entry_id = Column(Integer, ForeignKey("money_ledger_entries.id"), nullable=False, index=True)
+    action = Column(String(64), nullable=False)
+    actor_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    source_system = Column(String(64), default="backend", nullable=False)
+    before_json = Column(Text, default="", nullable=False)
+    after_json = Column(Text, default="", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AuthChallenge(Base):
+    __tablename__ = "auth_challenges"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    challenge_type = Column(String(32), nullable=False, index=True)  # PHONE_OTP / EMAIL_VERIFY / PASSWORD_RESET
+    target = Column(String(255), default="", nullable=False, index=True)
+    code_hash = Column(String(128), nullable=False)
+    status = Column(String(24), default="PENDING", nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    attempts = Column(Integer, default=0, nullable=False)
+    metadata_json = Column(Text, default="", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    verified_at = Column(DateTime, nullable=True)
+
+
+class AuthRiskEvent(Base):
+    __tablename__ = "auth_risk_events"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    email = Column(String(255), default="", nullable=False, index=True)
+    ip_address = Column(String(64), default="", nullable=False, index=True)
+    user_agent = Column(String(512), default="", nullable=False)
+    event_type = Column(String(48), nullable=False, index=True)  # LOGIN / SIGNUP / CAPTCHA / RATE_LIMIT
+    risk_score = Column(Integer, default=0, nullable=False)
+    reason = Column(Text, default="", nullable=False)
+    blocked = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class UserBlocklist(Base):
+    __tablename__ = "user_blocklist"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    email = Column(String(255), default="", nullable=False, index=True)
+    device_id = Column(String(255), default="", nullable=False, index=True)
+    reason = Column(Text, default="", nullable=False)
+    active = Column(Boolean, default=True, nullable=False, index=True)
+    blocked_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=True)
+
+
+class AsyncJob(Base):
+    __tablename__ = "async_jobs"
+    id = Column(Integer, primary_key=True)
+    queue_name = Column(String(64), nullable=False, index=True)
+    job_type = Column(String(64), nullable=False, index=True)
+    status = Column(String(24), default="QUEUED", nullable=False, index=True)
+    payload_json = Column(Text, default="", nullable=False)
+    attempts = Column(Integer, default=0, nullable=False)
+    max_attempts = Column(Integer, default=5, nullable=False)
+    run_after = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    last_error = Column(Text, default="", nullable=False)
+    dead_letter_reason = Column(Text, default="", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class ComplianceArtifact(Base):
+    __tablename__ = "compliance_artifacts"
+    id = Column(Integer, primary_key=True)
+    artifact_type = Column(String(64), nullable=False, index=True)  # PRIVACY_POLICY / TERMS / PLAY_DATA_SAFETY
+    version = Column(String(32), nullable=False)
+    uri = Column(String(2048), default="", nullable=False)
+    active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class PrivacyRequest(Base):
+    __tablename__ = "privacy_requests"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    request_type = Column(String(32), nullable=False, index=True)  # ACCOUNT_DELETE / DATA_EXPORT
+    status = Column(String(24), default="PENDING", nullable=False, index=True)
+    output_uri = Column(String(2048), default="", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    processed_at = Column(DateTime, nullable=True)
+
+
 # Helpful indexes for production-ish query patterns
 Index("ix_users_role_created", User.role, User.created_at)
 Index("ix_partner_locations_partner_created", PartnerLocation.partner_id, PartnerLocation.created_at)
@@ -432,3 +618,7 @@ Index("ix_refresh_tokens_user_created", RefreshToken.user_id, RefreshToken.creat
 Index("ix_order_reviews_vendor_created", OrderReview.vendor_id, OrderReview.created_at)
 Index("ix_support_tickets_customer_created", SupportTicket.customer_id, SupportTicket.created_at)
 Index("ix_coupon_redemptions_coupon_customer", CouponRedemption.coupon_id, CouponRedemption.customer_id)
+Index("ix_ledger_order_event_created", MoneyLedgerEntry.order_id, MoneyLedgerEntry.event_type, MoneyLedgerEntry.created_at)
+Index("ix_jobs_queue_status_run_after", AsyncJob.queue_name, AsyncJob.status, AsyncJob.run_after)
+Index("ix_webhooks_provider_event", WebhookDelivery.provider, WebhookDelivery.event_id)
+Index("ix_auth_challenges_target_type", AuthChallenge.target, AuthChallenge.challenge_type)
