@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Platform,
   StyleSheet,
@@ -12,6 +11,8 @@ import {
 import Constants from 'expo-constants';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
+
+import InlineNoticeCard from './inline-notice-card';
 
 const ROUTE_CACHE_TTL_MS = 2 * 60 * 1000;
 const ROUTE_CACHE = new Map();
@@ -553,6 +554,7 @@ export default function LiveRouteIntelligenceCard({
   const [routePreview, setRoutePreview] = useState(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
+  const [navigationNotice, setNavigationNotice] = useState(null);
 
   const navigationStop = useMemo(
     () => getCurrentNavigationStop(orderStatus, pickupPoint, dropPoint),
@@ -670,16 +672,25 @@ export default function LiveRouteIntelligenceCard({
   const openRoute = useCallback(async () => {
     const url = buildMapsUrl(navigationStop);
     if (!url) {
-      Alert.alert('Route unavailable', routeUnavailableMessage);
+      setNavigationNotice({
+        tone: 'warning',
+        title: 'Route unavailable',
+        message: routeUnavailableMessage,
+      });
       return;
     }
 
     const supported = await Linking.canOpenURL(url).catch(() => false);
     if (!supported) {
-      Alert.alert('Maps unavailable', 'No maps app was found to open the route.');
+      setNavigationNotice({
+        tone: 'warning',
+        title: 'Maps unavailable',
+        message: 'No maps app was found to open the route.',
+      });
       return;
     }
 
+    setNavigationNotice(null);
     await Linking.openURL(url);
   }, [navigationStop, routeUnavailableMessage]);
 
@@ -780,6 +791,16 @@ export default function LiveRouteIntelligenceCard({
                 : 'Fallback route preview is active.'}
           </Text>
         </View>
+      ) : null}
+
+      {navigationNotice ? (
+        <InlineNoticeCard
+          tone={navigationNotice.tone}
+          icon="navigate-outline"
+          title={navigationNotice.title}
+          message={navigationNotice.message}
+          onDismiss={() => setNavigationNotice(null)}
+        />
       ) : null}
 
       <View style={styles.bottomRow}>
@@ -984,14 +1005,13 @@ const styles = StyleSheet.create({
   secondaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 8,
-    borderRadius: 14,
+    borderRadius: 999,
+    backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: '#FFFFFF',
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingVertical: 10,
   },
   secondaryButtonText: {
     fontSize: 13,
