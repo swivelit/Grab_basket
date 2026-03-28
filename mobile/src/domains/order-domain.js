@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as ExpoLinking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
+import { subscribeToOrderTimelineStream } from '../lib/api-client';
 import { MAX_ORDERS, mergeOrderCollections, normalizeErrorMessage, normalizeGatewayStatus, normalizeOrderRecord, normalizePaymentMethod, normalizeUserRole, pollGatewayStatus } from './grab-basket-utils';
 import { STORAGE_KEYS, readStoredValue, writeStoredValue } from '../lib/storage';
 
@@ -13,6 +14,7 @@ export function useOrderDomain({
   sessionReady,
   isAuthenticated,
   activeService,
+  authToken,
   authorizedRequest,
   cart,
   cartItems,
@@ -28,6 +30,7 @@ export function useOrderDomain({
   const [placingOrder, setPlacingOrder] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [checkoutMessage, setCheckoutMessage] = useState('');
+  const [timelineEventsByOrder, setTimelineEventsByOrder] = useState({});
 
 
   useEffect(() => {
@@ -257,6 +260,36 @@ export function useOrderDomain({
 
   const pastOrders = useMemo(() => orderHistory, [orderHistory]);
 
+  const subscribeOrderTimeline = useCallback(
+    ({ orderId, sinceId = 0, onEvent, onError } = {}) => {
+      const numericOrderId = Number(orderId || 0);
+      if (!numericOrderId || !authToken) {
+        return { close: () => {} };
+      }
+
+      return subscribeToOrderTimelineStream({
+        orderId: numericOrderId,
+        token: authToken,
+        sinceId,
+        onError,
+        onEvent: (event) => {
+          setTimelineEventsByOrder((current) => {
+            const existing = Array.isArray(current[numericOrderId]) ? current[numericOrderId] : [];
+            if (existing.some((item) => Number(item?.id) === Number(event?.id))) {
+              return current;
+            }
+            return {
+              ...current,
+              [numericOrderId]: [...existing, event].sort((a, b) => Number(a?.id || 0) - Number(b?.id || 0)),
+            };
+          });
+          if (typeof onEvent === 'function') onEvent(event);
+        },
+      });
+    },
+    [authToken]
+  );
+
   return {
     orderHistory,
     setOrderHistory,
@@ -271,5 +304,7 @@ export function useOrderDomain({
     loadOrders,
     placeOrder,
     pastOrders,
+    timelineEventsByOrder,
+    subscribeOrderTimeline,
   };
 }

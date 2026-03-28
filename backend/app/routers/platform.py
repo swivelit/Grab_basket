@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user, require_role
 from ..db import get_db
+from ..metrics import metrics
 from ..models import AsyncJob, Order, OrderEvent, PartnerLocation, User, Vendor, WebhookDelivery
 from ..utils.geo import haversine_km
 
@@ -87,37 +88,41 @@ async def order_timeline_sse(
 
     async def gen():
         cursor = since_id
+        metrics.incr("sse.active_connections", 1)
         last_heartbeat = time.monotonic()
         yield "retry: 5000\n\n"
-        while True:
-            if await request.is_disconnected():
-                break
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
 
-            db.expire_all()
-            rows = (
-                db.query(OrderEvent)
-                .filter(OrderEvent.order_id == order_id, OrderEvent.id > cursor)
-                .order_by(OrderEvent.id.asc())
-                .limit(100)
-                .all()
-            )
-            for row in rows:
-                cursor = max(cursor, row.id)
-                payload = {
-                    "id": row.id,
-                    "status": row.status,
-                    "note": row.note,
-                    "created_at": row.created_at.isoformat(),
-                    "actor_user_id": row.actor_user_id,
-                    "metadata_json": row.metadata_json,
-                }
-                yield f"id: {row.id}\nevent: order.timeline\ndata: {json.dumps(payload)}\n\n"
+                db.expire_all()
+                rows = (
+                    db.query(OrderEvent)
+                    .filter(OrderEvent.order_id == order_id, OrderEvent.id > cursor)
+                    .order_by(OrderEvent.id.asc())
+                    .limit(100)
+                    .all()
+                )
+                for row in rows:
+                    cursor = max(cursor, row.id)
+                    payload = {
+                        "id": row.id,
+                        "status": row.status,
+                        "note": row.note,
+                        "created_at": row.created_at.isoformat(),
+                        "actor_user_id": row.actor_user_id,
+                        "metadata_json": row.metadata_json,
+                    }
+                    yield f"id: {row.id}\nevent: order.timeline\ndata: {json.dumps(payload)}\n\n"
 
-            now = time.monotonic()
-            if now - last_heartbeat >= heartbeat_seconds:
-                yield "event: heartbeat\ndata: {}\n\n"
-                last_heartbeat = now
-            await asyncio.sleep(poll_seconds)
+                now = time.monotonic()
+                if now - last_heartbeat >= heartbeat_seconds:
+                    yield "event: heartbeat\ndata: {}\n\n"
+                    last_heartbeat = now
+                await asyncio.sleep(poll_seconds)
+        finally:
+            metrics.incr("sse.active_connections", -1)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 
@@ -316,6 +321,7 @@ def ingest_webhook(
             existing.status = "DEAD_LETTER"
             existing.dead_lettered_at = datetime.utcnow()
             existing.error_message = "Repeated replay detected"
+        metrics.incr("webhook.duplicate_total")
         db.commit()
         return {"ok": True, "duplicate": True, "status": existing.status, "replay_count": existing.replay_count}
 
@@ -329,6 +335,7 @@ def ingest_webhook(
         processed_at=datetime.utcnow(),
     )
     db.add(delivery)
+    metrics.incr("webhook.processed_total")
     db.commit()
     db.refresh(delivery)
     return {"ok": True, "duplicate": False, "delivery_id": delivery.id, "status": delivery.status}

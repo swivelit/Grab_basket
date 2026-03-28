@@ -305,7 +305,7 @@ function buildProductionValidationReport() {
 
   if (APP_ENV !== 'production') {
     if (!GOOGLE_MAPS_API_KEY) {
-      warnings.push('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is missing. Native maps will render, but route geometry + live ETA will fall back to a simplified preview.');
+      warnings.push('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is missing. Native maps will render, and route previews continue through backend intelligence with fallback geometry.');
     }
 
     if (!SENTRY_DSN) {
@@ -343,10 +343,6 @@ function buildProductionValidationReport() {
 
   if (!EAS_PROJECT_ID) {
     errors.push('EXPO_PUBLIC_EAS_PROJECT_ID is required in production so Expo push token registration works reliably in release builds.');
-  }
-
-  if (!GOOGLE_MAPS_API_KEY) {
-    errors.push('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY is required in production for live maps, route previews, and ETA calculations.');
   }
 
   if (!SENTRY_DSN) {

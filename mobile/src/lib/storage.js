@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 
 import { getAppVariant } from '../constants/app-shell';
 
@@ -41,6 +42,7 @@ export const STORAGE_KEYS = {
   pendingCheckoutAttempt: buildScopedStorageKey('pending_checkout_attempt_v2'),
   pushRegistrationSignature: buildScopedStorageKey('push_registration_signature_v1'),
   lastBackgroundLocation: buildScopedStorageKey('background_location_last_v1'),
+  deviceId: buildScopedStorageKey('device_id_v1'),
 };
 
 export const LEGACY_STORAGE_KEYS = {
@@ -213,4 +215,34 @@ export async function writeStoredJsonValue(key, value) {
 
   await writeStoredValue(key, JSON.stringify(value));
   return true;
+}
+
+function fallbackRandomId() {
+  const random = Math.random().toString(36).slice(2, 10);
+  return `dev_${Date.now().toString(36)}_${random}`;
+}
+
+export async function readOrCreateDeviceId() {
+  const existing = String((await readStoredValue(STORAGE_KEYS.deviceId)) || '').trim();
+  if (existing) return existing;
+
+  let next = '';
+  try {
+    if (typeof globalThis?.crypto?.randomUUID === 'function') {
+      next = globalThis.crypto.randomUUID();
+    }
+  } catch {
+    // ignore
+  }
+
+  if (!next) {
+    try {
+      next = await Crypto.randomUUID();
+    } catch {
+      next = fallbackRandomId();
+    }
+  }
+
+  await writeStoredValue(STORAGE_KEYS.deviceId, next);
+  return next;
 }

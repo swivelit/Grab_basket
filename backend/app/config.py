@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     APP_ENV: str = Field(default="dev")
     LOG_LEVEL: str = Field(default="INFO")
+    LOG_JSON: bool = Field(default=False)
 
     DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@db:5432/grabbasket"
 

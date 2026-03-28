@@ -7,6 +7,7 @@ import {
   migrateLegacyAuthStorage,
   multiRemoveStoredValues,
   multiSetStoredValues,
+  readOrCreateDeviceId,
   readStoredValue,
 } from '../lib/storage';
 import {
@@ -28,11 +29,13 @@ export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole 
   const [authTokenExpiresAt, setAuthTokenExpiresAt] = useState(0);
   const [refreshTokenExpiresAt, setRefreshTokenExpiresAt] = useState(0);
   const [profile, setProfile] = useState(null);
+  const [deviceId, setDeviceId] = useState('');
 
   const authTokenRef = useRef('');
   const refreshTokenRef = useRef('');
   const authTokenExpiresAtRef = useRef(0);
   const refreshSessionPromiseRef = useRef(null);
+  const deviceIdRef = useRef('');
 
   const isRoleSupportedByApp = useCallback(
     (role = '') => appAllowedRoles.includes(normalizeUserRole(role)),
@@ -76,7 +79,7 @@ export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole 
 
     if (notifyServer && tokenForLogout) {
       try {
-        await apiPost('/auth/logout', { refresh_token: tokenForLogout });
+        await apiPost('/auth/logout', { refresh_token: tokenForLogout, device_id: deviceIdRef.current || '' });
       } catch {
         // best effort only
       }
@@ -111,6 +114,9 @@ export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole 
 
     (async () => {
       await migrateLegacyAuthStorage().catch(() => {});
+      const stableDeviceId = await readOrCreateDeviceId().catch(() => '');
+      deviceIdRef.current = String(stableDeviceId || '');
+      if (!cancelled) setDeviceId(deviceIdRef.current);
 
       const [
         storedAccessToken,
@@ -189,7 +195,10 @@ export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole 
 
     refreshSessionPromiseRef.current = (async () => {
       try {
-        const data = await apiPost('/auth/refresh', { refresh_token: currentRefreshToken });
+        const data = await apiPost('/auth/refresh', {
+          refresh_token: currentRefreshToken,
+          device_id: deviceIdRef.current || '',
+        });
 
         const nextSession = buildSessionFromAuthResponse(data, {
           email: authEmail,
@@ -317,6 +326,7 @@ export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole 
         const payload = {
           email: String(email || '').trim().toLowerCase(),
           password: String(password || ''),
+          device_id: deviceIdRef.current || (await readOrCreateDeviceId().catch(() => '')) || '',
         };
 
         const data = await apiPost('/auth/login', payload);
@@ -362,6 +372,7 @@ export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole 
           email: String(email || '').trim().toLowerCase(),
           password: String(password || ''),
           role: appPrimaryRole,
+          device_id: deviceIdRef.current || (await readOrCreateDeviceId().catch(() => '')) || '',
         };
 
         const data = await apiPost('/auth/register', payload);
@@ -397,6 +408,21 @@ export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole 
     [appAllowedRoles, appPrimaryRole, appVariantName, applySession, isRoleSupportedByApp, persistSession]
   );
 
+  const startAuthChallenge = useCallback(async ({ challengeType, target }) => {
+    const payload = {
+      challenge_type: String(challengeType || '').trim().toUpperCase(),
+      target: String(target || '').trim().toLowerCase(),
+    };
+    return apiPost('/auth/challenge/start', payload);
+  }, []);
+
+  const verifyAuthChallenge = useCallback(async ({ challengeId, code }) => {
+    return apiPost('/auth/challenge/verify', {
+      challenge_id: Number(challengeId),
+      code: String(code || '').trim(),
+    });
+  }, []);
+
   const logout = useCallback(async () => {
     await clearSession({ notifyServer: true });
   }, [clearSession]);
@@ -418,6 +444,7 @@ export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole 
     authTokenExpiresAt,
     refreshTokenExpiresAt,
     profile,
+    deviceId,
     setProfile,
     isAuthenticated,
     applySession,
@@ -428,6 +455,8 @@ export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole 
     refreshProfile,
     login,
     register,
+    startAuthChallenge,
+    verifyAuthChallenge,
     logout,
   };
 }
