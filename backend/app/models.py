@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     Text,
     Time,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -448,6 +449,7 @@ class PaymentReconciliationReport(Base):
 
 class WebhookDelivery(Base):
     __tablename__ = "webhook_deliveries"
+    __table_args__ = (UniqueConstraint("provider", "event_id", name="uq_webhook_provider_event"),)
     id = Column(Integer, primary_key=True)
 
     provider = Column(String(32), nullable=False, index=True)

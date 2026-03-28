@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_MINUTES: int = Field(default=60 * 24 * 30)
     REFRESH_TOKEN_BYTES: int = Field(default=48)
 
-    RUN_DB_CREATE_ON_STARTUP: bool = Field(default=True)
+    RUN_DB_CREATE_ON_STARTUP: bool = Field(default=False)
     SECURITY_HEADERS_ENABLED: bool = Field(default=True)
 
     # Mobile app does not need browser CORS restrictions.

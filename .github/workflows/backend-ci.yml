@@ -1,0 +1,27 @@
+name: backend-ci
+
+on:
+  pull_request:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: sqlite:///./ci.db
+      APP_ENV: development
+      RUN_DB_CREATE_ON_STARTUP: "false"
+      JWT_SECRET: test-secret-test-secret-test-secret
+      RAZORPAY_WEBHOOK_SECRET: test_webhook
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: alembic upgrade head
+      - run: python -m unittest discover -s tests -p "test_*.py" -v

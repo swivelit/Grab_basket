@@ -7,6 +7,15 @@ const APP_VARIANT = getAppVariant();
 
 let secureStoreModuleCache;
 
+
+function isSensitiveAuthKey(key) {
+  return [STORAGE_KEYS.authToken, STORAGE_KEYS.refreshToken].includes(key);
+}
+
+function allowInsecureAuthFallback() {
+  return APP_VARIANT !== 'production' && Boolean(globalThis?.__DEV__);
+}
+
 export function buildScopedStorageKey(key, variant = APP_VARIANT) {
   return `${STORAGE_PREFIX}/${variant}/${String(key || '').replace(/^\/+/, '')}`;
 }
@@ -83,6 +92,10 @@ export async function readStoredValue(key) {
     }
   }
 
+  if (isSensitiveAuthKey(key) && !allowInsecureAuthFallback()) {
+    return null;
+  }
+
   try {
     return await AsyncStorage.getItem(key);
   } catch {
@@ -101,6 +114,10 @@ export async function writeStoredValue(key, value) {
     } catch {
       // Fall through.
     }
+  }
+
+  if (isSensitiveAuthKey(key) && !allowInsecureAuthFallback()) {
+    throw new Error("SecureStore unavailable for auth secret in production");
   }
 
   await AsyncStorage.setItem(key, normalized);

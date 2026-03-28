@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-from jose import jwt, JWTError
+from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
@@ -69,6 +69,7 @@ def _issue_refresh_token(
     token_family: str | None = None,
     user_agent: str = "",
     ip_address: str = "",
+    device_id: str = "",
 ) -> str:
     raw_token = secrets.token_urlsafe(settings.REFRESH_TOKEN_BYTES)
     now = _utcnow()
@@ -78,6 +79,7 @@ def _issue_refresh_token(
         token_family=token_family or uuid4().hex,
         user_agent=(user_agent or "")[:512],
         ip_address=(ip_address or "")[:64],
+        device_id=(device_id or "")[:255],
         expires_at=(now + timedelta(minutes=settings.REFRESH_TOKEN_MINUTES)).replace(tzinfo=None),
         last_used_at=None,
         revoked_at=None,
@@ -93,9 +95,16 @@ def issue_auth_tokens(
     *,
     user_agent: str = "",
     ip_address: str = "",
+    device_id: str = "",
 ) -> dict:
     access_token = create_access_token(subject=user.email, role=user.role)
-    refresh_token = _issue_refresh_token(db, user, user_agent=user_agent, ip_address=ip_address)
+    refresh_token = _issue_refresh_token(
+        db,
+        user,
+        user_agent=user_agent,
+        ip_address=ip_address,
+        device_id=device_id,
+    )
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -129,12 +138,16 @@ def rotate_refresh_token(
     *,
     user_agent: str = "",
     ip_address: str = "",
+    device_id: str = "",
 ) -> dict:
     row = _refresh_row_for_token(db, refresh_token)
     now = _utcnow().replace(tzinfo=None)
 
     if not row or row.revoked_at is not None or row.expires_at <= now:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    if (row.device_id or "") != (device_id or ""):
+        raise HTTPException(status_code=401, detail="Refresh token is bound to a different device")
 
     user = db.query(User).filter(User.id == row.user_id).first()
     if not user:
@@ -150,6 +163,7 @@ def rotate_refresh_token(
         token_family=row.token_family,
         user_agent=user_agent,
         ip_address=ip_address,
+        device_id=device_id,
     )
 
     return {
@@ -162,9 +176,12 @@ def rotate_refresh_token(
     }
 
 
-def revoke_refresh_token(db: Session, refresh_token: str) -> bool:
+def revoke_refresh_token(db: Session, refresh_token: str, *, device_id: str = "") -> bool:
     row = _refresh_row_for_token(db, refresh_token)
     if not row:
+        return False
+
+    if device_id and (row.device_id or "") != device_id:
         return False
 
     if row.revoked_at is None:

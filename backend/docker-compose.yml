@@ -18,8 +18,20 @@ services:
       JWT_SECRET: change-me-in-prod
       ACCESS_TOKEN_MINUTES: "120"
       CORS_ORIGINS: "http://localhost:3000,http://localhost:8080"
+      RUN_DB_CREATE_ON_STARTUP: "false"
     ports:
       - "8000:8000"
+    depends_on:
+      - db
+
+  worker:
+    build: .
+    command: ["worker"]
+    environment:
+      APP_ENV: dev
+      DATABASE_URL: postgresql+psycopg://grabbasket:grabbasket@db:5432/grabbasket
+      JWT_SECRET: change-me-in-prod
+      RUN_DB_CREATE_ON_STARTUP: "false"
     depends_on:
       - db
 
