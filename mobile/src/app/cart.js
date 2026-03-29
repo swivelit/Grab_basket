@@ -128,7 +128,10 @@ export default function CartScreen() {
         <TouchableOpacity activeOpacity={0.92} style={styles.iconButton} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
           <Ionicons name="chevron-back" size={20} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{isBooking ? 'Booking summary' : 'Your basket'}</Text>
+        <View style={styles.headerCopy}>
+          <Text style={styles.headerEyebrow}>Grab Basket checkout</Text>
+          <Text style={styles.headerTitle}>{isBooking ? 'Booking summary' : 'Your basket'}</Text>
+        </View>
         <TouchableOpacity activeOpacity={0.92} style={styles.iconButton} onPress={clearCart}>
           <Ionicons name="trash-outline" size={18} color={COLORS.text} />
         </TouchableOpacity>
@@ -264,6 +267,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 16,
   },
+  headerCopy: {
+    alignItems: 'center',
+    gap: 3,
+  },
+  headerEyebrow: {
+    color: COLORS.peach600,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
   iconButton: {
     width: 38,
     height: 38,
@@ -273,7 +287,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
-    ...createShadow(0.05, 10, 4),
+    ...createShadow(0.08, 12, 5),
   },
   headerTitle: {
     color: COLORS.text,
@@ -289,10 +303,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 24,
-    padding: 16,
+    borderRadius: 26,
+    padding: 17,
     gap: 12,
-    ...createShadow(0.06, 14, 6),
+    ...createShadow(0.08, 16, 8),
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -353,13 +367,14 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 999,
     overflow: 'hidden',
+    backgroundColor: COLORS.cardAlt,
   },
   qtyAction: {
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.cardAlt,
+    backgroundColor: COLORS.peach50,
   },
   qtyValue: {
     minWidth: 30,
@@ -392,12 +407,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.cardAlt,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
   },
   paymentPillActive: {
     backgroundColor: COLORS.peach50,
-    borderColor: '#F6C5CD',
+    borderColor: '#F3BBC6',
   },
   paymentPillText: {
     color: COLORS.text,
@@ -445,8 +460,8 @@ const styles = StyleSheet.create({
   progressCard: {
     marginTop: 6,
     gap: 8,
-    padding: 14,
-    borderRadius: 18,
+    padding: 15,
+    borderRadius: 20,
     backgroundColor: COLORS.cardAlt,
   },
   progressTitle: {
@@ -467,18 +482,18 @@ const styles = StyleSheet.create({
   },
   checkoutButton: {
     marginTop: 4,
-    backgroundColor: COLORS.black,
-    borderRadius: 20,
-    paddingVertical: 17,
+    backgroundColor: COLORS.peach600,
+    borderRadius: 22,
+    paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    ...createShadow(0.16, 16, 8),
+    ...createShadow(0.2, 18, 9),
   },
   checkoutButtonDisabled: {
     opacity: 0.55,
   },
   checkoutText: {
-    color: '#FFF7F0',
+    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
   },
@@ -502,20 +517,20 @@ const styles = StyleSheet.create({
   },
   primaryAction: {
     marginTop: 10,
-    backgroundColor: COLORS.black,
+    backgroundColor: COLORS.peach600,
     borderRadius: 999,
     paddingHorizontal: 18,
     paddingVertical: 13,
-    ...createShadow(0.14, 14, 8),
+    ...createShadow(0.18, 16, 8),
   },
   primaryActionText: {
-    color: '#FFF7F0',
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
   },
   infoCard: {
     backgroundColor: COLORS.successSoft,
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 14,
     gap: 8,
     flexDirection: 'row',

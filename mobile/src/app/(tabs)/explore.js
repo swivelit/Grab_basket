@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Image } from 'expo-image';
 import {
   ActivityIndicator,
   ScrollView,
@@ -17,6 +18,7 @@ import { BrandPalette, ConsumerServiceThemes, createShadow } from '@/constants/t
 
 import { useCachedQuery } from '@/lib/query-cache';
 import { useGrabBasket } from '../../../App';
+const BRAND_LOGO = require('../../../assets/images/consumer-native-icon.png');
 
 const STALE_TIME_MS = 60 * 1000;
 const CACHE_TIME_MS = 20 * 60 * 1000;
@@ -863,6 +865,31 @@ export default function ExploreScreen() {
           <View style={[styles.heroOrbLarge, { backgroundColor: theme.accent }]} />
           <View style={[styles.heroOrbSmall, { backgroundColor: theme.accent }]} />
 
+          <View style={styles.heroBrandRow}>
+            <View style={styles.heroBrandPill}>
+              <Image source={BRAND_LOGO} style={styles.heroBrandLogo} contentFit="contain" />
+              <View>
+                <Text style={[styles.heroBrandTitle, isDark && styles.heroBrandTitleDark]}>
+                  Grab Basket
+                </Text>
+                <Text style={[styles.heroBrandCopy, isDark && styles.heroBrandCopyDark]}>
+                  Search-led discovery with warmer hierarchy
+                </Text>
+              </View>
+            </View>
+
+            <View style={[styles.heroStatePill, isDark && styles.heroStatePillDark]}>
+              <Ionicons
+                name="flash-outline"
+                size={14}
+                color={isDark ? COLORS.textDark : COLORS.orange}
+              />
+              <Text style={[styles.heroStateText, isDark && styles.heroStateTextDark]}>
+                {queryState.data.totalMatches || fallbackVendors.length} picks
+              </Text>
+            </View>
+          </View>
+
           <SectionHeader title={theme.title} subtitle={theme.subtitle} light={isDark} />
 
           <SearchBar
@@ -1044,7 +1071,7 @@ const styles = StyleSheet.create({
   hero: {
     paddingHorizontal: 18,
     paddingTop: 10,
-    paddingBottom: 18,
+    paddingBottom: 20,
     overflow: 'hidden',
   },
   heroOrbLarge: {
@@ -1075,6 +1102,70 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.pageDark,
   },
 
+  heroBrandRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 14,
+  },
+  heroBrandPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255,249,241,0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(20,18,16,0.06)',
+  },
+  heroBrandLogo: {
+    width: 34,
+    height: 34,
+  },
+  heroBrandTitle: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  heroBrandTitleDark: {
+    color: COLORS.textDark,
+  },
+  heroBrandCopy: {
+    marginTop: 2,
+    color: COLORS.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '700',
+  },
+  heroBrandCopyDark: {
+    color: COLORS.textMutedDark,
+  },
+  heroStatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(255,249,241,0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(20,18,16,0.06)',
+  },
+  heroStatePillDark: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.10)',
+  },
+  heroStateText: {
+    color: COLORS.text,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  heroStateTextDark: {
+    color: COLORS.textDark,
+  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1111,16 +1202,16 @@ const styles = StyleSheet.create({
 
   searchBar: {
     minHeight: 58,
-    borderRadius: 22,
-    backgroundColor: '#FFFDF9',
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,249,241,0.98)',
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingHorizontal: 16,
+    paddingHorizontal: 17,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     marginBottom: 12,
-    ...createShadow(0.08, 14, 6),
+    ...createShadow(0.1, 18, 8),
   },
   searchBarDark: {
     backgroundColor: COLORS.cardDark,
@@ -1138,11 +1229,11 @@ const styles = StyleSheet.create({
 
   metaBanner: {
     minHeight: 40,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,253,249,0.94)',
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,249,241,0.96)',
     borderWidth: 1,
     borderColor: 'rgba(20,18,16,0.06)',
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1186,7 +1277,7 @@ const styles = StyleSheet.create({
     minHeight: 38,
     paddingHorizontal: 14,
     borderRadius: 20,
-    backgroundColor: COLORS.pill,
+    backgroundColor: COLORS.chip,
     borderWidth: 1,
     borderColor: COLORS.border,
     flexDirection: 'row',
@@ -1217,7 +1308,7 @@ const styles = StyleSheet.create({
     minHeight: 34,
     paddingHorizontal: 14,
     borderRadius: 17,
-    backgroundColor: COLORS.pill,
+    backgroundColor: COLORS.chip,
     borderWidth: 1,
     borderColor: COLORS.border,
     justifyContent: 'center',
@@ -1247,7 +1338,7 @@ const styles = StyleSheet.create({
     maxWidth: 220,
     paddingHorizontal: 12,
     borderRadius: 17,
-    backgroundColor: COLORS.pill,
+    backgroundColor: COLORS.chip,
     borderWidth: 1,
     borderColor: COLORS.border,
     flexDirection: 'row',
@@ -1333,12 +1424,12 @@ const styles = StyleSheet.create({
 
   vendorCard: {
     width: 220,
-    borderRadius: 24,
+    borderRadius: 26,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 12,
-    ...createShadow(0.06, 14, 6),
+    padding: 13,
+    ...createShadow(0.08, 16, 8),
   },
   vendorCardDark: {
     backgroundColor: COLORS.cardDark,
@@ -1391,12 +1482,12 @@ const styles = StyleSheet.create({
 
   dealCard: {
     width: 138,
-    borderRadius: 22,
+    borderRadius: 24,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 12,
-    ...createShadow(0.06, 14, 6),
+    padding: 13,
+    ...createShadow(0.08, 16, 8),
   },
   dealCardDark: {
     backgroundColor: COLORS.cardDark,
