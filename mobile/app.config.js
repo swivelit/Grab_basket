@@ -231,7 +231,8 @@ const API_TIMEOUT_MS = readInt('EXPO_PUBLIC_API_TIMEOUT_MS', 15000, {
 });
 
 const ENABLE_ADS = readBool('EXPO_PUBLIC_ENABLE_ADS', false);
-const ENABLE_NEW_ARCH = readBool('EXPO_PUBLIC_ENABLE_NEW_ARCH', true);
+// Keep Android startup conservative by default; opt into the new architecture only after validating native modules.
+const ENABLE_NEW_ARCH = readBool('EXPO_PUBLIC_ENABLE_NEW_ARCH', false);
 const GOOGLE_MAPS_API_KEY = readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY', '');
 
 const HAS_API_HINT = Boolean(API_BASE_URL || API_HOST || APP_ENV !== 'production');
@@ -423,6 +424,12 @@ if (PRODUCTION_WORKFLOW_WARNINGS.length) {
   console.warn(
     `[Grab Basket][${APP_VARIANT}] production-mode diagnostics:
 - ${PRODUCTION_WORKFLOW_WARNINGS.join('\n- ')}`
+  );
+}
+
+if (ENABLE_NEW_ARCH) {
+  console.warn(
+    `[Grab Basket][${APP_VARIANT}] Android New Architecture is enabled via EXPO_PUBLIC_ENABLE_NEW_ARCH=true. Keep this opt-in until the native module set is verified stable for your release build.`
   );
 }
 
