@@ -854,8 +854,8 @@ const styles = StyleSheet.create({
   feedbackStack: { paddingHorizontal: 18, paddingTop: 14, gap: 12 },
   screenHeader: {
     paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 8,
+    paddingTop: 16,
+    paddingBottom: 10,
     gap: 6,
   },
   eyebrow: {
@@ -878,7 +878,7 @@ const styles = StyleSheet.create({
   card: {
     marginHorizontal: 16,
     marginTop: 14,
-    borderRadius: 26,
+    borderRadius: 28,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -931,7 +931,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     minHeight: 48,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     paddingHorizontal: 18,
     flexDirection: 'row',
@@ -951,7 +951,7 @@ const styles = StyleSheet.create({
   kpiTile: {
     flexBasis: '47%',
     flexGrow: 1,
-    borderRadius: 20,
+    borderRadius: 22,
     backgroundColor: COLORS.surfaceAlt,
     padding: 15,
     gap: 6,
@@ -988,7 +988,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     minHeight: 50,
-    borderRadius: 20,
+    borderRadius: 22,
     backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1006,14 +1006,14 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 13,
     paddingVertical: 11,
-    borderRadius: 999,
+    borderRadius: 18,
     backgroundColor: COLORS.chip,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   chipActive: {
-    backgroundColor: COLORS.brandSoft,
-    borderColor: '#F2B8C4',
+    backgroundColor: '#FFF0EA',
+    borderColor: '#F2C7BB',
   },
   chipText: {
     color: COLORS.muted,
@@ -1036,7 +1036,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   orderRow: {
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surfaceAlt,
@@ -1044,8 +1044,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   orderRowActive: {
-    backgroundColor: COLORS.brandSoft,
-    borderColor: '#F4B99B',
+    backgroundColor: '#FFF1EA',
+    borderColor: '#F0C4B4',
   },
   orderRowTop: {
     flexDirection: 'row',

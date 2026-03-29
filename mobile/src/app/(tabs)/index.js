@@ -903,7 +903,7 @@ export default function HomeScreen() {
                 <Ionicons name="chevron-down" size={16} color={theme.heroText} />
               </View>
               <Text style={[styles.locationSub, { color: theme.heroSub }]} numberOfLines={1}>
-                GrabBasket demo flow · privacy-safe preview mode
+                Curated local picks, quick baskets and booking-ready storefronts
               </Text>
             </View>
 
@@ -957,7 +957,7 @@ export default function HomeScreen() {
 
               <SectionHeader
                 title="Popular around you"
-                subtitle="A warmer, less cluttered first fold with better restaurant emphasis."
+                subtitle="Top kitchens with stronger hierarchy, clean ratings and faster first decisions."
               />
 
               {vendorsLoading ? (
@@ -965,7 +965,7 @@ export default function HomeScreen() {
               ) : displayVendors.length === 0 ? (
                 <EmptyState
                   title="No restaurants available"
-                  subtitle="Once your vendor feed is connected, this section will feel much more alive."
+                  subtitle="Restaurant results will appear here as soon as nearby vendors are available."
                 />
               ) : (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railRow}>
@@ -1019,7 +1019,7 @@ export default function HomeScreen() {
 
               <SectionHeader
                 title="Quick add deals"
-                subtitle="Swiggy-like speed comes from making decision-making effortless."
+                subtitle="Daily essentials and low-friction add-ons surfaced for faster basket building."
               />
 
               {homeDealsLoading && homeDeals.length === 0 ? (
@@ -1063,7 +1063,7 @@ export default function HomeScreen() {
             <>
               <SectionHeader
                 title="Tonight's shortcuts"
-                subtitle="Offer-first storytelling makes dineout feel closer to a real consumer app."
+                subtitle="Offer-led dining shortcuts with cleaner spacing and stronger merchant context."
               />
 
               <View style={styles.dineGrid}>
@@ -1121,7 +1121,11 @@ export default function HomeScreen() {
               <SectionHeader title="All scenes" subtitle="Curated drops around you" light />
 
               {sceneItems.length === 0 ? (
-                <EmptyState dark title="No events in this bucket" subtitle="Adjust the time filter or seed more experience cards." />
+                <EmptyState
+                  dark
+                  title="No events in this bucket"
+                  subtitle="Adjust the time filter or add more experiences to expand this collection."
+                />
               ) : (
                 <View style={styles.sceneGrid}>
                   {sceneItems.map((item) => (
@@ -1143,8 +1147,8 @@ const styles = StyleSheet.create({
   },
   heroWrap: {
     paddingHorizontal: 18,
-    paddingTop: 10,
-    paddingBottom: 26,
+    paddingTop: 12,
+    paddingBottom: 30,
     overflow: 'hidden',
   },
   heroOrbLarge: {
@@ -1177,12 +1181,12 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   brandBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,252,247,0.18)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: 'rgba(255,255,255,0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1217,12 +1221,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   profileGhostBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: 'rgba(255,252,247,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1232,12 +1236,12 @@ const styles = StyleSheet.create({
   },
   serviceChip: {
     width: 164,
-    borderRadius: 26,
-    paddingHorizontal: 15,
-    paddingVertical: 14,
+    borderRadius: 28,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: 'rgba(255,252,247,0.10)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -1255,10 +1259,10 @@ const styles = StyleSheet.create({
     borderColor: PALETTE.peach200,
   },
   serviceChipIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1299,10 +1303,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    borderRadius: 24,
+    borderRadius: 26,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: 'rgba(255,249,241,0.98)',
+    backgroundColor: 'rgba(255,251,246,0.98)',
     borderWidth: 1,
     borderColor: 'rgba(20,18,16,0.06)',
     ...createShadow(0.1, 18, 8),
@@ -1323,10 +1327,10 @@ const styles = StyleSheet.create({
   searchSideAction: {
     width: 52,
     height: 52,
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: 'rgba(20,18,16,0.06)',
-    backgroundColor: 'rgba(255,246,235,0.98)',
+    backgroundColor: 'rgba(255,247,239,0.98)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1336,15 +1340,15 @@ const styles = StyleSheet.create({
   },
   heroBanner: {
     marginTop: 16,
-    borderRadius: 30,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 20,
+    borderRadius: 32,
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 22,
     overflow: 'hidden',
     ...createShadow(0.12, 24, 12),
   },
   heroBannerLight: {
-    backgroundColor: 'rgba(255,250,244,0.96)',
+    backgroundColor: 'rgba(255,251,246,0.96)',
     borderWidth: 1,
     borderColor: 'rgba(20,18,16,0.06)',
   },
@@ -1452,8 +1456,8 @@ const styles = StyleSheet.create({
   },
   heroStat: {
     flex: 1,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.94)',
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
@@ -1490,8 +1494,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 15,
-    borderRadius: 22,
+    padding: 16,
+    borderRadius: 24,
     backgroundColor: PALETTE.surface,
     borderWidth: 1,
     borderColor: PALETTE.border,
@@ -1502,9 +1506,9 @@ const styles = StyleSheet.create({
     borderColor: PALETTE.sceneBorder,
   },
   basketIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: PALETTE.peach50,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1536,8 +1540,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    borderRadius: 20,
-    paddingHorizontal: 14,
+    borderRadius: 22,
+    paddingHorizontal: 15,
     paddingVertical: 11,
     backgroundColor: PALETTE.chip,
     borderWidth: 1,
