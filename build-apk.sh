@@ -10,9 +10,24 @@ info() {
   printf "\n▶ %s\n" "$1"
 }
 
+warn() {
+  printf "\n⚠️  %s\n" "$1"
+}
+
 fail() {
   printf "\n❌ %s\n" "$1"
   exit 1
+}
+
+is_truthy() {
+  case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+    1|true|yes|on|enabled)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 if [[ ! -d "$MOBILE_DIR" && -d "$ROOT_DIR/Grab_basket-main/mobile" ]]; then
@@ -26,6 +41,7 @@ fi
 
 BUILD_TYPE="${BUILD_TYPE:-debug}"
 BUILD_TYPE="$(printf '%s' "$BUILD_TYPE" | tr '[:upper:]' '[:lower:]')"
+export BUILD_TYPE
 
 case "$BUILD_TYPE" in
   debug|release) ;;
@@ -65,12 +81,65 @@ export ANDROID_HOME="$ANDROID_SDK"
 export PATH="$ANDROID_SDK/platform-tools:$ANDROID_SDK/emulator:$PATH"
 
 ENV_FILE="$MOBILE_DIR/.env"
+CALLER_HAS_NODE_ENV=0
+CALLER_HAS_APP_ENV=0
+CALLER_HAS_API_BASE_URL=0
+CALLER_HAS_PUBLIC_API_BASE_URL=0
+CALLER_HAS_FORCE_PRODUCTION_APP_ENV=0
+
+ORIGINAL_NODE_ENV="${NODE_ENV-}"
+ORIGINAL_EXPO_PUBLIC_APP_ENV="${EXPO_PUBLIC_APP_ENV-}"
+ORIGINAL_API_BASE_URL="${API_BASE_URL-}"
+ORIGINAL_EXPO_PUBLIC_API_BASE_URL="${EXPO_PUBLIC_API_BASE_URL-}"
+ORIGINAL_FORCE_PRODUCTION_APP_ENV="${FORCE_PRODUCTION_APP_ENV-}"
+
+if [[ ${NODE_ENV+x} ]]; then
+  CALLER_HAS_NODE_ENV=1
+fi
+
+if [[ ${EXPO_PUBLIC_APP_ENV+x} ]]; then
+  CALLER_HAS_APP_ENV=1
+fi
+
+if [[ ${API_BASE_URL+x} ]]; then
+  CALLER_HAS_API_BASE_URL=1
+fi
+
+if [[ ${EXPO_PUBLIC_API_BASE_URL+x} ]]; then
+  CALLER_HAS_PUBLIC_API_BASE_URL=1
+fi
+
+if [[ ${FORCE_PRODUCTION_APP_ENV+x} ]]; then
+  CALLER_HAS_FORCE_PRODUCTION_APP_ENV=1
+fi
+
 if [[ -f "$ENV_FILE" ]]; then
   info "Loading environment from: $ENV_FILE"
   set -a
   # shellcheck disable=SC1090
   source "$ENV_FILE"
   set +a
+fi
+
+ENV_FILE_APP_ENV="${EXPO_PUBLIC_APP_ENV-}"
+if [[ "$CALLER_HAS_NODE_ENV" -eq 1 ]]; then
+  export NODE_ENV="$ORIGINAL_NODE_ENV"
+fi
+
+if [[ "$CALLER_HAS_APP_ENV" -eq 1 ]]; then
+  export EXPO_PUBLIC_APP_ENV="$ORIGINAL_EXPO_PUBLIC_APP_ENV"
+fi
+
+if [[ "$CALLER_HAS_API_BASE_URL" -eq 1 ]]; then
+  export API_BASE_URL="$ORIGINAL_API_BASE_URL"
+fi
+
+if [[ "$CALLER_HAS_PUBLIC_API_BASE_URL" -eq 1 ]]; then
+  export EXPO_PUBLIC_API_BASE_URL="$ORIGINAL_EXPO_PUBLIC_API_BASE_URL"
+fi
+
+if [[ "$CALLER_HAS_FORCE_PRODUCTION_APP_ENV" -eq 1 ]]; then
+  export FORCE_PRODUCTION_APP_ENV="$ORIGINAL_FORCE_PRODUCTION_APP_ENV"
 fi
 
 INPUT_API_BASE_URL="${API_BASE_URL:-${EXPO_PUBLIC_API_BASE_URL:-}}"
@@ -103,7 +172,31 @@ else
 fi
 
 export NODE_ENV="${NODE_ENV:-$DEFAULT_NODE_ENV}"
-export EXPO_PUBLIC_APP_ENV="${EXPO_PUBLIC_APP_ENV:-$DEFAULT_APP_ENV}"
+
+RESOLVED_APP_ENV="${EXPO_PUBLIC_APP_ENV:-$DEFAULT_APP_ENV}"
+RESOLVED_APP_ENV="$(printf '%s' "$RESOLVED_APP_ENV" | tr '[:upper:]' '[:lower:]')"
+
+if [[ "$BUILD_TYPE" == "release" ]]; then
+  if [[ "$RESOLVED_APP_ENV" != "production" ]]; then
+    warn "Release build selected. Forcing EXPO_PUBLIC_APP_ENV=production so release validation stays enabled."
+  fi
+  RESOLVED_APP_ENV="production"
+else
+  if [[ "$RESOLVED_APP_ENV" == "production" ]]; then
+    if is_truthy "${FORCE_PRODUCTION_APP_ENV:-0}"; then
+      warn "Debug build is keeping EXPO_PUBLIC_APP_ENV=production because FORCE_PRODUCTION_APP_ENV=1 was provided. mobile/app.config.js will run production validation."
+    else
+      if [[ "$ENV_FILE_APP_ENV" == "production" ]]; then
+        warn "Ignoring EXPO_PUBLIC_APP_ENV=production from $ENV_FILE for a debug build. Local debug APKs default to development unless FORCE_PRODUCTION_APP_ENV=1 is set."
+      else
+        warn "Debug build requested with EXPO_PUBLIC_APP_ENV=production. Overriding to development. Set FORCE_PRODUCTION_APP_ENV=1 if you intentionally want production validation during a debug build."
+      fi
+      RESOLVED_APP_ENV="development"
+    fi
+  fi
+fi
+
+export EXPO_PUBLIC_APP_ENV="$RESOLVED_APP_ENV"
 export EXPO_PUBLIC_API_BASE_URL="$INPUT_API_BASE_URL"
 
 # Keep runtime crash reporting enabled, but disable source-map upload by default for local APK builds.
@@ -198,10 +291,11 @@ find_apk_source() {
 }
 
 info "Using mobile app at: $MOBILE_DIR"
-info "Build type: $BUILD_TYPE"
-info "Node env: $NODE_ENV"
-info "App env: $EXPO_PUBLIC_APP_ENV"
-info "API base URL: $EXPO_PUBLIC_API_BASE_URL"
+info "Effective build environment"
+echo "  BUILD_TYPE=$BUILD_TYPE"
+echo "  NODE_ENV=$NODE_ENV"
+echo "  EXPO_PUBLIC_APP_ENV=$EXPO_PUBLIC_APP_ENV"
+echo "  EXPO_PUBLIC_API_BASE_URL=$EXPO_PUBLIC_API_BASE_URL"
 info "App variants: ${APP_VARIANTS[*]}"
 
 cd "$MOBILE_DIR"

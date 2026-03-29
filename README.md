@@ -80,6 +80,20 @@ npm run test:watch
 
 For release-candidate local verification, only `npm run lint` is required from `mobile/`. Node.js and npm must be installed locally.
 
+### Local APK builds
+
+Debug APKs default to `EXPO_PUBLIC_APP_ENV=development` even if `mobile/.env` contains production settings.
+
+```bash
+./build-apk.sh
+EXPO_PUBLIC_APP_ENV=development ./build-apk.sh
+BUILD_TYPE=release ./build-apk.sh
+```
+
+Release APKs always use production app config and must provide:
+- `EXPO_PUBLIC_ALLOW_CLEARTEXT=false`
+- `EXPO_PUBLIC_EAS_PROJECT_ID=...`
+
 ---
 
 ## 3) Roadmap foundations now in code
