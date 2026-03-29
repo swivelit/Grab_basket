@@ -426,7 +426,7 @@ function DeliveryIndexScreen({
 
       <SectionCard
         title="Location sync"
-        subtitle="Swiggy-grade rider apps use background GPS. Until you add that stack, this gives you a working manual location sync against the backend.">
+        subtitle="Use this to manually sync rider location until native background tracking is enabled.">
         {latestLocation ? (
           <View style={styles.inlineBanner}>
             <Ionicons name="locate-outline" size={16} color={COLORS.info} />
@@ -631,7 +631,7 @@ function DeliveryEarningsScreen({ state, refresh }) {
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
       <SectionCard
         title="Earnings & cash summary"
-        subtitle="This is much more useful than a placeholder tab, but Swiggy-level payouts still need a real settlement ledger, incentives, and bank transfer records.">
+        subtitle="Delivered orders, COD collected and basket trends stay visible here while payout tooling matures.">
         <View style={styles.kpiGrid}>
           <KpiTile
             icon="checkmark-circle-outline"
@@ -647,7 +647,7 @@ function DeliveryEarningsScreen({ state, refresh }) {
 
       <SectionCard
         title="Delivered order log"
-        subtitle="Use this while you build a proper rider settlement and payout module in the backend.">
+        subtitle="Use this history to validate completed deliveries and payout-related order trails.">
         {deliveredOrders.length ? (
           deliveredOrders.map((order) => <OrderCard key={order.id} order={order} />)
         ) : (
@@ -672,7 +672,7 @@ function DeliveryAccountScreen({ state, setAvailability, refresh, logout, loadin
     <ScrollView
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
-      <SectionCard title="Partner account" subtitle="Separate rider identity is mandatory for a Swiggy-like experience.">
+      <SectionCard title="Partner account" subtitle="Keep rider identity, availability and sync status in one operational view.">
         <View style={styles.profileRow}>
           <View style={styles.avatarWrap}>
             <Ionicons name="person-outline" size={26} color={COLORS.brand} />
@@ -768,7 +768,7 @@ function PartnerIndexScreen({ state, refresh, toggleStoreOpen }) {
 
       <SectionCard
         title="Store health"
-        subtitle="This is still not full Swiggy standard, but it gives the seller app real operational controls.">
+        subtitle="Operational status, coverage and fulfillment health stay visible here for quick decisions.">
         {state.vendor ? (
           <View style={styles.metaList}>
             <MetaLine icon="location-outline" label={state.vendor.address || 'Add a business address in Account.'} />
@@ -829,7 +829,7 @@ function PartnerCatalogScreen({
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
       <SectionCard
         title={productForm.id ? 'Edit menu item' : 'Add menu item'}
-        subtitle="Swiggy-level seller apps need menu control, availability control, and fast edits.">
+        subtitle="Manage catalog details, availability and pricing without leaving the operations flow.">
         <TextField
           label="Item name"
           value={productForm.name}
@@ -1691,7 +1691,7 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 14,
   },
   feedbackStack: {
     gap: 12,
@@ -1717,8 +1717,8 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 26,
-    padding: 17,
+    borderRadius: 28,
+    padding: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
     marginBottom: 14,
@@ -1761,7 +1761,7 @@ const styles = StyleSheet.create({
   kpiTile: {
     width: '48%',
     backgroundColor: COLORS.surfaceAlt,
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 15,
     borderWidth: 1,
     borderColor: COLORS.line,
@@ -1798,7 +1798,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     minHeight: 44,
-    borderRadius: 20,
+    borderRadius: 22,
     paddingHorizontal: 16,
     borderWidth: 1,
     flexDirection: 'row',
@@ -1821,7 +1821,7 @@ const styles = StyleSheet.create({
   },
   input: {
     minHeight: 48,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surfaceAlt,
@@ -1835,7 +1835,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   orderCard: {
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 15,
     backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,

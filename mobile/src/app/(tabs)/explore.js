@@ -50,28 +50,28 @@ const THEMES = {
   food: {
     ...ConsumerServiceThemes.food,
     title: 'Explore food',
-    subtitle: 'Search-first restaurant discovery with a warmer marketplace feel.',
+    subtitle: 'Search-first restaurant discovery with calmer spacing and clearer merchant signals.',
     placeholder: 'Search cuisines, dishes, restaurants',
     accent: BrandPalette.peach200,
   },
   warehouse: {
     ...ConsumerServiceThemes.warehouse,
     title: 'Explore instamart',
-    subtitle: 'Faster grocery browsing with cleaner aisle and deal discovery.',
+    subtitle: 'Faster grocery browsing with cleaner aisles, stronger deal visibility and softer surfaces.',
     placeholder: 'Search categories, brands, essentials',
     accent: BrandPalette.primary,
   },
   eatout: {
     ...ConsumerServiceThemes.eatout,
     title: 'Explore dineout',
-    subtitle: 'Dining shortcuts, premium filters and stronger intent capture.',
+    subtitle: 'Dining shortcuts, premium filters and better intent capture for faster table decisions.',
     placeholder: 'Search restaurants, vibe, area',
     accent: '#E8A46C',
   },
   scenes: {
     ...ConsumerServiceThemes.scenes,
     title: 'Explore scenes',
-    subtitle: 'Event and experience discovery with a branded editorial dark surface.',
+    subtitle: 'Event and experience discovery on a branded editorial dark canvas.',
     placeholder: 'Search events, creators, experiences',
     accent: '#5C3D31',
   },
@@ -873,7 +873,7 @@ export default function ExploreScreen() {
                   Grab Basket
                 </Text>
                 <Text style={[styles.heroBrandCopy, isDark && styles.heroBrandCopyDark]}>
-                  Search-led discovery with warmer hierarchy
+                  Search-led discovery across the Grab Basket network
                 </Text>
               </View>
             </View>
@@ -1070,8 +1070,8 @@ const styles = StyleSheet.create({
 
   hero: {
     paddingHorizontal: 18,
-    paddingTop: 10,
-    paddingBottom: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
     overflow: 'hidden',
   },
   heroOrbLarge: {
@@ -1114,10 +1114,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderRadius: 24,
+    borderRadius: 26,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    backgroundColor: 'rgba(255,249,241,0.94)',
+    backgroundColor: 'rgba(255,251,246,0.94)',
     borderWidth: 1,
     borderColor: 'rgba(20,18,16,0.06)',
   },
@@ -1148,9 +1148,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderRadius: 999,
-    paddingHorizontal: 12,
+    paddingHorizontal: 13,
     paddingVertical: 10,
-    backgroundColor: 'rgba(255,249,241,0.94)',
+    backgroundColor: 'rgba(255,251,246,0.94)',
     borderWidth: 1,
     borderColor: 'rgba(20,18,16,0.06)',
   },
@@ -1202,8 +1202,8 @@ const styles = StyleSheet.create({
 
   searchBar: {
     minHeight: 58,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,249,241,0.98)',
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,251,246,0.98)',
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 17,
@@ -1229,8 +1229,8 @@ const styles = StyleSheet.create({
 
   metaBanner: {
     minHeight: 40,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,249,241,0.96)',
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,251,246,0.96)',
     borderWidth: 1,
     borderColor: 'rgba(20,18,16,0.06)',
     paddingHorizontal: 14,
@@ -1275,8 +1275,8 @@ const styles = StyleSheet.create({
 
   filterChip: {
     minHeight: 38,
-    paddingHorizontal: 14,
-    borderRadius: 20,
+    paddingHorizontal: 15,
+    borderRadius: 22,
     backgroundColor: COLORS.chip,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1307,7 +1307,7 @@ const styles = StyleSheet.create({
   sortChip: {
     minHeight: 34,
     paddingHorizontal: 14,
-    borderRadius: 17,
+    borderRadius: 18,
     backgroundColor: COLORS.chip,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1337,7 +1337,7 @@ const styles = StyleSheet.create({
     minHeight: 34,
     maxWidth: 220,
     paddingHorizontal: 12,
-    borderRadius: 17,
+    borderRadius: 18,
     backgroundColor: COLORS.chip,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1424,11 +1424,11 @@ const styles = StyleSheet.create({
 
   vendorCard: {
     width: 220,
-    borderRadius: 26,
+    borderRadius: 28,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 13,
+    padding: 14,
     ...createShadow(0.08, 16, 8),
   },
   vendorCardDark: {
@@ -1482,7 +1482,7 @@ const styles = StyleSheet.create({
 
   dealCard: {
     width: 138,
-    borderRadius: 24,
+    borderRadius: 26,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1513,7 +1513,7 @@ const styles = StyleSheet.create({
 
   eventCard: {
     width: 240,
-    borderRadius: 24,
+    borderRadius: 26,
     backgroundColor: COLORS.cardDark,
     borderWidth: 1,
     borderColor: COLORS.borderDark,

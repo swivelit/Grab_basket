@@ -903,11 +903,11 @@ export default function VendorDetailsScreen() {
           {productsLoading ? <LoadingState dark={isDark} label="Loading products..." /> : null}
 
           {!productsLoading && products.length === 0 ? (
-            <EmptyState
-              dark={isDark}
-              title="No products yet"
-              subtitle="Seed more products from the seller side and this page will start feeling complete."
-            />
+          <EmptyState
+            dark={isDark}
+            title="No products yet"
+            subtitle="Products will appear here as soon as this storefront is stocked."
+          />
           ) : (
             <>
               {recommendedProducts.length > 0 ? (
@@ -918,7 +918,7 @@ export default function VendorDetailsScreen() {
                         Recommended for you
                       </Text>
                       <Text style={[styles.sectionSubtitle, isDark && styles.sectionSubtitleDark]}>
-                        Stronger merchandising is one of the biggest gaps vs Swiggy.
+                        Curated picks, stronger trust cues and faster add-to-cart decisions.
                       </Text>
                     </View>
                   </View>
@@ -1011,8 +1011,8 @@ const styles = StyleSheet.create({
 
   hero: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 24,
+    paddingTop: 14,
+    paddingBottom: 28,
     overflow: 'hidden',
   },
   heroOrbOne: {
@@ -1045,10 +1045,10 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   heroIconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,251,246,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1070,9 +1070,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,251,246,0.14)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderColor: 'rgba(255,255,255,0.18)',
   },
   heroBrandPillDark: {
     backgroundColor: 'rgba(255,255,255,0.08)',
@@ -1096,7 +1096,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: 'rgba(255,251,246,0.92)',
   },
   heroMetaBadgeDark: {
     backgroundColor: 'rgba(255,255,255,0.14)',
@@ -1115,9 +1115,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroMonogram: {
-    width: 64,
-    height: 64,
-    borderRadius: 22,
+    width: 68,
+    height: 68,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1133,9 +1133,9 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: '#ffffff',
-    fontSize: 30,
+    fontSize: 31,
     fontWeight: '900',
-    lineHeight: 34,
+    lineHeight: 35,
   },
   heroSubtitle: {
     marginTop: 6,
@@ -1168,8 +1168,8 @@ const styles = StyleSheet.create({
   },
   heroMetaStrip: {
     marginTop: 14,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,251,246,0.12)',
     paddingHorizontal: 14,
     paddingVertical: 13,
   },
@@ -1182,10 +1182,10 @@ const styles = StyleSheet.create({
   content: {
     marginTop: -10,
     backgroundColor: COLORS.page,
-    borderTopLeftRadius: 34,
-    borderTopRightRadius: 34,
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
     paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingTop: 22,
   },
   contentDark: {
     backgroundColor: COLORS.dark,
@@ -1193,7 +1193,7 @@ const styles = StyleSheet.create({
 
   searchBar: {
     minHeight: 58,
-    borderRadius: 24,
+    borderRadius: 26,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 16,
@@ -1457,7 +1457,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 16,
-    paddingVertical: 11,
+    paddingVertical: 12,
   },
   categoryChipDark: {
     backgroundColor: COLORS.darkCard,
@@ -1503,7 +1503,7 @@ const styles = StyleSheet.create({
   },
   recommendedCard: {
     width: 244,
-    borderRadius: 28,
+    borderRadius: 30,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1571,7 +1571,7 @@ const styles = StyleSheet.create({
 
   menuCard: {
     marginBottom: 14,
-    borderRadius: 26,
+    borderRadius: 28,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1635,7 +1635,7 @@ const styles = StyleSheet.create({
   addButton: {
     minWidth: 92,
     height: 40,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1648,7 +1648,7 @@ const styles = StyleSheet.create({
   qtyWrap: {
     minWidth: 92,
     height: 40,
-    borderRadius: 14,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

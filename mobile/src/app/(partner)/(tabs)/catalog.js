@@ -879,7 +879,9 @@ export default function PartnerCatalogScreen() {
             </SectionCard>
           ) : null}
         </View>
-        <SectionCard title={productForm.id ? 'Edit menu item' : 'Add menu item'} subtitle="Swiggy-level seller apps need menu control, availability control, and real stock visibility.">
+        <SectionCard
+          title={productForm.id ? 'Edit menu item' : 'Add menu item'}
+          subtitle="Manage menu details, availability and real stock visibility from one place.">
           <TextField label="Item name" value={productForm.name} onChangeText={(value) => setProductForm((current) => ({ ...current, name: value }))} placeholder="Paneer Tikka Wrap" />
           <TextField label="Description" value={productForm.description} onChangeText={(value) => setProductForm((current) => ({ ...current, description: value }))} placeholder="Short item description" multiline />
           <TextField label="Price" value={productForm.price} onChangeText={(value) => setProductForm((current) => ({ ...current, price: value }))} placeholder="249" keyboardType="decimal-pad" />
