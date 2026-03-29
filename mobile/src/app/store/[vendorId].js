@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image } from 'expo-image';
 import {
   ActivityIndicator,
@@ -14,40 +14,35 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+
 import { BrandPalette, StoreServiceThemes, createShadow } from '@/constants/theme';
+import { buildApiUrl } from '../../config';
+import InlineErrorCard from '../../components/inline-error-card';
 import { useGrabBasket } from '../../../App';
-import InlineNoticeCard from '../../components/inline-notice-card';
-import { APP_ENV } from '../../config';
-import { captureEvent } from '../../lib/telemetry';
-import { FEATURE_FLAGS } from '../../constants/feature-flags';
-import { ANALYTICS_EVENTS, ANALYTICS_TAXONOMY_VERSION } from '../../constants/analytics-taxonomy';
+
 const BRAND_LOGO = require('../../../assets/images/consumer-native-icon.png');
 
-const COLORS = {
-  ...BrandPalette,
-  page: BrandPalette.page,
-  card: BrandPalette.surface,
-  text: BrandPalette.text,
-  muted: BrandPalette.textMuted,
-  subtle: BrandPalette.subtle,
-  border: BrandPalette.border,
-  success: BrandPalette.success,
-  successSoft: BrandPalette.successSoft,
-  orange: BrandPalette.primary,
-  orangeSoft: BrandPalette.primarySoft,
-  yellow: BrandPalette.peach200,
-  blue: BrandPalette.inkSoft,
-  blueSoft: '#F7EDE5',
-  purple: BrandPalette.primary,
-  dark: BrandPalette.sceneBg,
-  darkCard: BrandPalette.sceneSurface,
-  darkBorder: BrandPalette.sceneBorder,
-  darkMuted: BrandPalette.sceneMuted,
+const SERVICE_TABS = {
+  food: ['Recommended', 'Bestsellers', 'Meals', 'Combos'],
+  warehouse: ['Top picks', 'Snacks', 'Fresh', 'Essentials'],
+  eatout: ['Popular', 'Chef picks', 'Desserts', 'Beverages'],
+  scenes: ['Popular', 'Tonight', 'Weekend', 'Premium'],
 };
-const SERVICE_THEME = StoreServiceThemes;
 
 function money(value) {
   return `₹${Number(value || 0).toFixed(0)}`;
+}
+
+function resolveMediaUrl(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  try {
+    return buildApiUrl(raw.startsWith('/') ? raw : `/${raw}`);
+  } catch {
+    return raw;
+  }
 }
 
 function initials(name = '') {
@@ -60,572 +55,327 @@ function initials(name = '') {
     .toUpperCase();
 }
 
-function findVendorById(list = [], id) {
-  return list.find((item) => String(item.id) === String(id)) || null;
+function getRating(vendor) {
+  const rating = Number(vendor?.avg_rating || 0);
+  if (Number.isFinite(rating) && rating > 0) return rating.toFixed(1);
+  return '4.3';
 }
 
-function estimateEta(vendor, service = 'food') {
-  const eta = Number(vendor?.estimated_delivery_time_min);
+function getRatingCount(vendor) {
+  const total = Number(vendor?.total_ratings || 0);
+  if (total > 0) return `${total}+ ratings`;
+  return '100+ ratings';
+}
+
+function getEta(vendor, service = 'food') {
+  const eta = Number(vendor?.estimated_delivery_time_min || 0);
 
   if (service === 'eatout') {
-    if (Number.isFinite(eta) && eta > 0) return `Table in ${Math.max(10, eta)} mins`;
-    return 'Reserve now';
+    return eta > 0 ? `Table in ${Math.max(10, eta)} mins` : 'Book instantly';
   }
 
   if (service === 'scenes') return 'Instant confirmation';
 
-  if (Number.isFinite(eta) && eta > 0) {
+  if (eta > 0) {
     if (eta <= 15) return `${Math.round(eta)} mins`;
     return `${Math.max(10, Math.round(eta - 5))}-${Math.round(eta)} mins`;
   }
 
-  if (service === 'warehouse') return '10-20 mins';
-  if (vendor?.distance_km != null) {
-    if (vendor.distance_km <= 2) return '15-20 mins';
-    if (vendor.distance_km <= 5) return '20-30 mins';
-  }
-  return '25-35 mins';
+  return service === 'warehouse' ? '7-15 mins' : '20-30 mins';
 }
 
-function getVendorRating(vendor) {
-  const rating = Number(vendor?.avg_rating);
-  if (Number.isFinite(rating) && rating > 0) {
-    return rating.toFixed(1);
-  }
-  return 'New';
+function getOfferCopy(service = 'food') {
+  if (service === 'warehouse') return 'Free delivery above ₹199';
+  if (service === 'eatout') return 'Flat 50% off on dining bills';
+  if (service === 'scenes') return 'Instant booking with premium access';
+  return 'Free delivery on your first order';
 }
 
-function getDeliveryLabel(vendor, service = 'food') {
-  if (service === 'eatout') return vendor?.open_now === false ? 'Closed for reservations' : 'Table booking available';
-  if (service === 'scenes') return 'Instant confirmation';
-  if (vendor?.can_deliver === false) return 'Outside delivery radius';
-  if (vendor?.distance_km != null && vendor.distance_km <= 2) return 'Free delivery';
-  if (vendor?.distance_km != null && vendor.distance_km <= 5) return '₹19 delivery';
-  return service === 'warehouse' ? 'Fast basket delivery' : '₹29 delivery';
+function getVendorSubtitle(vendor) {
+  return [vendor?.cuisine_tags, vendor?.description, vendor?.address]
+    .filter(Boolean)
+    .join(' · ');
 }
 
-function getHeroSubtitle(vendor, service = 'food') {
-  if (service === 'warehouse') {
-    return vendor?.description || 'Fresh essentials';
+function getProductTags(item, service = 'food') {
+  const tags = [];
+
+  if (item?.badge_text) tags.push(String(item.badge_text).trim());
+  if (item?.is_featured) tags.push('Recommended');
+  if (Number(item?.avg_rating || 0) >= 4.5) tags.push('Top rated');
+  if (service === 'warehouse' && Number(item?.stock_qty || 0) > 0) tags.push('In stock');
+  if (service === 'food' && Number(item?.original_price || 0) > Number(item?.price || 0)) {
+    tags.push('Best value');
   }
-  if (service === 'eatout') {
-    return vendor?.description || 'Book and save';
-  }
-  if (service === 'scenes') {
-    return vendor?.description || 'Live plans';
-  }
-  return vendor?.description || 'Local favorite';
+
+  return tags.slice(0, 2);
 }
 
-function getVendorImage(vendor) {
-  const candidate =
-    vendor?.cover_image_url || vendor?.banner_image_url || vendor?.logo_image_url || '';
-  return String(candidate || '').trim();
-}
+function deriveSections(products = [], service = 'food') {
+  const categoryMap = new Map();
 
-function getTrustSignals(vendor) {
-  const signals = [];
-  const ratingCount = Number(vendor?.total_ratings || 0);
+  products.forEach((item) => {
+    const category = String(item?.category || item?.subcategory || '').trim();
+    const fallback = service === 'warehouse' ? 'Essentials' : 'Recommended';
+    const key = category || fallback;
 
-  if (ratingCount >= 100) signals.push(`${ratingCount}+ verified ratings`);
-  if (String(vendor?.gstin || '').trim()) signals.push('GST verified');
-  if (String(vendor?.support_phone || '').trim() || String(vendor?.support_email || '').trim()) {
-    signals.push('Support available');
-  }
-  if (vendor?.can_deliver !== false) signals.push('Delivery available');
+    if (!categoryMap.has(key)) {
+      categoryMap.set(key, []);
+    }
 
-  return signals.slice(0, 3);
-}
-
-function getReviewHighlights(vendor) {
-  const base = [];
-  const rating = Number(vendor?.avg_rating || 0);
-  const ratingCount = Number(vendor?.total_ratings || 0);
-
-  if (rating >= 4.5) base.push('Consistent quality');
-  if (ratingCount >= 200) base.push('Strong repeat orders');
-  if (vendor?.is_busy) base.push('Popular right now');
-  if (vendor?.open_now === false) base.push('Reviews still available');
-  if (base.length === 0) base.push('New on Grab Basket');
-
-  return base.slice(0, 2);
-}
-
-function getCouponMessage(vendor, service = 'food') {
-  if (service === 'eatout') return 'TABLE25 · Up to 25% off';
-  if (service === 'warehouse') return 'MARTSAVE · Free delivery';
-  if (service === 'scenes') return 'SCENE20 · Early-bird offer';
-  if (Number(vendor?.total_ratings || 0) >= 150) return 'TRUST30 · Save up to ₹120';
-  return 'FIRSTTRUST · Welcome offer';
-}
-
-function getProductBadge(product, service = 'food') {
-  const explicitBadge = String(product?.badge_text || '').trim();
-  if (explicitBadge) return explicitBadge;
-
-  const name = String(product?.name || '').toLowerCase();
-  const price = Number(product?.price || 0);
-  const originalPrice = Number(product?.original_price || 0);
-  const rating = Number(product?.avg_rating || 0);
-
-  if (originalPrice > price && price > 0) return `Save ₹${Math.round(originalPrice - price)}`;
-  if (product?.is_featured) return 'Featured';
-  if (rating >= 4.5) return 'Top rated';
-
-  if (service === 'eatout') {
-    if (/(combo|platter|feast)/.test(name)) return 'Best for sharing';
-    if (price >= 300) return 'Premium pick';
-    if (price <= 150) return 'Great value';
-    return 'Popular choice';
-  }
-
-  if (service === 'warehouse') {
-    if (price <= 30) return 'Everyday value';
-    if (/(milk|bread|egg|curd)/.test(name)) return 'Daily essential';
-    if (/(snack|chips|chocolate)/.test(name)) return 'Quick add-on';
-    return 'Smart pick';
-  }
-
-  if (service === 'scenes') {
-    if (/(vip|premium)/.test(name)) return 'Premium access';
-    if (price <= 500) return 'Quick plan';
-    return 'Trending pass';
-  }
-
-  if (price <= 60) return 'Value buy';
-  if (/(combo|meal|biryani|burger)/.test(name)) return 'Bestseller';
-  return 'Popular';
-}
-
-function getVendorPreferenceBoost(product, profile = {}) {
-  if (!profile || !product) return 0;
-
-  const name = String(product?.name || '').toLowerCase();
-  const category = String(product?.category_name || product?.category || '').toLowerCase();
-  const preferredTerms = Array.isArray(profile?.topTerms) ? profile.topTerms : [];
-  const preferredCategories = Array.isArray(profile?.topCategories) ? profile.topCategories : [];
-
-  let boost = 0;
-
-  if (preferredCategories.some((term) => category.includes(term))) boost += 30;
-  if (preferredTerms.some((term) => name.includes(term))) boost += 20;
-  if (profile?.vendorRepeatScore > 0) boost += Math.min(40, profile.vendorRepeatScore * 6);
-
-  return boost;
-}
-
-function sortRecommended(products = [], profile = null) {
-  return [...products].sort((a, b) => {
-    const score = (item) => {
-      const discount = Math.max(0, Number(item?.original_price || 0) - Number(item?.price || 0));
-      return (
-        (item?.is_available ? 1000 : 0) +
-        (item?.is_featured ? 300 : 0) +
-        Math.round(Number(item?.avg_rating || 0) * 40) +
-        Math.min(discount, 200) +
-        Math.max(0, 100 - Number(item?.price || 0)) +
-        (FEATURE_FLAGS.personalizationRanking ? getVendorPreferenceBoost(item, profile) : 0)
-      );
-    };
-
-    return score(b) - score(a) || String(a?.name || '').localeCompare(String(b?.name || ''));
-  });
-}
-
-function deriveCategory(product, service = 'food') {
-  const explicit = String(product?.category_name || product?.category || '').trim();
-  if (explicit) return explicit;
-
-  const name = String(product?.name || '').toLowerCase();
-
-  if (service === 'warehouse') {
-    if (/(fruit|vegetable|greens|banana|apple|tomato|onion|potato)/.test(name)) return 'Fresh';
-    if (/(milk|bread|egg|curd|paneer|rice|atta|oil)/.test(name)) return 'Essentials';
-    if (/(chips|snack|chocolate|cookie|cola|juice)/.test(name)) return 'Snacks';
-    return 'Store picks';
-  }
-
-  if (service === 'eatout') {
-    if (/(starter|soup|appetizer)/.test(name)) return 'Starters';
-    if (/(dessert|cake|ice cream|sweet)/.test(name)) return 'Desserts';
-    if (/(drink|juice|shake|coffee|tea)/.test(name)) return 'Drinks';
-    return 'Menu';
-  }
-
-  if (service === 'scenes') {
-    if (/(vip|premium)/.test(name)) return 'Premium';
-    if (/(family|group|couple)/.test(name)) return 'Group plans';
-    return 'Experiences';
-  }
-
-  if (/(biryani|rice|noodle|pasta)/.test(name)) return 'Mains';
-  if (/(burger|sandwich|wrap|pizza)/.test(name)) return 'Fast food';
-  if (/(drink|juice|shake|coffee|tea)/.test(name)) return 'Beverages';
-  if (/(dessert|cake|ice cream|sweet)/.test(name)) return 'Desserts';
-  return 'Recommended';
-}
-
-function pickEmoji(name = '', service = 'food') {
-  const value = String(name || '').toLowerCase();
-
-  if (service === 'warehouse') {
-    if (/(milk|curd|paneer)/.test(value)) return '🥛';
-    if (/(bread|toast|bun)/.test(value)) return '🍞';
-    if (/(fruit|apple|banana|orange)/.test(value)) return '🍎';
-    if (/(vegetable|tomato|potato|onion)/.test(value)) return '🥬';
-    if (/(chips|snack|cookie|chocolate)/.test(value)) return '🍪';
-    return '🛒';
-  }
-
-  if (service === 'eatout') {
-    if (/(dessert|cake|ice cream|sweet)/.test(value)) return '🍰';
-    if (/(drink|juice|shake|coffee|tea)/.test(value)) return '🥤';
-    if (/(pizza)/.test(value)) return '🍕';
-    if (/(burger|sandwich|wrap)/.test(value)) return '🍔';
-    return '🍽️';
-  }
-
-  if (service === 'scenes') {
-    if (/(vip|premium)/.test(value)) return '🎟️';
-    if (/(music|concert|dj)/.test(value)) return '🎵';
-    if (/(movie|cinema)/.test(value)) return '🎬';
-    return '✨';
-  }
-
-  if (/(biryani|rice)/.test(value)) return '🍛';
-  if (/(pizza)/.test(value)) return '🍕';
-  if (/(burger|sandwich|wrap)/.test(value)) return '🍔';
-  if (/(dessert|cake|ice cream|sweet)/.test(value)) return '🍰';
-  if (/(drink|juice|shake|coffee|tea)/.test(value)) return '🥤';
-  return '🍽️';
-}
-
-function buildPersonalizationProfile(orderHistory = [], vendor) {
-  const orders = Array.isArray(orderHistory) ? orderHistory : [];
-  const vendorId = String(vendor?.id || '');
-  const vendorOrders = orders.filter(
-    (order) => String(order?.vendor_id || order?.vendorId || '') === vendorId
-  );
-
-  const topTerms = [];
-  const topCategories = [];
-
-  vendorOrders.forEach((order) => {
-    const items = Array.isArray(order?.items) ? order.items : [];
-    items.forEach((item) => {
-      const name = String(item?.name || item?.name_snapshot || '').toLowerCase();
-      const category = String(item?.category || item?.category_name || '').toLowerCase();
-      if (name) topTerms.push(...name.split(/\s+/).slice(0, 2));
-      if (category) topCategories.push(category);
-    });
+    categoryMap.get(key).push(item);
   });
 
-  return {
-    vendorRepeatScore: vendorOrders.length,
-    topTerms: Array.from(new Set(topTerms)).slice(0, 6),
-    topCategories: Array.from(new Set(topCategories)).slice(0, 4),
-  };
-}
+  const sections = Array.from(categoryMap.entries()).map(([title, items]) => ({
+    title,
+    items,
+  }));
 
-function getLoyaltyCopy(profile) {
-  if (!FEATURE_FLAGS.loyaltyMembership) return '';
-  if ((profile?.vendorRepeatScore || 0) >= 5) return 'Gold perks unlocked';
-  if ((profile?.vendorRepeatScore || 0) >= 2) return 'Silver perks live';
-  return 'Join for member pricing';
-}
-
-function LoadingState({ dark = false, label = 'Loading...' }) {
-  return (
-    <View style={[styles.feedbackCard, dark && styles.feedbackCardDark]}>
-      <ActivityIndicator color={dark ? '#ffffff' : COLORS.success} />
-      <Text style={[styles.feedbackTitle, dark && styles.feedbackTitleDark]}>{label}</Text>
-    </View>
-  );
-}
-
-function EmptyState({ title, subtitle, dark = false }) {
-  return (
-    <View style={[styles.feedbackCard, dark && styles.feedbackCardDark]}>
-      <Text style={[styles.feedbackTitle, dark && styles.feedbackTitleDark]}>{title}</Text>
-      <Text style={[styles.feedbackSubtitle, dark && styles.feedbackSubtitleDark]}>{subtitle}</Text>
-    </View>
-  );
-}
-
-function InfoPill({ text, theme }) {
-  return (
-    <View style={[styles.infoPill, { backgroundColor: theme.pillBg }]}>
-      <Text style={[styles.infoPillText, { color: theme.pillText }]}>{text}</Text>
-    </View>
-  );
-}
-
-function QtyControl({ qty, onAdd, onRemove, theme, dark = false, bookMode = false }) {
-  if (qty > 0) {
-    return (
-      <View style={[styles.qtyWrap, { backgroundColor: dark ? '#ffffff' : theme.primary }]}>
-        <TouchableOpacity activeOpacity={0.92} style={styles.qtyAction} onPress={onRemove}>
-          <Ionicons name="remove" size={16} color={dark ? COLORS.text : '#ffffff'} />
-        </TouchableOpacity>
-        <Text style={[styles.qtyText, { color: dark ? COLORS.text : '#ffffff' }]}>{qty}</Text>
-        <TouchableOpacity activeOpacity={0.92} style={styles.qtyAction} onPress={onAdd}>
-          <Ionicons name="add" size={16} color={dark ? COLORS.text : '#ffffff'} />
-        </TouchableOpacity>
-      </View>
-    );
+  if (!sections.length) {
+    return [
+      {
+        title: service === 'warehouse' ? 'Essentials' : 'Recommended',
+        items: [],
+      },
+    ];
   }
 
-  return (
-    <TouchableOpacity
-      activeOpacity={0.92}
-      style={[
-        styles.addButton,
-        {
-          backgroundColor: dark ? '#ffffff' : theme.primarySoft,
-          borderColor: dark ? '#ffffff' : theme.primary,
-        },
-      ]}
-      onPress={onAdd}>
-      <Text style={[styles.addButtonText, { color: dark ? COLORS.text : theme.primary }]}>
-        {bookMode ? 'BOOK' : 'ADD'}
-      </Text>
-    </TouchableOpacity>
-  );
+  return sections;
 }
 
-function RecommendedCard({ product, qty, onAdd, onRemove, theme, service }) {
-  const dark = service === 'scenes';
+function ProductCard({ item, qty, onAdd, onRemove, service, theme }) {
+  const imageUri = resolveMediaUrl(item?.image_url || item?.thumbnail_url);
+  const hasOffer = Number(item?.original_price || 0) > Number(item?.price || 0);
+  const tags = getProductTags(item, service);
 
   return (
-    <View style={[styles.recommendedCard, dark && styles.recommendedCardDark]}>
-      <View style={[styles.recommendedVisual, { backgroundColor: dark ? '#1a2440' : '#f7f8fb' }]}>
-        <Text style={styles.recommendedEmoji}>{pickEmoji(product?.name, service)}</Text>
-      </View>
-      <Text style={[styles.productBadge, dark && styles.productBadgeDark]}>
-        {getProductBadge(product, service)}
-      </Text>
-      <Text style={[styles.recommendedName, dark && styles.recommendedNameDark]} numberOfLines={2}>
-        {product?.name}
-      </Text>
-      <Text style={[styles.recommendedDesc, dark && styles.recommendedDescDark]} numberOfLines={2}>
-        {product?.description || 'Popular pick'}
-      </Text>
-      <View style={styles.recommendedFooter}>
-        <Text style={[styles.recommendedPrice, dark && styles.recommendedPriceDark]}>
-          {money(product?.price)}
-        </Text>
-        <QtyControl
-          qty={qty}
-          onAdd={onAdd}
-          onRemove={onRemove}
-          theme={theme}
-          dark={dark}
-          bookMode={service === 'eatout' || service === 'scenes'}
-        />
-      </View>
-    </View>
-  );
-}
+    <View style={styles.productCard}>
+      <View style={styles.productCopy}>
+        {tags.length ? (
+          <View style={styles.tagRow}>
+            {tags.map((tag) => (
+              <View
+                key={`${item?.id}-${tag}`}
+                style={[styles.tagPill, { backgroundColor: theme.primarySoft }]}>
+                <Text style={[styles.tagPillText, { color: theme.primary }]}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
 
-function MenuItemCard({ product, qty, onAdd, onRemove, theme, service }) {
-  const dark = service === 'scenes';
-  const bookMode = service === 'eatout' || service === 'scenes';
+        <Text numberOfLines={2} style={styles.productTitle}>
+          {item?.name}
+        </Text>
 
-  return (
-    <View style={[styles.menuCard, dark && styles.menuCardDark]}>
-      <View style={styles.menuContent}>
-        <Text style={[styles.productBadge, dark && styles.productBadgeDark]}>
-          {getProductBadge(product, service)}
+        <Text numberOfLines={2} style={styles.productDescription}>
+          {item?.description ||
+            (service === 'warehouse'
+              ? 'Quick everyday essential.'
+              : 'Freshly prepared and packed with care.')}
         </Text>
-        <Text style={[styles.menuName, dark && styles.menuNameDark]} numberOfLines={2}>
-          {product?.name}
-        </Text>
-        <Text style={[styles.menuDesc, dark && styles.menuDescDark]} numberOfLines={2}>
-          {product?.description || 'Popular choice'}
-        </Text>
-        <Text style={[styles.menuPrice, dark && styles.menuPriceDark]}>
-          {money(product?.price)}
-        </Text>
-      </View>
 
-      <View style={styles.menuActionCol}>
-        <View style={[styles.menuVisual, { backgroundColor: dark ? '#1a2440' : '#f7f8fb' }]}>
-          <Text style={styles.menuEmoji}>{pickEmoji(product?.name, service)}</Text>
+        <View style={styles.priceRow}>
+          <Text style={styles.productPrice}>{money(item?.price)}</Text>
+          {hasOffer ? (
+            <Text style={styles.productPriceStrike}>{money(item?.original_price)}</Text>
+          ) : null}
         </View>
-        <QtyControl
-          qty={qty}
-          onAdd={onAdd}
-          onRemove={onRemove}
-          theme={theme}
-          dark={dark}
-          bookMode={bookMode}
-        />
+      </View>
+
+      <View style={styles.productVisualCol}>
+        <View
+          style={[
+            styles.productImageWrap,
+            { backgroundColor: theme.heroAlt || '#F3F3F3' },
+          ]}>
+          {imageUri ? (
+            <Image
+              source={{ uri: imageUri }}
+              style={styles.productImage}
+              contentFit="cover"
+              transition={180}
+            />
+          ) : (
+            <View style={styles.productImageFallback}>
+              <Ionicons name="restaurant-outline" size={24} color={theme.primary} />
+            </View>
+          )}
+        </View>
+
+        {qty > 0 ? (
+          <View style={styles.qtyControl}>
+            <TouchableOpacity activeOpacity={0.92} onPress={onRemove} style={styles.qtyAction}>
+              <Ionicons name="remove" size={16} color={BrandPalette.primary} />
+            </TouchableOpacity>
+            <Text style={styles.qtyValue}>{qty}</Text>
+            <TouchableOpacity activeOpacity={0.92} onPress={onAdd} style={styles.qtyAction}>
+              <Ionicons name="add" size={16} color={BrandPalette.primary} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity activeOpacity={0.92} onPress={onAdd} style={styles.addButton}>
+            <Text style={styles.addButtonText}>ADD</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
 }
 
-export default function VendorDetailsScreen() {
-  const { vendorId } = useLocalSearchParams();
+export default function StoreScreen() {
   const router = useRouter();
+  const { vendorId } = useLocalSearchParams();
   const {
-    vendors,
-    vendorsLoading,
     activeService,
+    vendors,
+    loadProducts,
+    loadVendors,
     favorites,
     toggleFavorite,
-    rememberStore,
-    rememberSearch,
-    orderHistory,
+    addToCart,
     cart,
     cartCount,
     cartTotal,
-    freeDeliveryRemaining,
-    loadProducts,
-    addToCart,
     updateQty,
+    rememberStore,
+    inlineErrors,
   } = useGrabBasket();
 
-  const theme = SERVICE_THEME[activeService] || SERVICE_THEME.food;
-  const isDark = activeService === 'scenes';
-  const vendor = useMemo(() => findVendorById(vendors, vendorId), [vendors, vendorId]);
+  const theme = StoreServiceThemes[activeService] || StoreServiceThemes.food;
+  const isLightHero = activeService !== 'food';
+  const heroTextColor = theme.textOnHero || '#FFFFFF';
+  const heroSubColor = isLightHero
+    ? 'rgba(20,18,16,0.68)'
+    : 'rgba(255,255,255,0.76)';
+  const heroCardBg = isLightHero
+    ? 'rgba(255,255,255,0.6)'
+    : 'rgba(255,255,255,0.12)';
+  const softPillBg = isLightHero
+    ? 'rgba(20,18,16,0.08)'
+    : 'rgba(255,255,255,0.14)';
+  const iconButtonBg = isLightHero
+    ? 'rgba(255,255,255,0.54)'
+    : 'rgba(255,255,255,0.14)';
+  const cartBarBg =
+    activeService === 'scenes' ? BrandPalette.accent : theme.cartBg || BrandPalette.ink;
+  const cartBarTextColor =
+    activeService === 'scenes' ? BrandPalette.text : '#FFFFFF';
+  const cartBarSubColor =
+    activeService === 'scenes'
+      ? 'rgba(20,18,16,0.7)'
+      : 'rgba(255,255,255,0.78)';
 
-  const [productSearch, setProductSearch] = useState('');
+  const [searchValue, setSearchValue] = useState('');
+  const [activeTab, setActiveTab] = useState(
+    (SERVICE_TABS[activeService] || SERVICE_TABS.food)[0]
+  );
+  const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState([]);
-  const [productsLoading, setProductsLoading] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [shareNotice, setShareNotice] = useState(null);
+
+  const vendor = useMemo(() => {
+    return (Array.isArray(vendors) ? vendors : []).find(
+      (item) => String(item?.id) === String(vendorId)
+    ) || null;
+  }, [vendorId, vendors]);
 
   useEffect(() => {
-    if (vendor?.id) rememberStore(vendor.id);
-  }, [vendor, rememberStore]);
+    setActiveTab((SERVICE_TABS[activeService] || SERVICE_TABS.food)[0]);
+  }, [activeService]);
 
   useEffect(() => {
-    setShareNotice(null);
-  }, [vendor?.id]);
+    let active = true;
+
+    if (vendor) return undefined;
+
+    (async () => {
+      setLoading(true);
+      await loadVendors().catch(() => {});
+      if (active) setLoading(false);
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [loadVendors, vendor]);
 
   useEffect(() => {
     if (!vendor) return undefined;
 
-    const timer = setTimeout(async () => {
-      setProductsLoading(true);
-      const list = await loadProducts(vendor, productSearch);
-      setProducts(list.filter((item) => item?.is_available !== false));
-      setProductsLoading(false);
-    }, 220);
+    let active = true;
 
-    return () => clearTimeout(timer);
-  }, [vendor, productSearch, loadProducts]);
+    (async () => {
+      setLoading(true);
+      rememberStore(vendor.id);
+      const nextProducts = await loadProducts(vendor, searchValue);
+      if (active) {
+        setProducts(Array.isArray(nextProducts) ? nextProducts : []);
+        setLoading(false);
+      }
+    })();
 
-  const categories = useMemo(() => {
-    const unique = Array.from(new Set(products.map((item) => deriveCategory(item, activeService))));
-    return ['All', ...unique];
-  }, [products, activeService]);
+    return () => {
+      active = false;
+    };
+  }, [loadProducts, rememberStore, searchValue, vendor]);
 
-  useEffect(() => {
-    if (!categories.includes(selectedCategory)) {
-      setSelectedCategory('All');
-    }
-  }, [categories, selectedCategory]);
-
-  const visibleProducts = useMemo(() => {
-    if (selectedCategory === 'All') return products;
-    return products.filter((item) => deriveCategory(item, activeService) === selectedCategory);
-  }, [products, activeService, selectedCategory]);
-
-  const personalizationProfile = useMemo(
-    () => buildPersonalizationProfile(orderHistory, vendor),
-    [orderHistory, vendor]
+  const sections = useMemo(
+    () => deriveSections(products, activeService),
+    [activeService, products]
   );
 
-  const recommendedProducts = useMemo(
-    () => sortRecommended(products, personalizationProfile).slice(0, 4),
-    [products, personalizationProfile]
+  const featuredProducts = useMemo(() => products.slice(0, 8), [products]);
+
+  const heroImage = resolveMediaUrl(
+    vendor?.cover_image_url || vendor?.banner_image_url || vendor?.logo_image_url
   );
+  const favorite = Boolean(favorites?.[vendor?.id]);
+  const hasForeignCart = cart?.vendorId && String(cart.vendorId) !== String(vendor?.id);
 
-  const sameVendorCart = cartCount > 0 && String(cart.vendorId) === String(vendor?.id);
-  const otherVendorCart = cartCount > 0 && cart.vendorId && String(cart.vendorId) !== String(vendor?.id);
-
-  const handleShareStore = useCallback(async () => {
+  const handleShare = async () => {
     if (!vendor) return;
 
     try {
-      const shareLines = [vendor.name, getHeroSubtitle(vendor, activeService), vendor?.address]
-        .filter(Boolean)
-        .join('\n');
-      const shareUrl = vendor?.id ? `grab-basket://store/${vendor.id}` : '';
-      const message = shareUrl ? `${shareLines}\n${shareUrl}` : shareLines;
-
-      const result = await Share.share({
-        title: vendor.name || 'Store',
-        message,
+      await Share.share({
+        message: `${vendor.name}\n${getVendorSubtitle(vendor)}\nOrder on GrabBasket.`,
       });
-
-      if (result?.action === Share.dismissedAction) {
-        return;
-      }
-
-      setShareNotice({
-        tone: 'success',
-        title: 'Store ready to share',
-        message: 'The native share sheet opened for this store.',
-      });
-      captureEvent(ANALYTICS_EVENTS.consumerStoreShareOpened, {
-        taxonomy_version: ANALYTICS_TAXONOMY_VERSION,
-        service: activeService,
-        vendor_id: String(vendor?.id || ''),
-        app_env: APP_ENV,
-      });
-    } catch (error) {
-      if (/cancel/i.test(String(error?.message || ''))) {
-        return;
-      }
-
-      setShareNotice({
-        tone: 'warning',
-        title: 'Share unavailable',
-        message: 'Could not open the native share sheet on this device.',
-      });
+    } catch {
+      // ignore share cancellation
     }
-  }, [activeService, vendor]);
+  };
 
-  useEffect(() => {
-    if (!vendor?.id) return;
+  const handleAdd = (item) => {
+    if (!vendor || !item) return;
+    addToCart(vendor, item);
+  };
 
-    captureEvent(ANALYTICS_EVENTS.consumerStoreViewed, {
-      taxonomy_version: ANALYTICS_TAXONOMY_VERSION,
-      vendor_id: String(vendor.id),
-      service: activeService,
-      personalization_enabled: FEATURE_FLAGS.personalizationRanking,
-      premium_trust_cards_enabled: FEATURE_FLAGS.premiumTrustCards,
-      app_env: APP_ENV,
-    });
-  }, [activeService, vendor?.id]);
+  const handleRemove = (item) => {
+    const currentQty = Number(cart.items?.[item.id]?.qty || 0);
+    updateQty(item.id, currentQty - 1);
+  };
 
-  if (vendorsLoading && !vendor) {
+  if (!vendor && loading) {
     return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.page }]}>
-        <LoadingState dark={isDark} label="Loading store..." />
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.page }]} edges={['top']}>
+        <StatusBar barStyle={activeService === 'food' ? 'light-content' : 'dark-content'} />
+        <View style={styles.loaderState}>
+          <ActivityIndicator color={theme.primary} />
+          <Text style={styles.loaderText}>Loading store...</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
-  if (!vendor) {
+  if (!vendor && !loading) {
     return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.page }]}>
-        <View style={styles.centerWrap}>
-          <EmptyState
-            dark={isDark}
-            title="Store not found"
-            subtitle="This vendor is missing or not loaded yet."
-          />
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.page }]} edges={['top']}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.centerState}>
+          <Text style={styles.centerTitle}>Store not found</Text>
           <TouchableOpacity
             activeOpacity={0.92}
-            style={[styles.primaryCta, { backgroundColor: isDark ? '#ffffff' : COLORS.text }]}
+            style={styles.primaryCta}
             onPress={() => router.replace('/')}>
-            <Text style={[styles.primaryCtaText, { color: isDark ? COLORS.text : '#ffffff' }]}>
-              Back to home
-            </Text>
+            <Text style={styles.primaryCtaText}>Back to home</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -634,364 +384,252 @@ export default function VendorDetailsScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.page }]} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.hero} />
+      <StatusBar barStyle={activeService === 'food' ? 'light-content' : 'dark-content'} />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: sameVendorCart ? 118 : 28 }}>
-        <View style={[styles.hero, { backgroundColor: theme.hero }]}>
-          <View style={[styles.heroOrbOne, { backgroundColor: theme.heroAlt }]} />
-          <View style={[styles.heroOrbTwo, { backgroundColor: theme.heroAlt }]} />
-
-          <View style={styles.topBar}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <View style={[styles.heroSection, { backgroundColor: theme.hero }]}>
+          <View style={styles.heroTopRow}>
             <TouchableOpacity
               activeOpacity={0.92}
-              style={styles.heroIconButton}
+              style={[styles.roundIconButton, { backgroundColor: iconButtonBg }]}
               onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
-              <Ionicons name="arrow-back" size={20} color="#ffffff" />
+              <Ionicons name="chevron-back" size={20} color={heroTextColor} />
             </TouchableOpacity>
 
-            <View style={styles.topBarActions}>
+            <View style={styles.heroTopActions}>
               <TouchableOpacity
                 activeOpacity={0.92}
-                style={styles.heroIconButton}
-                onPress={handleShareStore}>
-                <Ionicons name="share-social-outline" size={18} color="#ffffff" />
+                style={[styles.roundIconButton, { backgroundColor: iconButtonBg }]}
+                onPress={handleShare}>
+                <Ionicons name="share-social-outline" size={18} color={heroTextColor} />
               </TouchableOpacity>
 
               <TouchableOpacity
                 activeOpacity={0.92}
-                style={styles.heroIconButton}
-                onPress={() => toggleFavorite(vendor.id)}>
+                style={[styles.roundIconButton, { backgroundColor: iconButtonBg }]}
+                onPress={() => vendor?.id && toggleFavorite(vendor.id)}>
                 <Ionicons
-                  name={favorites[vendor.id] ? 'heart' : 'heart-outline'}
+                  name={favorite ? 'heart' : 'heart-outline'}
                   size={18}
-                  color={favorites[vendor.id] ? theme.heroAccent : '#ffffff'}
+                  color={favorite ? '#FF6D77' : heroTextColor}
                 />
               </TouchableOpacity>
             </View>
           </View>
 
-          <View style={styles.heroContent}>
-            <View style={styles.heroBrandRow}>
-              <View style={[styles.heroBrandPill, isDark && styles.heroBrandPillDark]}>
-                <Image source={BRAND_LOGO} style={styles.heroBrandLogo} contentFit="contain" />
-                <Text style={[styles.heroBrandLabel, isDark && styles.heroBrandLabelDark]}>
-                  GB
-                </Text>
-              </View>
-              <View style={[styles.heroMetaBadge, isDark && styles.heroMetaBadgeDark]}>
-                <Ionicons
-                  name="shield-checkmark-outline"
-                  size={14}
-                  color={isDark ? COLORS.text : theme.heroAccent}
-                />
-                <Text style={[styles.heroMetaBadgeText, isDark && styles.heroMetaBadgeTextDark]}>
-                  Trust
-                </Text>
-              </View>
-            </View>
-            <View style={styles.heroTitleRow}>
-              <View style={[styles.heroMonogram, { backgroundColor: theme.pillBg }]}>
-                {getVendorImage(vendor) ? (
+          <View style={[styles.heroCard, { backgroundColor: heroCardBg }]}>
+            <View style={styles.heroIdentityRow}>
+              <View style={styles.logoChip}>
+                {heroImage ? (
                   <Image
-                    source={{ uri: getVendorImage(vendor) }}
-                    style={styles.heroImage}
+                    source={{ uri: heroImage }}
+                    style={styles.logoImage}
                     contentFit="cover"
+                    transition={180}
                   />
                 ) : (
-                  <Text style={styles.heroMonogramText}>{initials(vendor.name)}</Text>
+                  <Text style={styles.logoFallback}>{initials(vendor?.name)}</Text>
                 )}
               </View>
 
               <View style={{ flex: 1 }}>
-                <Text style={styles.heroTitle}>{vendor.name}</Text>
-                <Text style={styles.heroSubtitle}>{getHeroSubtitle(vendor, activeService)}</Text>
-                {vendor?.address ? <Text style={styles.heroAddress} numberOfLines={1}>{vendor.address}</Text> : null}
+                <Text numberOfLines={2} style={[styles.vendorTitle, { color: heroTextColor }]}>
+                  {vendor?.name}
+                </Text>
+                <Text
+                  numberOfLines={2}
+                  style={[styles.vendorSubtitle, { color: heroSubColor }]}>
+                  {getVendorSubtitle(vendor)}
+                </Text>
               </View>
             </View>
 
-            <View style={styles.heroPillRow}>
-              <InfoPill text={`${getVendorRating(vendor)} ★ rated`} theme={theme} />
-              <InfoPill text={estimateEta(vendor, activeService)} theme={theme} />
-              <InfoPill text={getDeliveryLabel(vendor, activeService)} theme={theme} />
-              <InfoPill text={vendor?.open_now ? 'Open' : 'Closed'} theme={theme} />
-              {vendor?.distance_km != null ? (
-                <InfoPill text={`${Number(vendor.distance_km).toFixed(1)} km`} theme={theme} />
-              ) : null}
+            <View style={styles.heroMetricsRow}>
+              <View style={styles.metricPill}>
+                <Ionicons name="star" size={14} color="#FFFFFF" />
+                <Text style={styles.metricPillText}>
+                  {getRating(vendor)} · {getRatingCount(vendor)}
+                </Text>
+              </View>
+
+              <View style={[styles.metricSoftPill, { backgroundColor: softPillBg }]}>
+                <Text style={[styles.metricSoftText, { color: heroTextColor }]}>
+                  {getEta(vendor, activeService)}
+                </Text>
+              </View>
+
+              <View style={[styles.metricSoftPill, { backgroundColor: softPillBg }]}>
+                <Text style={[styles.metricSoftText, { color: heroTextColor }]}>
+                  {vendor?.distance_km
+                    ? `${Number(vendor.distance_km).toFixed(1)} km`
+                    : 'Around you'}
+                </Text>
+              </View>
             </View>
 
-            <View style={styles.heroMetaStrip}>
-              <Text style={styles.heroMetaText}>
-                {activeService === 'eatout'
-                  ? 'Book now · Bill offers'
-                  : activeService === 'warehouse'
-                    ? 'Fast delivery · Fresh essentials'
-                    : activeService === 'scenes'
-                      ? 'Live plans · Instant confirm'
-                      : 'Fast delivery · Popular now'}
-              </Text>
+            <View style={styles.offerBanner}>
+              <View style={styles.offerLogoWrap}>
+                <Image source={BRAND_LOGO} style={styles.offerLogo} contentFit="contain" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.offerTitle}>{getOfferCopy(activeService)}</Text>
+                <Text style={styles.offerSubtitle}>
+                  Extra savings, cleaner menu and faster checkout.
+                </Text>
+              </View>
             </View>
           </View>
         </View>
 
-        <View style={[styles.content, isDark && styles.contentDark]}>
-          <View style={[styles.searchBar, { backgroundColor: theme.searchBg }, isDark && styles.searchBarDark]}>
-            <Ionicons
-              name="search-outline"
-              size={20}
-              color={isDark ? COLORS.darkMuted : COLORS.muted}
+        <View style={styles.bodySection}>
+          {hasForeignCart ? (
+            <InlineErrorCard
+              title="Your cart has items from another store"
+              message="Adding items here will replace the current basket automatically."
             />
+          ) : null}
+
+          {inlineErrors?.products ? (
+            <InlineErrorCard
+              title="Products could not be refreshed"
+              message={inlineErrors.products}
+            />
+          ) : null}
+
+          <View style={styles.searchWrap}>
+            <Ionicons name="search-outline" size={20} color="#7B7B7B" />
             <TextInput
-              style={[styles.searchInput, isDark && styles.searchInputDark]}
+              value={searchValue}
+              onChangeText={setSearchValue}
               placeholder={
-                activeService === 'eatout' || activeService === 'scenes'
-                  ? 'Search offers, passes or experiences'
-                  : 'Search inside store'
+                activeService === 'warehouse'
+                  ? 'Search essentials, snacks, brands'
+                  : 'Search dishes and items'
               }
-              placeholderTextColor={isDark ? '#8fa2c4' : COLORS.subtle}
-              value={productSearch}
-              onChangeText={setProductSearch}
-              onSubmitEditing={() => rememberSearch(productSearch)}
-              returnKeyType="search"
+              placeholderTextColor="#8E8E8E"
+              style={styles.searchInput}
             />
-            <Ionicons name="options-outline" size={20} color={isDark ? '#ffffff' : theme.primary} />
+            {searchValue ? (
+              <TouchableOpacity activeOpacity={0.92} onPress={() => setSearchValue('')}>
+                <Ionicons name="close-circle" size={18} color="#9A9A9A" />
+              </TouchableOpacity>
+            ) : null}
           </View>
 
-          {shareNotice ? (
-            <View style={styles.noticeWrap}>
-              <InlineNoticeCard
-                tone={shareNotice.tone}
-                title={shareNotice.title}
-                message={shareNotice.message}
-                onDismiss={() => setShareNotice(null)}
-              />
-            </View>
-          ) : null}
-
-          {otherVendorCart ? (
-            <View style={[styles.warningBanner, isDark && styles.warningBannerDark]}>
-              <Ionicons
-                name="information-circle-outline"
-                size={18}
-                color={isDark ? '#ffffff' : theme.primary}
-              />
-              <Text style={[styles.warningText, isDark && styles.warningTextDark]}>
-                Basket will switch to this store.
-              </Text>
-            </View>
-          ) : null}
-
-          {FEATURE_FLAGS.premiumTrustCards ? (
-            <View style={[styles.trustCard, isDark && styles.trustCardDark]}>
-              <View style={styles.trustHeaderRow}>
-                <Ionicons
-                  name="shield-checkmark-outline"
-                  size={17}
-                  color={isDark ? '#ffffff' : theme.primary}
-                />
-                <Text style={[styles.trustTitle, isDark && styles.trustTitleDark]}>
-                  Trust & transparency
-                </Text>
-              </View>
-
-              {getTrustSignals(vendor).map((signal) => (
-                <Text key={signal} style={[styles.trustPoint, isDark && styles.trustPointDark]}>
-                  • {signal}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-
-          <View style={[styles.couponCard, isDark && styles.couponCardDark]}>
-            <View style={styles.couponHeader}>
-                <Text style={[styles.couponTitle, isDark && styles.couponTitleDark]}>Offers</Text>
-              <Ionicons name="pricetags-outline" size={16} color={isDark ? '#ffffff' : theme.primary} />
-            </View>
-            <Text style={[styles.couponText, isDark && styles.couponTextDark]}>
-              {getCouponMessage(vendor, activeService)}
-            </Text>
-          </View>
-
-          {FEATURE_FLAGS.loyaltyMembership ? (
-            <View style={[styles.membershipCard, isDark && styles.membershipCardDark]}>
-              <View style={styles.membershipHeader}>
-                <Ionicons name="diamond-outline" size={16} color={isDark ? '#ffffff' : theme.primary} />
-                <Text style={[styles.membershipTitle, isDark && styles.membershipTitleDark]}>GB Plus</Text>
-              </View>
-              <Text style={[styles.membershipText, isDark && styles.membershipTextDark]}>
-                {getLoyaltyCopy(personalizationProfile)}
-              </Text>
-            </View>
-          ) : null}
-
-          <View style={[styles.reviewCard, isDark && styles.reviewCardDark]}>
-            <View style={styles.reviewHeader}>
-              <Text style={[styles.reviewTitle, isDark && styles.reviewTitleDark]}>Reviews</Text>
-              <Text style={[styles.reviewScore, isDark && styles.reviewScoreDark]}>
-                {getVendorRating(vendor)} ★
-              </Text>
-            </View>
-            {getReviewHighlights(vendor).map((line) => (
-              <Text key={line} style={[styles.reviewLine, isDark && styles.reviewLineDark]}>
-                {line}
-              </Text>
-            ))}
-          </View>
-
-          {activeService !== 'eatout' && activeService !== 'scenes' ? (
-            <View style={[styles.savingsCard, isDark && styles.savingsCardDark]}>
-              <View style={styles.savingsRow}>
-                <View
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
+            {(SERVICE_TABS[activeService] || SERVICE_TABS.food).map((tab) => {
+              const active = tab === activeTab;
+              return (
+                <TouchableOpacity
+                  key={tab}
+                  activeOpacity={0.92}
+                  onPress={() => setActiveTab(tab)}
                   style={[
-                    styles.savingsIcon,
-                    { backgroundColor: isDark ? 'rgba(255,255,255,0.10)' : theme.primarySoft },
+                    styles.categoryChip,
+                    active && {
+                      backgroundColor: theme.primarySoft,
+                      borderColor: theme.primary,
+                    },
                   ]}>
-                  <Ionicons
-                    name="pricetag-outline"
-                    size={18}
-                    color={isDark ? '#ffffff' : theme.primary}
-                  />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.savingsTitle, isDark && styles.savingsTitleDark]}>
-                    {freeDeliveryRemaining > 0
-                      ? `${money(freeDeliveryRemaining)} away from free delivery`
-                      : 'Free delivery unlocked'}
-                  </Text>
-              <Text style={[styles.savingsSubtitle, isDark && styles.savingsSubtitleDark]}>
-                    Add a little more to save.
-                  </Text>
-                </View>
-              </View>
-            </View>
-          ) : null}
-
-          {categories.length > 1 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRail}>
-              {categories.map((item) => {
-                const active = item === selectedCategory;
-
-                return (
-                  <TouchableOpacity
-                    key={item}
-                    activeOpacity={0.92}
+                  <Text
                     style={[
-                      styles.categoryChip,
-                      isDark && styles.categoryChipDark,
-                      active && {
-                        backgroundColor: isDark ? '#ffffff' : theme.primary,
-                        borderColor: isDark ? '#ffffff' : theme.primary,
-                      },
-                    ]}
-                    onPress={() => setSelectedCategory(item)}>
-                    <Text
-                      style={[
-                        styles.categoryChipText,
-                        isDark && styles.categoryChipTextDark,
-                        active && { color: isDark ? COLORS.text : '#ffffff' },
-                      ]}>
-                      {item}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          ) : null}
+                      styles.categoryChipText,
+                      active && { color: theme.primary },
+                    ]}>
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
 
-          {productsLoading ? <LoadingState dark={isDark} label="Loading products..." /> : null}
-
-          {!productsLoading && products.length === 0 ? (
-          <EmptyState
-            dark={isDark}
-            title="No products yet"
-            subtitle="Nothing listed yet."
-          />
+          {loading ? (
+            <View style={styles.loaderState}>
+              <ActivityIndicator color={theme.primary} />
+              <Text style={styles.loaderText}>Loading menu...</Text>
+            </View>
           ) : (
             <>
-              {recommendedProducts.length > 0 ? (
-                <>
-                  <View style={styles.sectionHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
-                        Recommended for you
-                      </Text>
-                      <Text style={[styles.sectionSubtitle, isDark && styles.sectionSubtitleDark]}>
-                        Best bets first
-                      </Text>
-                    </View>
-                  </View>
-
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recommendedRail}>
-                    {recommendedProducts.map((product) => (
-                      <RecommendedCard
-                        key={product.id}
-                        product={product}
-                        qty={cart.items[product.id]?.qty || 0}
-                        onAdd={() => addToCart(product)}
-                        onRemove={() => updateQty(product, -1)}
-                        theme={theme}
-                        service={activeService}
-                      />
-                    ))}
-                  </ScrollView>
-                </>
-              ) : null}
-
               <View style={styles.sectionHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.sectionTitle, isDark && styles.sectionTitleDark]}>
-                    {selectedCategory === 'All' ? 'Full menu' : selectedCategory}
-                  </Text>
-                  <Text style={[styles.sectionSubtitle, isDark && styles.sectionSubtitleDark]}>
-                    {visibleProducts.length} items
-                  </Text>
-                </View>
+                <Text style={styles.sectionTitle}>Recommended for you</Text>
+                <Text style={styles.sectionAction}>{products.length} items</Text>
               </View>
 
-              {visibleProducts.length === 0 ? (
-                <EmptyState
-                  dark={isDark}
-                  title="No matching items"
-                  subtitle="Try another search."
-                />
-              ) : (
-                visibleProducts.map((product) => (
-                  <MenuItemCard
-                    key={product.id}
-                    product={product}
-                    qty={cart.items[product.id]?.qty || 0}
-                    onAdd={() => addToCart(product)}
-                    onRemove={() => updateQty(product, -1)}
-                    theme={theme}
-                    service={activeService}
-                  />
-                ))
-              )}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredRail}>
+                {featuredProducts.map((item) => {
+                  const qty = Number(cart.items?.[item.id]?.qty || 0);
+
+                  return (
+                    <View key={item.id} style={styles.featuredCard}>
+                      <View
+                        style={[
+                          styles.featuredIconWrap,
+                          { backgroundColor: theme.primarySoft },
+                        ]}>
+                        <Ionicons name="sparkles-outline" size={18} color={theme.primary} />
+                      </View>
+                      <Text numberOfLines={2} style={styles.featuredTitle}>
+                        {item?.name}
+                      </Text>
+                      <Text style={styles.featuredPrice}>{money(item?.price)}</Text>
+                      {qty > 0 ? (
+                        <Text style={styles.featuredQty}>In cart · {qty}</Text>
+                      ) : (
+                        <Text style={styles.featuredHint}>Popular pick</Text>
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              {sections.map((section) => (
+                <View key={section.title} style={styles.menuSection}>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>{section.title}</Text>
+                    <Text style={styles.sectionAction}>{section.items.length} items</Text>
+                  </View>
+
+                  {section.items.length ? (
+                    section.items.map((item) => (
+                      <ProductCard
+                        key={item.id}
+                        item={item}
+                        service={activeService}
+                        theme={theme}
+                        qty={Number(cart.items?.[item.id]?.qty || 0)}
+                        onAdd={() => handleAdd(item)}
+                        onRemove={() => handleRemove(item)}
+                      />
+                    ))
+                  ) : (
+                    <View style={styles.emptyMenuCard}>
+                      <Text style={styles.emptyMenuTitle}>No items in this section yet</Text>
+                      <Text style={styles.emptyMenuSubtitle}>
+                        Try another tab or clear the search.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ))}
             </>
           )}
         </View>
       </ScrollView>
 
-      {sameVendorCart ? (
+      {cartCount > 0 ? (
         <TouchableOpacity
           activeOpacity={0.94}
-          style={[
-            styles.floatingCart,
-            { backgroundColor: theme.cartBg },
-            isDark && styles.floatingCartDark,
-          ]}
+          style={[styles.cartBar, { backgroundColor: cartBarBg }]}
           onPress={() => router.push('/cart')}>
           <View>
-            <Text style={[styles.floatingCartTitle, { color: isDark ? COLORS.text : '#ffffff' }]}>
-              {activeService === 'eatout' || activeService === 'scenes' ? 'Continue booking' : 'View cart'}
+            <Text style={[styles.cartBarTitle, { color: cartBarTextColor }]}>
+              {cartCount} items added
             </Text>
-            <Text style={[styles.floatingCartText, { color: isDark ? COLORS.text : '#ffffff' }]}>
-              {cartCount} items · {money(cartTotal)}
+            <Text style={[styles.cartBarSubtitle, { color: cartBarSubColor }]}>
+              View cart · {money(cartTotal)}
             </Text>
           </View>
-          <Ionicons name="arrow-forward" size={20} color={isDark ? COLORS.text : '#ffffff'} />
+          <Ionicons name="chevron-forward" size={20} color={cartBarTextColor} />
         </TouchableOpacity>
       ) : null}
     </SafeAreaView>
@@ -1002,737 +640,417 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-
-  centerWrap: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
+  scrollContent: {
+    paddingBottom: 100,
   },
-
-  hero: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
+  heroSection: {
+    paddingHorizontal: 18,
     paddingBottom: 28,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+  heroTopActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  roundIconButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroCard: {
+    borderRadius: 28,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
+  heroIdentityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 16,
+  },
+  logoChip: {
+    width: 68,
+    height: 68,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
     overflow: 'hidden',
   },
-  heroOrbOne: {
-    position: 'absolute',
-    right: -38,
-    top: -12,
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    opacity: 0.24,
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
-  heroOrbTwo: {
-    position: 'absolute',
-    left: -44,
-    bottom: -58,
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    opacity: 0.18,
-  },
-
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  topBarActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  heroIconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,251,246,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  heroContent: {
-    marginTop: 18,
-  },
-  heroBrandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 14,
-  },
-  heroBrandPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(255,251,246,0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-  },
-  heroBrandPillDark: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  heroBrandLogo: {
-    width: 20,
-    height: 20,
-  },
-  heroBrandLabel: {
-    color: '#ffffff',
-    fontSize: 11,
+  logoFallback: {
+    color: BrandPalette.text,
+    fontSize: 26,
     fontWeight: '900',
   },
-  heroBrandLabelDark: {
-    color: COLORS.text,
+  vendorTitle: {
+    fontSize: 26,
+    lineHeight: 30,
+    fontWeight: '900',
+    marginBottom: 6,
   },
-  heroMetaBadge: {
+  vendorSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  heroMetricsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 16,
+  },
+  metricPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderRadius: 999,
-    paddingHorizontal: 10,
+    backgroundColor: '#18A558',
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: 'rgba(255,251,246,0.92)',
   },
-  heroMetaBadgeDark: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
+  metricPillText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
-  heroMetaBadgeText: {
-    color: COLORS.text,
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  heroMetaBadgeTextDark: {
-    color: COLORS.text,
-  },
-  heroTitleRow: {
-    flexDirection: 'row',
-    gap: 14,
-    alignItems: 'center',
-  },
-  heroMonogram: {
-    width: 68,
-    height: 68,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 22,
-  },
-  heroMonogramText: {
-    color: '#ffffff',
-    fontSize: 24,
-    fontWeight: '900',
-  },
-  heroTitle: {
-    color: '#ffffff',
-    fontSize: 31,
-    fontWeight: '900',
-    lineHeight: 35,
-  },
-  heroSubtitle: {
-    marginTop: 6,
-    color: 'rgba(255,255,255,0.88)',
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 20,
-  },
-  heroAddress: {
-    marginTop: 4,
-    color: 'rgba(255,255,255,0.82)',
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  heroPillRow: {
-    marginTop: 16,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  infoPill: {
+  metricSoftPill: {
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  infoPillText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  heroMetaStrip: {
-    marginTop: 14,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,251,246,0.12)',
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-  },
-  heroMetaText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-
-  content: {
-    marginTop: -10,
-    backgroundColor: COLORS.page,
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
-    paddingHorizontal: 16,
-    paddingTop: 22,
-  },
-  contentDark: {
-    backgroundColor: COLORS.dark,
-  },
-
-  searchBar: {
-    minHeight: 58,
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    ...createShadow(0.1, 18, 8),
-  },
-  searchBarDark: {
-    borderColor: COLORS.darkBorder,
-  },
-  searchInput: {
-    flex: 1,
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  searchInputDark: {
-    color: '#ffffff',
-  },
-  noticeWrap: {
-    marginTop: 12,
-  },
-
-  warningBanner: {
-    marginTop: 12,
-    borderRadius: 20,
-    backgroundColor: COLORS.surfaceAlt,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  warningBannerDark: {
-    backgroundColor: COLORS.darkCard,
-    borderColor: COLORS.darkBorder,
-  },
-  warningText: {
-    flex: 1,
-    color: COLORS.text,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  warningTextDark: {
-    color: '#ffffff',
-  },
-
-  trustCard: {
-    marginTop: 12,
-    borderRadius: 22,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    ...createShadow(0.05, 12, 6),
-  },
-  trustCardDark: {
-    backgroundColor: COLORS.darkCard,
-    borderColor: COLORS.darkBorder,
-  },
-  trustHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-  },
-  trustTitle: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  trustTitleDark: {
-    color: '#ffffff',
-  },
-  trustPoint: {
-    color: COLORS.muted,
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  trustPointDark: {
-    color: COLORS.darkMuted,
-  },
-  couponCard: {
-    marginTop: 12,
-    borderRadius: 22,
-    backgroundColor: COLORS.primarySoft,
-    borderWidth: 1,
-    borderColor: '#F8C7CE',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    ...createShadow(0.05, 12, 6),
-  },
-  couponCardDark: {
-    backgroundColor: COLORS.darkCard,
-    borderColor: COLORS.darkBorder,
-  },
-  couponHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  couponTitle: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  couponTitleDark: {
-    color: '#ffffff',
-  },
-  couponText: {
-    marginTop: 6,
-    color: COLORS.muted,
+  metricSoftText: {
     fontSize: 12,
     fontWeight: '700',
-    lineHeight: 18,
   },
-  couponTextDark: {
-    color: COLORS.darkMuted,
-  },
-  reviewCard: {
-    marginTop: 12,
-    borderRadius: 22,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    ...createShadow(0.05, 12, 6),
-  },
-  reviewCardDark: {
-    backgroundColor: COLORS.darkCard,
-    borderColor: COLORS.darkBorder,
-  },
-  reviewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  reviewTitle: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  reviewTitleDark: {
-    color: '#ffffff',
-  },
-  reviewScore: {
-    color: COLORS.orange,
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  reviewScoreDark: {
-    color: '#ffffff',
-  },
-  reviewLine: {
-    marginTop: 6,
-    color: COLORS.muted,
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  reviewLineDark: {
-    color: COLORS.darkMuted,
-  },
-  membershipCard: {
-    marginTop: 12,
-    borderRadius: 22,
-    backgroundColor: COLORS.surfaceAlt,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    ...createShadow(0.05, 12, 6),
-  },
-  membershipCardDark: {
-    backgroundColor: COLORS.darkCard,
-    borderColor: COLORS.darkBorder,
-  },
-  membershipHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  membershipTitle: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  membershipTitleDark: {
-    color: '#ffffff',
-  },
-  membershipText: {
-    marginTop: 6,
-    color: COLORS.muted,
-    fontSize: 12,
-    fontWeight: '700',
-    lineHeight: 18,
-  },
-  membershipTextDark: {
-    color: COLORS.darkMuted,
-  },
-
-  savingsCard: {
-    marginTop: 12,
-    borderRadius: 22,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 14,
-    ...createShadow(0.05, 12, 6),
-  },
-  savingsCardDark: {
-    backgroundColor: COLORS.darkCard,
-    borderColor: COLORS.darkBorder,
-  },
-  savingsRow: {
+  offerBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 14,
   },
-  savingsIcon: {
+  offerLogoWrap: {
     width: 40,
     height: 40,
     borderRadius: 14,
+    backgroundColor: BrandPalette.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  savingsTitle: {
-    color: COLORS.text,
-    fontSize: 15,
+  offerLogo: {
+    width: 22,
+    height: 22,
+  },
+  offerTitle: {
+    color: BrandPalette.text,
+    fontSize: 14,
     fontWeight: '900',
+    marginBottom: 3,
   },
-  savingsTitleDark: {
-    color: '#ffffff',
-  },
-  savingsSubtitle: {
-    marginTop: 4,
-    color: COLORS.muted,
+  offerSubtitle: {
+    color: BrandPalette.textMuted,
     fontSize: 12,
     fontWeight: '600',
   },
-  savingsSubtitleDark: {
-    color: COLORS.darkMuted,
+  bodySection: {
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    gap: 16,
   },
-
-  categoryRail: {
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
-    paddingTop: 16,
-    paddingBottom: 6,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    ...createShadow(0.06, 12, 6),
+  },
+  searchInput: {
+    flex: 1,
+    color: BrandPalette.text,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  tabRow: {
+    gap: 10,
+    paddingBottom: 2,
   },
   categoryChip: {
     borderRadius: 999,
-    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  categoryChipDark: {
-    backgroundColor: COLORS.darkCard,
-    borderColor: COLORS.darkBorder,
+    borderColor: BrandPalette.border,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   categoryChipText: {
-    color: COLORS.text,
-    fontSize: 13,
+    color: BrandPalette.textMuted,
+    fontSize: 12,
     fontWeight: '800',
   },
-  categoryChipTextDark: {
-    color: '#ffffff',
-  },
-
-  sectionHeader: {
-    marginTop: 20,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 10,
-  },
-  sectionTitle: {
-    color: COLORS.text,
-    fontSize: 24,
-    fontWeight: '900',
-  },
-  sectionTitleDark: {
-    color: '#ffffff',
-  },
-  sectionSubtitle: {
-    marginTop: 4,
-    color: COLORS.muted,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  sectionSubtitleDark: {
-    color: COLORS.darkMuted,
-  },
-
-  recommendedRail: {
-    gap: 12,
-    paddingBottom: 4,
-  },
-  recommendedCard: {
-    width: 244,
-    borderRadius: 30,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 14,
-    ...createShadow(0.08, 16, 8),
-  },
-  recommendedCardDark: {
-    backgroundColor: COLORS.darkCard,
-    borderColor: COLORS.darkBorder,
-  },
-  recommendedVisual: {
-    height: 132,
-    borderRadius: 18,
+  loaderState: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    gap: 10,
+    paddingVertical: 36,
   },
-  recommendedEmoji: {
-    fontSize: 44,
-  },
-  productBadge: {
-    color: COLORS.orange,
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  productBadgeDark: {
-    color: '#ffffff',
-  },
-  recommendedName: {
-    marginTop: 6,
-    color: COLORS.text,
-    fontSize: 17,
-    fontWeight: '900',
-    lineHeight: 22,
-  },
-  recommendedNameDark: {
-    color: '#ffffff',
-  },
-  recommendedDesc: {
-    marginTop: 6,
-    color: COLORS.muted,
+  loaderText: {
+    color: BrandPalette.textMuted,
     fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
-    minHeight: 36,
+    fontWeight: '700',
   },
-  recommendedDescDark: {
-    color: COLORS.darkMuted,
-  },
-  recommendedFooter: {
-    marginTop: 12,
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    marginBottom: 12,
   },
-  recommendedPrice: {
-    color: COLORS.text,
-    fontSize: 18,
+  sectionTitle: {
+    color: BrandPalette.text,
+    fontSize: 20,
     fontWeight: '900',
   },
-  recommendedPriceDark: {
-    color: '#ffffff',
+  sectionAction: {
+    color: BrandPalette.primary,
+    fontSize: 12,
+    fontWeight: '800',
   },
-
-  menuCard: {
-    marginBottom: 14,
-    borderRadius: 28,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 14,
-    flexDirection: 'row',
+  featuredRail: {
     gap: 12,
-    ...createShadow(0.07, 14, 7),
   },
-  menuCardDark: {
-    backgroundColor: COLORS.darkCard,
-    borderColor: COLORS.darkBorder,
+  featuredCard: {
+    width: 154,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 14,
+    ...createShadow(0.06, 12, 6),
   },
-  menuContent: {
+  featuredIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  featuredTitle: {
+    color: BrandPalette.text,
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '800',
+    minHeight: 40,
+    marginBottom: 8,
+  },
+  featuredPrice: {
+    color: BrandPalette.text,
+    fontSize: 15,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  featuredQty: {
+    color: BrandPalette.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  featuredHint: {
+    color: BrandPalette.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  menuSection: {
+    gap: 12,
+  },
+  productCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 16,
+    flexDirection: 'row',
+    gap: 14,
+    ...createShadow(0.06, 14, 8),
+  },
+  productCopy: {
     flex: 1,
   },
-  menuName: {
-    marginTop: 6,
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '900',
-    lineHeight: 22,
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
   },
-  menuNameDark: {
-    color: '#ffffff',
+  tagPill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  menuDesc: {
-    marginTop: 6,
-    color: COLORS.muted,
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
+  tagPillText: {
+    fontSize: 11,
+    fontWeight: '800',
   },
-  menuDescDark: {
-    color: COLORS.darkMuted,
-  },
-  menuPrice: {
-    marginTop: 10,
-    color: COLORS.text,
+  productTitle: {
+    color: BrandPalette.text,
     fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  productDescription: {
+    color: BrandPalette.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  productPrice: {
+    color: BrandPalette.text,
+    fontSize: 15,
     fontWeight: '900',
   },
-  menuPriceDark: {
-    color: '#ffffff',
+  productPriceStrike: {
+    color: '#A0A0A0',
+    fontSize: 12,
+    fontWeight: '700',
+    textDecorationLine: 'line-through',
   },
-  menuActionCol: {
+  productVisualCol: {
     width: 112,
     alignItems: 'center',
   },
-  menuVisual: {
+  productImageWrap: {
     width: 112,
     height: 104,
     borderRadius: 18,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  productImage: {
+    width: '100%',
+    height: '100%',
+  },
+  productImageFallback: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
   },
-  menuEmoji: {
-    fontSize: 34,
-  },
-
   addButton: {
     minWidth: 92,
-    height: 40,
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: BrandPalette.primary,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 10,
   },
   addButtonText: {
+    color: BrandPalette.primary,
     fontSize: 13,
     fontWeight: '900',
   },
-
-  qtyWrap: {
+  qtyControl: {
     minWidth: 92,
-    height: 40,
-    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F3C9CB',
+    backgroundColor: '#FFF7F7',
+    overflow: 'hidden',
   },
   qtyAction: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 30,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  qtyText: {
-    fontSize: 13,
+  qtyValue: {
+    color: BrandPalette.text,
+    fontSize: 14,
     fontWeight: '900',
   },
-
-  feedbackCard: {
-    marginTop: 16,
-    borderRadius: 20,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingVertical: 26,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+  emptyMenuCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 18,
+    ...createShadow(0.05, 10, 5),
   },
-  feedbackCardDark: {
-    backgroundColor: COLORS.darkCard,
-    borderColor: COLORS.darkBorder,
-  },
-  feedbackTitle: {
-    color: COLORS.text,
-    fontSize: 16,
+  emptyMenuTitle: {
+    color: BrandPalette.text,
+    fontSize: 15,
     fontWeight: '800',
+    marginBottom: 5,
   },
-  feedbackTitleDark: {
-    color: '#ffffff',
+  emptyMenuSubtitle: {
+    color: BrandPalette.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
   },
-  feedbackSubtitle: {
-    color: COLORS.muted,
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  feedbackSubtitleDark: {
-    color: COLORS.darkMuted,
-  },
-
-  floatingCart: {
+  cartBar: {
     position: 'absolute',
     left: 16,
     right: 16,
-    bottom: 14,
-    borderRadius: 26,
+    bottom: 16,
+    borderRadius: 24,
     paddingHorizontal: 18,
     paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    ...createShadow(0.2, 20, 10),
+    ...createShadow(0.18, 18, 10),
   },
-  floatingCartDark: {},
-  floatingCartTitle: {
-    fontSize: 16,
+  cartBarTitle: {
+    fontSize: 15,
     fontWeight: '900',
+    marginBottom: 3,
   },
-  floatingCartText: {
-    marginTop: 4,
-    fontSize: 13,
+  cartBarSubtitle: {
+    fontSize: 12,
     fontWeight: '700',
   },
-
+  centerState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  centerTitle: {
+    color: BrandPalette.text,
+    fontSize: 22,
+    fontWeight: '900',
+    marginBottom: 16,
+  },
   primaryCta: {
-    marginTop: 14,
-    alignSelf: 'center',
+    backgroundColor: BrandPalette.primary,
     borderRadius: 16,
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 12,
   },
   primaryCtaText: {
-    fontSize: 15,
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '900',
   },
 });
