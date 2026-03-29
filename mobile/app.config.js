@@ -686,9 +686,6 @@ const expoConfig = {
         enabled: POSTHOG_ENABLED,
       },
     },
-    eas: {
-      projectId: EAS_PROJECT_ID || undefined,
-    },
     googleMaps: {
       apiKey: GOOGLE_MAPS_API_KEY,
     },
@@ -706,6 +703,9 @@ if (EXPO_OWNER) {
 }
 
 if (EAS_PROJECT_ID) {
+  expoConfig.extra.eas = {
+    projectId: EAS_PROJECT_ID,
+  };
   expoConfig.updates.url = `https://u.expo.dev/${EAS_PROJECT_ID}`;
 }
 
