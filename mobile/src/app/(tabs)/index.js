@@ -15,37 +15,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { BrandPalette, ConsumerServiceThemes, createShadow } from '@/constants/theme';
 import { buildApiUrl } from '../../config';
 import { useGrabBasket } from '../../../App';
-
-const PALETTE = {
-  page: '#FFF9F3',
-  surface: '#FFFFFF',
-  surfaceAlt: '#FFF6EC',
-  peach50: '#FFF7EE',
-  peach100: '#FFF0DE',
-  peach200: '#FFE5B4',
-  peach300: '#FFD8AA',
-  peach400: '#F4BC92',
-  peach500: '#E8956E',
-  peach600: '#D97651',
-  text: '#2F241C',
-  muted: '#756354',
-  subtle: '#A18C7B',
-  border: '#F2DDC7',
-  line: '#F4E6D7',
-  success: '#2E8B57',
-  successSoft: '#EAF7EF',
-  danger: '#D45454',
-  dangerSoft: '#FCE9E9',
-  brown: '#5A4333',
-  brownDark: '#3A2A20',
-  sceneBg: '#16110D',
-  sceneSurface: '#231B14',
-  sceneBorder: '#413226',
-  sceneText: '#FFF7F0',
-  sceneMuted: '#DCC5AF',
-};
+const PALETTE = BrandPalette;
 
 const SERVICE_TABS = [
   { key: 'food', label: 'Food', icon: 'fast-food-outline', hint: 'Everyday meals' },
@@ -54,60 +27,7 @@ const SERVICE_TABS = [
   { key: 'scenes', label: 'Scenes', icon: 'sparkles-outline', hint: 'Events & plans' },
 ];
 
-const THEMES = {
-  food: {
-    page: PALETTE.page,
-    hero: PALETTE.peach100,
-    heroSoft: PALETTE.peach50,
-    heroAccent: PALETTE.peach300,
-    heroText: PALETTE.text,
-    heroSub: PALETTE.muted,
-    searchPlaceholder: 'Search biryani, cake, dosa...',
-    bannerEyebrow: 'Freshly picked for today',
-    bannerTitle: 'Made for hungry moments',
-    bannerCopy: 'Better hierarchy, warmer visuals and stronger restaurant cards.',
-    statusBar: 'dark-content',
-  },
-  warehouse: {
-    page: '#FFFBF7',
-    hero: '#FFF0E0',
-    heroSoft: '#FFF8F1',
-    heroAccent: '#F7D1B0',
-    heroText: PALETTE.text,
-    heroSub: PALETTE.muted,
-    searchPlaceholder: 'Search fruits, dry fruits, dairy...',
-    bannerEyebrow: 'Essentials in minutes',
-    bannerTitle: 'Fast baskets, cleaner browsing',
-    bannerCopy: 'Promos, categories and quick add cards feel more premium now.',
-    statusBar: 'dark-content',
-  },
-  eatout: {
-    page: '#FFF8F4',
-    hero: '#FFEBDC',
-    heroSoft: '#FFF7F1',
-    heroAccent: '#F4C4A4',
-    heroText: PALETTE.text,
-    heroSub: PALETTE.muted,
-    searchPlaceholder: 'Search restaurant, area or vibe...',
-    bannerEyebrow: 'Plans made easier',
-    bannerTitle: 'Book tables without the clutter',
-    bannerCopy: 'Offer-led tiles and softer surfaces make dineout feel more polished.',
-    statusBar: 'dark-content',
-  },
-  scenes: {
-    page: PALETTE.sceneBg,
-    hero: PALETTE.sceneSurface,
-    heroSoft: '#2D2219',
-    heroAccent: '#5B4030',
-    heroText: PALETTE.sceneText,
-    heroSub: PALETTE.sceneMuted,
-    searchPlaceholder: 'Search events, creators, experiences...',
-    bannerEyebrow: 'Weekend energy',
-    bannerTitle: 'Plans worth stepping out for',
-    bannerCopy: 'Peach accents keep the brand cohesive even on dark surfaces.',
-    statusBar: 'light-content',
-  },
-};
+const THEMES = ConsumerServiceThemes;
 
 const FOOD_COLLECTIONS = [
   { key: 'top-rated', label: 'Top rated', icon: 'star-outline' },
@@ -1190,7 +1110,7 @@ const styles = StyleSheet.create({
   heroWrap: {
     paddingHorizontal: 18,
     paddingTop: 10,
-    paddingBottom: 22,
+    paddingBottom: 26,
     overflow: 'hidden',
   },
   heroOrbLarge: {
@@ -1214,7 +1134,7 @@ const styles = StyleSheet.create({
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 20,
   },
   locationRow: {
     flexDirection: 'row',
@@ -1237,8 +1157,8 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 21,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    backgroundColor: 'rgba(255,255,255,0.42)',
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1248,33 +1168,33 @@ const styles = StyleSheet.create({
   },
   serviceChip: {
     width: 152,
-    borderRadius: 22,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-    backgroundColor: 'rgba(255,255,255,0.65)',
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
   serviceChipDark: {
-    borderColor: PALETTE.sceneBorder,
+    borderColor: 'rgba(255,255,255,0.08)',
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   serviceChipActive: {
-    backgroundColor: PALETTE.peach600,
-    borderColor: PALETTE.peach600,
+    backgroundColor: PALETTE.primary,
+    borderColor: PALETTE.primary,
   },
   serviceChipActiveDark: {
-    backgroundColor: '#F0AA81',
-    borderColor: '#F0AA81',
+    backgroundColor: PALETTE.peach200,
+    borderColor: PALETTE.peach200,
   },
   serviceChipIcon: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: 'rgba(255,255,255,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1315,15 +1235,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    backgroundColor: '#FFFDF9',
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.04)',
+    borderColor: 'rgba(20,18,16,0.08)',
+    ...createShadow(0.08, 14, 6),
   },
   searchBarDark: {
-    backgroundColor: '#1D1712',
+    backgroundColor: '#231A16',
     borderColor: PALETTE.sceneBorder,
   },
   searchInput: {
@@ -1338,29 +1259,30 @@ const styles = StyleSheet.create({
   searchSideAction: {
     width: 52,
     height: 52,
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.04)',
-    backgroundColor: '#ffffff',
+    borderColor: 'rgba(20,18,16,0.08)',
+    backgroundColor: '#FFF8F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
   searchSideActionDark: {
-    backgroundColor: '#1D1712',
+    backgroundColor: '#231A16',
     borderColor: PALETTE.sceneBorder,
   },
   heroBanner: {
     marginTop: 16,
-    borderRadius: 24,
+    borderRadius: 28,
     paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 16,
+    paddingTop: 20,
+    paddingBottom: 18,
     overflow: 'hidden',
+    ...createShadow(0.1, 22, 10),
   },
   heroBannerLight: {
-    backgroundColor: 'rgba(255,255,255,0.72)',
+    backgroundColor: 'rgba(255,253,249,0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.04)',
+    borderColor: 'rgba(20,18,16,0.06)',
   },
   heroBannerDark: {
     backgroundColor: '#1D1712',
@@ -1439,8 +1361,8 @@ const styles = StyleSheet.create({
   },
   body: {
     paddingHorizontal: 18,
-    paddingTop: 16,
-    gap: 18,
+    paddingTop: 18,
+    gap: 20,
   },
   bodyDark: {
     backgroundColor: PALETTE.sceneBg,
@@ -1455,6 +1377,7 @@ const styles = StyleSheet.create({
     backgroundColor: PALETTE.surface,
     borderWidth: 1,
     borderColor: PALETTE.border,
+    ...createShadow(0.06, 14, 6),
   },
   basketBannerDark: {
     backgroundColor: '#1D1712',
@@ -1495,7 +1418,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    borderRadius: 16,
+    borderRadius: 18,
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: PALETTE.surface,
@@ -1507,12 +1430,12 @@ const styles = StyleSheet.create({
     borderColor: PALETTE.sceneBorder,
   },
   filterChipActive: {
-    backgroundColor: PALETTE.peach600,
-    borderColor: PALETTE.peach600,
+    backgroundColor: PALETTE.primary,
+    borderColor: PALETTE.primary,
   },
   filterChipActiveDark: {
-    backgroundColor: '#F0AA81',
-    borderColor: '#F0AA81',
+    backgroundColor: PALETTE.peach200,
+    borderColor: PALETTE.peach200,
   },
   filterChipLabel: {
     color: PALETTE.muted,
@@ -1725,10 +1648,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 14,
     padding: 14,
-    borderRadius: 22,
+    borderRadius: 24,
     backgroundColor: PALETTE.surface,
     borderWidth: 1,
     borderColor: PALETTE.border,
+    ...createShadow(0.06, 14, 6),
   },
   vendorListThumb: {
     width: 72,
@@ -1828,12 +1752,13 @@ const styles = StyleSheet.create({
   },
 
   quickTile: {
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 14,
     backgroundColor: PALETTE.surface,
     borderWidth: 1,
     borderColor: PALETTE.border,
     marginBottom: 10,
+    ...createShadow(0.05, 12, 6),
   },
   quickTileLarge: {
     paddingVertical: 18,
@@ -1874,10 +1799,11 @@ const styles = StyleSheet.create({
   dealCard: {
     width: 170,
     padding: 14,
-    borderRadius: 22,
+    borderRadius: 24,
     backgroundColor: PALETTE.surface,
     borderWidth: 1,
     borderColor: PALETTE.border,
+    ...createShadow(0.06, 14, 6),
   },
   dealVisual: {
     height: 96,
@@ -1936,15 +1862,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   addButton: {
-    borderRadius: 16,
-    paddingVertical: 10,
-    backgroundColor: PALETTE.peach50,
+    borderRadius: 18,
+    paddingVertical: 11,
+    backgroundColor: PALETTE.primarySoft,
     borderWidth: 1,
-    borderColor: PALETTE.border,
+    borderColor: '#F7C8CF',
     alignItems: 'center',
   },
   addButtonText: {
-    color: PALETTE.peach600,
+    color: PALETTE.primary,
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.6,
@@ -1957,6 +1883,7 @@ const styles = StyleSheet.create({
     borderColor: PALETTE.border,
     alignItems: 'center',
     gap: 10,
+    ...createShadow(0.05, 12, 6),
   },
   feedbackCardDark: {
     backgroundColor: '#1D1712',

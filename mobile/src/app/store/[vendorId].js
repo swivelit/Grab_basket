@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { BrandPalette, StoreServiceThemes, createShadow } from '@/constants/theme';
 import { useGrabBasket } from '../../../App';
 import InlineNoticeCard from '../../components/inline-notice-card';
 import { APP_ENV } from '../../config';
@@ -22,80 +23,27 @@ import { FEATURE_FLAGS } from '../../constants/feature-flags';
 import { ANALYTICS_EVENTS, ANALYTICS_TAXONOMY_VERSION } from '../../constants/analytics-taxonomy';
 
 const COLORS = {
-  page: '#f6f7fb',
-  card: '#ffffff',
-  text: '#111827',
-  muted: '#667085',
-  subtle: '#98a2b3',
-  border: '#e8ecf3',
-  success: '#119b56',
-  successSoft: '#e8f8ee',
-  orange: '#ff6d00',
-  orangeSoft: '#fff1e7',
-  yellow: '#ffcf33',
-  blue: '#0b57d0',
-  blueSoft: '#eaf2ff',
-  purple: '#6d28d9',
-  dark: '#050816',
-  darkCard: '#10182c',
-  darkBorder: '#1f2c48',
-  darkMuted: '#c7d2e8',
+  ...BrandPalette,
+  page: BrandPalette.page,
+  card: BrandPalette.surface,
+  text: BrandPalette.text,
+  muted: BrandPalette.textMuted,
+  subtle: BrandPalette.subtle,
+  border: BrandPalette.border,
+  success: BrandPalette.success,
+  successSoft: BrandPalette.successSoft,
+  orange: BrandPalette.primary,
+  orangeSoft: BrandPalette.primarySoft,
+  yellow: BrandPalette.peach200,
+  blue: BrandPalette.inkSoft,
+  blueSoft: '#F7EDE5',
+  purple: BrandPalette.primary,
+  dark: BrandPalette.sceneBg,
+  darkCard: BrandPalette.sceneSurface,
+  darkBorder: BrandPalette.sceneBorder,
+  darkMuted: BrandPalette.sceneMuted,
 };
-
-const SERVICE_THEME = {
-  food: {
-    page: '#f6f7fb',
-    hero: '#5b18cf',
-    heroAlt: '#7b36f1',
-    heroAccent: '#ffd84d',
-    primary: '#ff6d00',
-    primarySoft: '#fff1e7',
-    searchBg: '#ffffff',
-    textOnHero: '#ffffff',
-    pillBg: 'rgba(255,255,255,0.14)',
-    pillText: '#ffffff',
-    cartBg: '#111827',
-  },
-  warehouse: {
-    page: '#f7fbff',
-    hero: '#0a2f75',
-    heroAlt: '#1548a0',
-    heroAccent: '#cfe0ff',
-    primary: '#0b57d0',
-    primarySoft: '#edf4ff',
-    searchBg: '#ffffff',
-    textOnHero: '#ffffff',
-    pillBg: 'rgba(255,255,255,0.14)',
-    pillText: '#ffffff',
-    cartBg: '#0b57d0',
-  },
-  eatout: {
-    page: '#fbfbfd',
-    hero: '#5d21b5',
-    heroAlt: '#7f46e7',
-    heroAccent: '#ffd6ad',
-    primary: '#ff7a00',
-    primarySoft: '#fff3e8',
-    searchBg: '#ffffff',
-    textOnHero: '#ffffff',
-    pillBg: 'rgba(255,255,255,0.14)',
-    pillText: '#ffffff',
-    cartBg: '#111827',
-  },
-  scenes: {
-    page: '#050816',
-    hero: '#0d1222',
-    heroAlt: '#1a2440',
-    heroAccent: '#ff7cab',
-    primary: '#ffffff',
-    primarySoft: 'rgba(255,255,255,0.10)',
-    searchBg: '#10182c',
-    textOnHero: '#ffffff',
-    pillBg: 'rgba(255,255,255,0.10)',
-    pillText: '#ffffff',
-    cartBg: '#ffffff',
-  },
-};
+const SERVICE_THEME = StoreServiceThemes;
 
 function money(value) {
   return `₹${Number(value || 0).toFixed(0)}`;
@@ -1162,24 +1110,25 @@ const styles = StyleSheet.create({
   content: {
     marginTop: -10,
     backgroundColor: COLORS.page,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 18,
   },
   contentDark: {
     backgroundColor: COLORS.dark,
   },
 
   searchBar: {
-    minHeight: 56,
-    borderRadius: 18,
+    minHeight: 58,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    ...createShadow(0.08, 16, 8),
   },
   searchBarDark: {
     borderColor: COLORS.darkBorder,
@@ -1199,10 +1148,10 @@ const styles = StyleSheet.create({
 
   warningBanner: {
     marginTop: 12,
-    borderRadius: 16,
-    backgroundColor: '#fff7ed',
+    borderRadius: 18,
+    backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
-    borderColor: '#fed7aa',
+    borderColor: COLORS.border,
     paddingHorizontal: 14,
     paddingVertical: 13,
     flexDirection: 'row',
@@ -1225,12 +1174,13 @@ const styles = StyleSheet.create({
 
   trustCard: {
     marginTop: 12,
-    borderRadius: 16,
+    borderRadius: 18,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 14,
     paddingVertical: 13,
+    ...createShadow(0.05, 12, 6),
   },
   trustCardDark: {
     backgroundColor: COLORS.darkCard,
@@ -1261,12 +1211,13 @@ const styles = StyleSheet.create({
   },
   couponCard: {
     marginTop: 12,
-    borderRadius: 16,
-    backgroundColor: COLORS.orangeSoft,
+    borderRadius: 18,
+    backgroundColor: COLORS.primarySoft,
     borderWidth: 1,
-    borderColor: '#ffd5b6',
+    borderColor: '#F8C7CE',
     paddingHorizontal: 14,
     paddingVertical: 12,
+    ...createShadow(0.05, 12, 6),
   },
   couponCardDark: {
     backgroundColor: COLORS.darkCard,
@@ -1298,12 +1249,13 @@ const styles = StyleSheet.create({
   },
   reviewCard: {
     marginTop: 12,
-    borderRadius: 16,
+    borderRadius: 18,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 14,
     paddingVertical: 12,
+    ...createShadow(0.05, 12, 6),
   },
   reviewCardDark: {
     backgroundColor: COLORS.darkCard,
@@ -1343,12 +1295,13 @@ const styles = StyleSheet.create({
   },
   membershipCard: {
     marginTop: 12,
-    borderRadius: 16,
-    backgroundColor: COLORS.blueSoft,
+    borderRadius: 18,
+    backgroundColor: '#F7EDE5',
     borderWidth: 1,
-    borderColor: '#cddfff',
+    borderColor: COLORS.border,
     paddingHorizontal: 14,
     paddingVertical: 12,
+    ...createShadow(0.05, 12, 6),
   },
   membershipCardDark: {
     backgroundColor: COLORS.darkCard,
@@ -1380,11 +1333,12 @@ const styles = StyleSheet.create({
 
   savingsCard: {
     marginTop: 12,
-    borderRadius: 18,
+    borderRadius: 20,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 14,
+    ...createShadow(0.05, 12, 6),
   },
   savingsCardDark: {
     backgroundColor: COLORS.darkCard,
@@ -1430,8 +1384,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
   },
   categoryChipDark: {
     backgroundColor: COLORS.darkCard,
@@ -1477,11 +1431,12 @@ const styles = StyleSheet.create({
   },
   recommendedCard: {
     width: 244,
-    borderRadius: 24,
+    borderRadius: 26,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 14,
+    ...createShadow(0.06, 14, 8),
   },
   recommendedCardDark: {
     backgroundColor: COLORS.darkCard,
@@ -1544,13 +1499,14 @@ const styles = StyleSheet.create({
 
   menuCard: {
     marginBottom: 14,
-    borderRadius: 22,
+    borderRadius: 24,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 14,
     flexDirection: 'row',
     gap: 12,
+    ...createShadow(0.05, 12, 6),
   },
   menuCardDark: {
     backgroundColor: COLORS.darkCard,
@@ -1606,8 +1562,8 @@ const styles = StyleSheet.create({
 
   addButton: {
     minWidth: 92,
-    height: 38,
-    borderRadius: 12,
+    height: 40,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1619,8 +1575,8 @@ const styles = StyleSheet.create({
 
   qtyWrap: {
     minWidth: 92,
-    height: 38,
-    borderRadius: 12,
+    height: 40,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1677,17 +1633,13 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     bottom: 14,
-    borderRadius: 22,
+    borderRadius: 24,
     paddingHorizontal: 18,
     paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 14,
+    ...createShadow(0.18, 18, 8),
   },
   floatingCartDark: {},
   floatingCartTitle: {

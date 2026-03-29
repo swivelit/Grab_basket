@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { BrandPalette, ConsumerServiceThemes, createShadow } from '@/constants/theme';
 
 import { useCachedQuery } from '@/lib/query-cache';
 import { useGrabBasket } from '../../../App';
@@ -22,58 +23,55 @@ const CACHE_TIME_MS = 20 * 60 * 1000;
 const DEBOUNCE_MS = 280;
 
 const COLORS = {
-  page: '#f6f7fb',
-  pageDark: '#081120',
-  card: '#ffffff',
-  cardDark: '#101a2d',
-  border: '#e8ecf3',
-  borderDark: '#22314f',
-  text: '#101828',
-  textMuted: '#667085',
-  textSubtle: '#98a2b3',
-  textDark: '#ffffff',
-  textMutedDark: '#b8c4dc',
-  orange: '#ff6d00',
-  orangeSoft: '#fff1e7',
-  blue: '#0b57d0',
-  green: '#119b56',
-  danger: '#ef4444',
-  pill: '#f7f8fb',
-  pillDark: '#16233c',
+  ...BrandPalette,
+  page: BrandPalette.page,
+  pageDark: BrandPalette.sceneBg,
+  card: BrandPalette.surface,
+  cardDark: BrandPalette.sceneSurface,
+  border: BrandPalette.border,
+  borderDark: BrandPalette.sceneBorder,
+  text: BrandPalette.text,
+  textMuted: BrandPalette.textMuted,
+  textSubtle: BrandPalette.subtle,
+  textDark: BrandPalette.sceneText,
+  textMutedDark: BrandPalette.sceneMuted,
+  orange: BrandPalette.primary,
+  orangeSoft: BrandPalette.primarySoft,
+  blue: BrandPalette.inkSoft,
+  green: BrandPalette.success,
+  danger: BrandPalette.danger,
+  pill: '#FFF8F0',
+  pillDark: BrandPalette.darkSurfaceAlt,
 };
 
 const THEMES = {
   food: {
-    page: COLORS.page,
-    hero: '#fff4d7',
-    accent: '#ffd95e',
+    ...ConsumerServiceThemes.food,
     title: 'Explore food',
-    subtitle: 'Search-first restaurant discovery for the consumer app.',
+    subtitle: 'Search-first restaurant discovery with a warmer marketplace feel.',
     placeholder: 'Search cuisines, dishes, restaurants',
+    accent: BrandPalette.peach200,
   },
   warehouse: {
-    page: '#f7fbff',
-    hero: '#eaf2ff',
-    accent: '#b7d2ff',
+    ...ConsumerServiceThemes.warehouse,
     title: 'Explore instamart',
-    subtitle: 'Faster grocery navigation with smart aisle shortcuts.',
+    subtitle: 'Faster grocery browsing with cleaner aisle and deal discovery.',
     placeholder: 'Search categories, brands, essentials',
+    accent: BrandPalette.primary,
   },
   eatout: {
-    page: '#fbfbfd',
-    hero: '#fff2e4',
-    accent: '#ffd1a8',
+    ...ConsumerServiceThemes.eatout,
     title: 'Explore dineout',
-    subtitle: 'Dining shortcuts, premium filters and better intent capture.',
+    subtitle: 'Dining shortcuts, premium filters and stronger intent capture.',
     placeholder: 'Search restaurants, vibe, area',
+    accent: '#E8A46C',
   },
   scenes: {
-    page: COLORS.pageDark,
-    hero: '#121a2e',
-    accent: '#223150',
+    ...ConsumerServiceThemes.scenes,
     title: 'Explore scenes',
-    subtitle: 'Event and experience discovery with a premium dark surface.',
+    subtitle: 'Event and experience discovery with a branded editorial dark surface.',
     placeholder: 'Search events, creators, experiences',
+    accent: '#5C3D31',
   },
 };
 
@@ -669,9 +667,18 @@ function SuggestionChip({ label, onPress, dark = false }) {
 }
 
 function VendorCard({ vendor, service, favorite, onToggleFavorite, onPress, dark = false }) {
+  const visualColor =
+    service === 'scenes'
+      ? '#2C221D'
+      : service === 'warehouse'
+        ? '#F6E6CB'
+        : service === 'eatout'
+          ? '#EEDBCC'
+          : COLORS.primary;
+
   return (
     <TouchableOpacity activeOpacity={0.94} onPress={onPress} style={[styles.vendorCard, dark && styles.vendorCardDark]}>
-      <View style={[styles.vendorVisual, { backgroundColor: service === 'scenes' ? '#1d2945' : COLORS.orange }]}>
+      <View style={[styles.vendorVisual, { backgroundColor: visualColor }]}>
         <View style={styles.vendorTopRow}>
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{getVendorBadge(vendor, service)}</Text>
@@ -1061,7 +1068,7 @@ const styles = StyleSheet.create({
 
   body: {
     paddingHorizontal: 18,
-    paddingTop: 16,
+    paddingTop: 18,
     backgroundColor: COLORS.page,
   },
   bodyDark: {
@@ -1103,16 +1110,17 @@ const styles = StyleSheet.create({
   },
 
   searchBar: {
-    minHeight: 54,
-    borderRadius: 18,
-    backgroundColor: '#ffffff',
+    minHeight: 58,
+    borderRadius: 22,
+    backgroundColor: '#FFFDF9',
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     marginBottom: 12,
+    ...createShadow(0.08, 14, 6),
   },
   searchBarDark: {
     backgroundColor: COLORS.cardDark,
@@ -1131,9 +1139,9 @@ const styles = StyleSheet.create({
   metaBanner: {
     minHeight: 40,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.72)',
+    backgroundColor: 'rgba(255,253,249,0.94)',
     borderWidth: 1,
-    borderColor: 'rgba(16,24,40,0.06)',
+    borderColor: 'rgba(20,18,16,0.06)',
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1177,7 +1185,7 @@ const styles = StyleSheet.create({
   filterChip: {
     minHeight: 38,
     paddingHorizontal: 14,
-    borderRadius: 19,
+    borderRadius: 20,
     backgroundColor: COLORS.pill,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1190,8 +1198,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.borderDark,
   },
   filterChipActive: {
-    backgroundColor: COLORS.orange,
-    borderColor: COLORS.orange,
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   filterChipText: {
     color: COLORS.text,
@@ -1219,8 +1227,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.borderDark,
   },
   sortChipActive: {
-    backgroundColor: COLORS.blue,
-    borderColor: COLORS.blue,
+    backgroundColor: COLORS.inkSoft,
+    borderColor: COLORS.inkSoft,
   },
   sortChipText: {
     color: COLORS.text,
@@ -1270,6 +1278,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
     marginBottom: 18,
+    ...createShadow(0.05, 12, 6),
   },
   loadingCardDark: {
     backgroundColor: COLORS.cardDark,
@@ -1296,6 +1305,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     gap: 8,
     marginBottom: 18,
+    ...createShadow(0.05, 12, 6),
   },
   emptyStateDark: {
     backgroundColor: COLORS.cardDark,
@@ -1323,11 +1333,12 @@ const styles = StyleSheet.create({
 
   vendorCard: {
     width: 220,
-    borderRadius: 22,
+    borderRadius: 24,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 12,
+    ...createShadow(0.06, 14, 6),
   },
   vendorCardDark: {
     backgroundColor: COLORS.cardDark,
@@ -1380,11 +1391,12 @@ const styles = StyleSheet.create({
 
   dealCard: {
     width: 138,
-    borderRadius: 20,
+    borderRadius: 22,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 12,
+    ...createShadow(0.06, 14, 6),
   },
   dealCardDark: {
     backgroundColor: COLORS.cardDark,
@@ -1393,7 +1405,7 @@ const styles = StyleSheet.create({
   dealVisual: {
     height: 78,
     borderRadius: 16,
-    backgroundColor: COLORS.orangeSoft,
+    backgroundColor: COLORS.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
@@ -1402,7 +1414,7 @@ const styles = StyleSheet.create({
     fontSize: 30,
   },
   dealPrice: {
-    color: COLORS.orange,
+    color: COLORS.primary,
     fontSize: 14,
     fontWeight: '900',
     marginTop: 8,
@@ -1410,11 +1422,12 @@ const styles = StyleSheet.create({
 
   eventCard: {
     width: 240,
-    borderRadius: 22,
+    borderRadius: 24,
     backgroundColor: COLORS.cardDark,
     borderWidth: 1,
     borderColor: COLORS.borderDark,
     padding: 12,
+    ...createShadow(0.14, 16, 8),
   },
   eventVisual: {
     height: 132,
