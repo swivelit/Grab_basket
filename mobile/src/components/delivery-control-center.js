@@ -126,7 +126,7 @@ function getStatusTone(status = '') {
 
 function summarizeOrder(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  if (!items.length) return 'No items added yet';
+  if (!items.length) return 'No items';
 
   const first = items[0];
   const extra = Math.max(0, items.length - 1);
@@ -621,7 +621,7 @@ export default function DeliveryControlCenter() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshEverything} />}>
         <View style={styles.feedbackStack}>
           <InlineErrorCard
-            title="Delivery control issue"
+            title="Rider issue"
             message={inlineError || getErrorMessage(statusQuery.error || ordersQuery.error || vendorQuery.error, '')}
             onRetry={refreshEverything}
             onDismiss={clearError}
@@ -634,17 +634,14 @@ export default function DeliveryControlCenter() {
           />
         </View>
         <View style={styles.screenHeader}>
-          <Text style={styles.eyebrow}>Grab Basket Delivery App</Text>
-          <Text style={styles.screenTitle}>Control center</Text>
-          <Text style={styles.screenSubtitle}>
-            Push assignment handling, live GPS tracking, unified shared route intelligence, filters,
-            cached queries, analytics-ready delivery flows.
-          </Text>
+          <Text style={styles.eyebrow}>Grab Basket Rider</Text>
+          <Text style={styles.screenTitle}>Rider hub</Text>
+          <Text style={styles.screenSubtitle}>Track, route, deliver.</Text>
         </View>
 
         <SectionCard
-          title="Live delivery tracking"
-          subtitle="This delivery screen now uses the exact same shared route intelligence component as the customer and seller apps, so route geometry, ETA, fallback handling, and leg logic stay locked together."
+          title="Live route"
+          subtitle={activeOrder ? `Order #${activeOrder.id}` : 'No active order'}
           right={
             <View
               style={[
@@ -673,37 +670,37 @@ export default function DeliveryControlCenter() {
             riderDescription={
               latestLocation
                 ? `Updated ${formatDateTime(latestLocation.created_at)}`
-                : 'No rider location synced yet'
+                : 'No location ping'
             }
-            emptyTitle="Live route preview unavailable"
-            emptySubtitle="Pickup, rider, and customer route details will appear here when an active order has valid coordinates."
-            webTitle="Map preview is only available on iOS and Android."
-            webSubtitle="The rider app can still open the active stop in the installed maps application."
-            routeUnavailableMessage="Pickup or drop coordinates are not available for this order yet."
+            emptyTitle="Route unavailable"
+            emptySubtitle="Pickup and drop will appear here."
+            webTitle="Map preview not available on web."
+            webSubtitle="Open the stop in maps instead."
+            routeUnavailableMessage="Pickup or drop is missing."
           />
 
           <View style={styles.metaList}>
-            <MetaLine icon="locate-outline" label={`Foreground permission: ${foregroundPermission}`} />
-            <MetaLine icon="navigate-outline" label={`Background permission: ${backgroundPermission}`} />
+            <MetaLine icon="locate-outline" label={`Foreground: ${foregroundPermission}`} />
+            <MetaLine icon="navigate-outline" label={`Background: ${backgroundPermission}`} />
             <MetaLine
               icon="time-outline"
               label={
                 latestLocation
-                  ? `Last rider ping: ${formatDateTime(latestLocation.created_at)}`
-                  : 'No rider location synced yet'
+                  ? `Last ping · ${formatDateTime(latestLocation.created_at)}`
+                  : 'No location ping'
               }
             />
             <MetaLine
               icon="bag-check-outline"
               label={
                 activeOrder
-                  ? `Current active order: #${activeOrder.id} · ${formatStatus(activeOrder.status)}`
-                  : 'No active order assigned right now'
+                  ? `Active order · #${activeOrder.id} · ${formatStatus(activeOrder.status)}`
+                  : 'No active order'
               }
             />
             <MetaLine
               icon="storefront-outline"
-              label={vendorQuery.data?.name || 'Vendor details will appear when an active order is loaded'}
+              label={vendorQuery.data?.name || 'Store pending'}
             />
           </View>
 
@@ -726,7 +723,7 @@ export default function DeliveryControlCenter() {
 
           <View style={styles.buttonRow}>
             <PrimaryButton
-              label="Request permissions"
+              label="Permissions"
               icon="shield-checkmark-outline"
               tone="muted"
               disabled={working}
@@ -747,16 +744,16 @@ export default function DeliveryControlCenter() {
         </SectionCard>
 
         <SectionCard
-          title="Assignment overview"
-          subtitle="Push order assignment is already wired; this screen shows the same live assignment state from the backend.">
+          title="Today"
+          subtitle="">
           <View style={styles.kpiGrid}>
             <View style={styles.kpiTile}>
               <Text style={styles.kpiValue}>{Number(summary.active_order_count || 0)}</Text>
-              <Text style={styles.kpiLabel}>Active orders</Text>
+              <Text style={styles.kpiLabel}>Active</Text>
             </View>
             <View style={styles.kpiTile}>
               <Text style={styles.kpiValue}>{Number(summary.assigned_order_count || 0)}</Text>
-              <Text style={styles.kpiLabel}>Pickup queue</Text>
+              <Text style={styles.kpiLabel}>Pickup</Text>
             </View>
             <View style={styles.kpiTile}>
               <Text style={styles.kpiValue}>{Number(summary.delivered_order_count || 0)}</Text>
@@ -764,7 +761,7 @@ export default function DeliveryControlCenter() {
             </View>
             <View style={styles.kpiTile}>
               <Text style={styles.kpiValue}>{money(summary.cod_cash_collected || 0)}</Text>
-              <Text style={styles.kpiLabel}>COD collected</Text>
+              <Text style={styles.kpiLabel}>COD</Text>
             </View>
           </View>
 
@@ -784,19 +781,19 @@ export default function DeliveryControlCenter() {
                 { color: availabilityLocked ? COLORS.warning : COLORS.success },
               ]}>
               {availabilityLocked
-                ? 'Partner availability is locked while an active trip is running.'
-                : 'No active trip is locking availability right now.'}
+                ? 'Availability locked during trip'
+                : 'Ready for new trips'}
             </Text>
           </View>
         </SectionCard>
 
         <SectionCard
-          title="Search, filters, and cached queue"
-          subtitle="This uses stale-time and cache-time query behavior so the list feels react-query style without a backend hammer.">
+          title="Queue"
+          subtitle="">
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Search order id, status, payment, items..."
+            placeholder="Search"
             placeholderTextColor={COLORS.subtle}
             style={styles.searchInput}
           />
@@ -816,7 +813,7 @@ export default function DeliveryControlCenter() {
           {loading ? (
             <View style={styles.loaderWrap}>
               <ActivityIndicator color={COLORS.brand} />
-              <Text style={styles.loaderText}>Loading delivery queue…</Text>
+              <Text style={styles.loaderText}>Loading queue…</Text>
             </View>
           ) : visibleOrders.length ? (
             <View style={styles.orderList}>
@@ -834,10 +831,8 @@ export default function DeliveryControlCenter() {
           ) : (
             <View style={styles.emptyState}>
               <Ionicons name="search-outline" size={24} color={COLORS.brand} />
-              <Text style={styles.emptyTitle}>No orders match this view</Text>
-              <Text style={styles.emptySubtitle}>
-                Try a different filter, or pull to refresh to fetch a newer queue snapshot.
-              </Text>
+              <Text style={styles.emptyTitle}>No matching orders</Text>
+              <Text style={styles.emptySubtitle}>Try another filter</Text>
             </View>
           )}
         </SectionCard>

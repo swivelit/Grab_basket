@@ -106,15 +106,15 @@ function getDeliveryLabel(vendor, service = 'food') {
 
 function getHeroSubtitle(vendor, service = 'food') {
   if (service === 'warehouse') {
-    return vendor?.description || 'Quick grocery delivery, daily essentials and faster reorders.';
+    return vendor?.description || 'Fresh essentials';
   }
   if (service === 'eatout') {
-    return vendor?.description || 'Bill offers, table booking and dine-in discovery.';
+    return vendor?.description || 'Book and save';
   }
   if (service === 'scenes') {
-    return vendor?.description || 'Events, experiences and bookable plans around you.';
+    return vendor?.description || 'Live plans';
   }
-  return vendor?.description || 'Popular local store with fast delivery and strong value.';
+  return vendor?.description || 'Local favorite';
 }
 
 function getVendorImage(vendor) {
@@ -128,11 +128,11 @@ function getTrustSignals(vendor) {
   const ratingCount = Number(vendor?.total_ratings || 0);
 
   if (ratingCount >= 100) signals.push(`${ratingCount}+ verified ratings`);
-  if (String(vendor?.gstin || '').trim()) signals.push('GST verified merchant');
+  if (String(vendor?.gstin || '').trim()) signals.push('GST verified');
   if (String(vendor?.support_phone || '').trim() || String(vendor?.support_email || '').trim()) {
-    signals.push('Help & refund support available');
+    signals.push('Support available');
   }
-  if (vendor?.can_deliver !== false) signals.push('Reliable fulfillment zone');
+  if (vendor?.can_deliver !== false) signals.push('Delivery available');
 
   return signals.slice(0, 3);
 }
@@ -142,21 +142,21 @@ function getReviewHighlights(vendor) {
   const rating = Number(vendor?.avg_rating || 0);
   const ratingCount = Number(vendor?.total_ratings || 0);
 
-  if (rating >= 4.5) base.push('Customers praise consistent quality and packing.');
-  if (ratingCount >= 200) base.push('Large repeat-customer base with strong trust signals.');
-  if (vendor?.is_busy) base.push('High demand right now — popular pick this hour.');
-  if (vendor?.open_now === false) base.push('Currently closed, but reviews are visible for confidence.');
-  if (base.length === 0) base.push('Be first to review after your order to help future customers.');
+  if (rating >= 4.5) base.push('Consistent quality');
+  if (ratingCount >= 200) base.push('Strong repeat orders');
+  if (vendor?.is_busy) base.push('Popular right now');
+  if (vendor?.open_now === false) base.push('Reviews still available');
+  if (base.length === 0) base.push('New on Grab Basket');
 
   return base.slice(0, 2);
 }
 
 function getCouponMessage(vendor, service = 'food') {
-  if (service === 'eatout') return 'Use code TABLE25 for up to 25% off on bill payments.';
-  if (service === 'warehouse') return 'Use code MARTSAVE for free delivery on eligible baskets.';
-  if (service === 'scenes') return 'Use code SCENE20 to unlock early-bird passes.';
-  if (Number(vendor?.total_ratings || 0) >= 150) return 'Use code TRUST30 for up to ₹120 off.';
-  return 'Use code FIRSTTRUST for a welcome discount on this store.';
+  if (service === 'eatout') return 'TABLE25 · Up to 25% off';
+  if (service === 'warehouse') return 'MARTSAVE · Free delivery';
+  if (service === 'scenes') return 'SCENE20 · Early-bird offer';
+  if (Number(vendor?.total_ratings || 0) >= 150) return 'TRUST30 · Save up to ₹120';
+  return 'FIRSTTRUST · Welcome offer';
 }
 
 function getProductBadge(product, service = 'food') {
@@ -329,9 +329,9 @@ function buildPersonalizationProfile(orderHistory = [], vendor) {
 
 function getLoyaltyCopy(profile) {
   if (!FEATURE_FLAGS.loyaltyMembership) return '';
-  if ((profile?.vendorRepeatScore || 0) >= 5) return 'GB Plus Gold: extra perks unlocked for this merchant.';
-  if ((profile?.vendorRepeatScore || 0) >= 2) return 'GB Plus Silver: add one more order to unlock larger rewards.';
-  return 'Join GB Plus for member-only pricing, support priority, and reorder cashback.';
+  if ((profile?.vendorRepeatScore || 0) >= 5) return 'Gold perks unlocked';
+  if ((profile?.vendorRepeatScore || 0) >= 2) return 'Silver perks live';
+  return 'Join for member pricing';
 }
 
 function LoadingState({ dark = false, label = 'Loading...' }) {
@@ -408,7 +408,7 @@ function RecommendedCard({ product, qty, onAdd, onRemove, theme, service }) {
         {product?.name}
       </Text>
       <Text style={[styles.recommendedDesc, dark && styles.recommendedDescDark]} numberOfLines={2}>
-        {product?.description || 'Curated pick from this store'}
+        {product?.description || 'Popular pick'}
       </Text>
       <View style={styles.recommendedFooter}>
         <Text style={[styles.recommendedPrice, dark && styles.recommendedPriceDark]}>
@@ -441,7 +441,7 @@ function MenuItemCard({ product, qty, onAdd, onRemove, theme, service }) {
           {product?.name}
         </Text>
         <Text style={[styles.menuDesc, dark && styles.menuDescDark]} numberOfLines={2}>
-          {product?.description || 'Popular choice from this store'}
+          {product?.description || 'Popular choice'}
         </Text>
         <Text style={[styles.menuPrice, dark && styles.menuPriceDark]}>
           {money(product?.price)}
@@ -677,7 +677,7 @@ export default function VendorDetailsScreen() {
               <View style={[styles.heroBrandPill, isDark && styles.heroBrandPillDark]}>
                 <Image source={BRAND_LOGO} style={styles.heroBrandLogo} contentFit="contain" />
                 <Text style={[styles.heroBrandLabel, isDark && styles.heroBrandLabelDark]}>
-                  Grab Basket merchant
+                  GB
                 </Text>
               </View>
               <View style={[styles.heroMetaBadge, isDark && styles.heroMetaBadgeDark]}>
@@ -687,7 +687,7 @@ export default function VendorDetailsScreen() {
                   color={isDark ? COLORS.text : theme.heroAccent}
                 />
                 <Text style={[styles.heroMetaBadgeText, isDark && styles.heroMetaBadgeTextDark]}>
-                  Curated details
+                  Trust
                 </Text>
               </View>
             </View>
@@ -707,7 +707,7 @@ export default function VendorDetailsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.heroTitle}>{vendor.name}</Text>
                 <Text style={styles.heroSubtitle}>{getHeroSubtitle(vendor, activeService)}</Text>
-                {vendor?.address ? <Text style={styles.heroAddress}>{vendor.address}</Text> : null}
+                {vendor?.address ? <Text style={styles.heroAddress} numberOfLines={1}>{vendor.address}</Text> : null}
               </View>
             </View>
 
@@ -715,7 +715,7 @@ export default function VendorDetailsScreen() {
               <InfoPill text={`${getVendorRating(vendor)} ★ rated`} theme={theme} />
               <InfoPill text={estimateEta(vendor, activeService)} theme={theme} />
               <InfoPill text={getDeliveryLabel(vendor, activeService)} theme={theme} />
-              <InfoPill text={vendor?.open_now ? 'Open now' : 'Store info'} theme={theme} />
+              <InfoPill text={vendor?.open_now ? 'Open' : 'Closed'} theme={theme} />
               {vendor?.distance_km != null ? (
                 <InfoPill text={`${Number(vendor.distance_km).toFixed(1)} km`} theme={theme} />
               ) : null}
@@ -724,12 +724,12 @@ export default function VendorDetailsScreen() {
             <View style={styles.heroMetaStrip}>
               <Text style={styles.heroMetaText}>
                 {activeService === 'eatout'
-                  ? 'Reserve-ready · Bill offers available'
+                  ? 'Book now · Bill offers'
                   : activeService === 'warehouse'
-                    ? 'Delivery in minutes · Fresh essentials'
+                    ? 'Fast delivery · Fresh essentials'
                     : activeService === 'scenes'
-                      ? 'Live experiences · Instant confirmation'
-                      : 'Fast delivery · Popular near you'}
+                      ? 'Live plans · Instant confirm'
+                      : 'Fast delivery · Popular now'}
               </Text>
             </View>
           </View>
@@ -777,35 +777,35 @@ export default function VendorDetailsScreen() {
                 color={isDark ? '#ffffff' : theme.primary}
               />
               <Text style={[styles.warningText, isDark && styles.warningTextDark]}>
-                Adding items here will replace the basket from your other store.
+                Basket will switch to this store.
               </Text>
             </View>
           ) : null}
 
           {FEATURE_FLAGS.premiumTrustCards ? (
             <View style={[styles.trustCard, isDark && styles.trustCardDark]}>
-            <View style={styles.trustHeaderRow}>
-              <Ionicons
-                name="shield-checkmark-outline"
-                size={17}
-                color={isDark ? '#ffffff' : theme.primary}
-              />
-              <Text style={[styles.trustTitle, isDark && styles.trustTitleDark]}>
-                Trust & transparency
-              </Text>
-            </View>
+              <View style={styles.trustHeaderRow}>
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={17}
+                  color={isDark ? '#ffffff' : theme.primary}
+                />
+                <Text style={[styles.trustTitle, isDark && styles.trustTitleDark]}>
+                  Trust & transparency
+                </Text>
+              </View>
 
-            {getTrustSignals(vendor).map((signal) => (
-              <Text key={signal} style={[styles.trustPoint, isDark && styles.trustPointDark]}>
-                • {signal}
-              </Text>
-            ))}
+              {getTrustSignals(vendor).map((signal) => (
+                <Text key={signal} style={[styles.trustPoint, isDark && styles.trustPointDark]}>
+                  • {signal}
+                </Text>
+              ))}
             </View>
           ) : null}
 
           <View style={[styles.couponCard, isDark && styles.couponCardDark]}>
             <View style={styles.couponHeader}>
-              <Text style={[styles.couponTitle, isDark && styles.couponTitleDark]}>Offers & coupons</Text>
+                <Text style={[styles.couponTitle, isDark && styles.couponTitleDark]}>Offers</Text>
               <Ionicons name="pricetags-outline" size={16} color={isDark ? '#ffffff' : theme.primary} />
             </View>
             <Text style={[styles.couponText, isDark && styles.couponTextDark]}>
@@ -817,7 +817,7 @@ export default function VendorDetailsScreen() {
             <View style={[styles.membershipCard, isDark && styles.membershipCardDark]}>
               <View style={styles.membershipHeader}>
                 <Ionicons name="diamond-outline" size={16} color={isDark ? '#ffffff' : theme.primary} />
-                <Text style={[styles.membershipTitle, isDark && styles.membershipTitleDark]}>GB Plus membership</Text>
+                <Text style={[styles.membershipTitle, isDark && styles.membershipTitleDark]}>GB Plus</Text>
               </View>
               <Text style={[styles.membershipText, isDark && styles.membershipTextDark]}>
                 {getLoyaltyCopy(personalizationProfile)}
@@ -827,7 +827,7 @@ export default function VendorDetailsScreen() {
 
           <View style={[styles.reviewCard, isDark && styles.reviewCardDark]}>
             <View style={styles.reviewHeader}>
-              <Text style={[styles.reviewTitle, isDark && styles.reviewTitleDark]}>Ratings & reviews</Text>
+              <Text style={[styles.reviewTitle, isDark && styles.reviewTitleDark]}>Reviews</Text>
               <Text style={[styles.reviewScore, isDark && styles.reviewScoreDark]}>
                 {getVendorRating(vendor)} ★
               </Text>
@@ -860,8 +860,8 @@ export default function VendorDetailsScreen() {
                       ? `${money(freeDeliveryRemaining)} away from free delivery`
                       : 'Free delivery unlocked'}
                   </Text>
-                  <Text style={[styles.savingsSubtitle, isDark && styles.savingsSubtitleDark]}>
-                    Keep this strip dynamic and backend-driven, not hardcoded.
+              <Text style={[styles.savingsSubtitle, isDark && styles.savingsSubtitleDark]}>
+                    Add a little more to save.
                   </Text>
                 </View>
               </View>
@@ -906,7 +906,7 @@ export default function VendorDetailsScreen() {
           <EmptyState
             dark={isDark}
             title="No products yet"
-            subtitle="Products will appear here as soon as this storefront is stocked."
+            subtitle="Nothing listed yet."
           />
           ) : (
             <>
@@ -918,7 +918,7 @@ export default function VendorDetailsScreen() {
                         Recommended for you
                       </Text>
                       <Text style={[styles.sectionSubtitle, isDark && styles.sectionSubtitleDark]}>
-                        Curated picks, stronger trust cues and faster add-to-cart decisions.
+                        Best bets first
                       </Text>
                     </View>
                   </View>
@@ -945,7 +945,7 @@ export default function VendorDetailsScreen() {
                     {selectedCategory === 'All' ? 'Full menu' : selectedCategory}
                   </Text>
                   <Text style={[styles.sectionSubtitle, isDark && styles.sectionSubtitleDark]}>
-                    {visibleProducts.length} items available
+                    {visibleProducts.length} items
                   </Text>
                 </View>
               </View>
@@ -954,7 +954,7 @@ export default function VendorDetailsScreen() {
                 <EmptyState
                   dark={isDark}
                   title="No matching items"
-                  subtitle="Try a broader search or another category."
+                  subtitle="Try another search."
                 />
               ) : (
                 visibleProducts.map((product) => (

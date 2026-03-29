@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ScrollView,
   StatusBar,
@@ -68,7 +68,7 @@ function EmptyState({ title, subtitle, onBrowse }) {
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptySubtitle}>{subtitle}</Text>
       <TouchableOpacity activeOpacity={0.92} style={styles.primaryAction} onPress={onBrowse}>
-        <Text style={styles.primaryActionText}>Browse stores</Text>
+        <Text style={styles.primaryActionText}>Browse</Text>
       </TouchableOpacity>
     </View>
   );
@@ -98,18 +98,6 @@ export default function CartScreen() {
 
   const isBooking = ['eatout', 'scenes'].includes(String(activeService || '').trim().toLowerCase());
 
-  const paymentHelperText = useMemo(() => {
-    if (paymentMethod === 'UPI') {
-      return 'UPI opens your hosted checkout page. Payment verification stays on the backend.';
-    }
-
-    if (paymentMethod === 'CARD') {
-      return 'Card payments use the same hosted checkout and server-side verification flow.';
-    }
-
-    return 'Cash is collected on delivery.';
-  }, [paymentMethod]);
-
   const checkoutInfo = inlineErrors?.checkoutMessage;
   const checkoutError = inlineErrors?.checkout;
 
@@ -129,8 +117,8 @@ export default function CartScreen() {
           <Ionicons name="chevron-back" size={20} color={COLORS.text} />
         </TouchableOpacity>
         <View style={styles.headerCopy}>
-          <Text style={styles.headerEyebrow}>Grab Basket checkout</Text>
-          <Text style={styles.headerTitle}>{isBooking ? 'Booking summary' : 'Your basket'}</Text>
+          <Text style={styles.headerEyebrow}>Checkout</Text>
+          <Text style={styles.headerTitle}>{isBooking ? 'Booking' : 'Your basket'}</Text>
         </View>
         <TouchableOpacity activeOpacity={0.92} style={styles.iconButton} onPress={clearCart}>
           <Ionicons name="trash-outline" size={18} color={COLORS.text} />
@@ -139,8 +127,8 @@ export default function CartScreen() {
 
       {!cartItems.length ? (
         <EmptyState
-          title={isBooking ? 'No booking items yet' : 'Your basket is empty'}
-          subtitle={isBooking ? 'Add something from a venue to continue.' : 'Add items from a store to continue to checkout.'}
+          title={isBooking ? 'No booking' : 'Basket empty'}
+          subtitle={isBooking ? 'Add a plan.' : 'Add items.'}
           onBrowse={() => router.replace('/')}
         />
       ) : (
@@ -159,13 +147,15 @@ export default function CartScreen() {
           <View style={styles.sectionCard}>
             <Text style={styles.sectionLabel}>{isBooking ? 'Venue' : 'Store'}</Text>
             <Text style={styles.vendorTitle}>{cartVendor?.name || 'Selected store'}</Text>
-            <Text style={styles.vendorSubtitle}>{cartVendor?.description || cartVendor?.address || 'Ready for checkout'}</Text>
+            <Text style={styles.vendorSubtitle} numberOfLines={1}>
+              {cartVendor?.description || cartVendor?.address || 'Ready'}
+            </Text>
           </View>
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Items</Text>
-              <Text style={styles.sectionSubtle}>{cartItems.length} in basket</Text>
+              <Text style={styles.sectionSubtle}>{cartItems.length} items</Text>
             </View>
 
             {cartItems.map((item) => (
@@ -185,54 +175,53 @@ export default function CartScreen() {
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Delivery address</Text>
+              <Text style={styles.sectionTitle}>{isBooking ? 'Details' : 'Address'}</Text>
               <TouchableOpacity onPress={() => router.push('/(tabs)/account')}>
                 <Text style={styles.inlineLink}>Manage</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.addressLabel}>{defaultAddress?.label || 'No address selected'}</Text>
+            <Text style={styles.addressLabel}>{defaultAddress?.label || 'No address'}</Text>
             <Text style={styles.addressValue}>
               {defaultAddress
                 ? [defaultAddress.line1, defaultAddress.city, defaultAddress.pincode].filter(Boolean).join(', ')
-                : 'Add an address from Account before placing a delivery order.'}
+                : 'Add in Account'}
             </Text>
           </View>
 
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Payment method</Text>
+            <Text style={styles.sectionTitle}>Pay with</Text>
             <View style={styles.paymentRow}>
               <PaymentMethodPill label="Cash" value="COD" active={paymentMethod === 'COD'} onPress={setPaymentMethod} />
               <PaymentMethodPill label="UPI" value="UPI" active={paymentMethod === 'UPI'} onPress={setPaymentMethod} />
               <PaymentMethodPill label="Card" value="CARD" active={paymentMethod === 'CARD'} onPress={setPaymentMethod} />
             </View>
-            <Text style={styles.helperText}>{paymentHelperText}</Text>
           </View>
 
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Bill details</Text>
+            <Text style={styles.sectionTitle}>Bill</Text>
 
             <View style={styles.billRow}>
-              <Text style={styles.billLabel}>Item total</Text>
+              <Text style={styles.billLabel}>Items</Text>
               <Text style={styles.billValue}>{money(cartSubtotal)}</Text>
             </View>
             <View style={styles.billRow}>
-              <Text style={styles.billLabel}>Delivery fee</Text>
+              <Text style={styles.billLabel}>Delivery</Text>
               <Text style={styles.billValue}>{money(deliveryFeeAmount)}</Text>
             </View>
             <View style={styles.billRow}>
-              <Text style={styles.billLabel}>Platform fee</Text>
+              <Text style={styles.billLabel}>Fee</Text>
               <Text style={styles.billValue}>{money(platformFeeAmount)}</Text>
             </View>
             <View style={[styles.billRow, styles.billDivider]}>
-              <Text style={styles.totalLabel}>To pay</Text>
+              <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalValue}>{money(cartTotal)}</Text>
             </View>
 
             <View style={styles.progressCard}>
               <Text style={styles.progressTitle}>
                 {freeDeliveryRemaining > 0
-                  ? `${money(freeDeliveryRemaining)} away from free delivery`
-                  : 'You unlocked free delivery'}
+                  ? `${money(freeDeliveryRemaining)} to free`
+                  : 'Free unlocked'}
               </Text>
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, { width: `${Math.max(8, freeDeliveryProgress * 100)}%` }]} />
@@ -364,20 +353,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 20,
+    borderColor: '#E8C8CB',
+    borderRadius: 18,
     overflow: 'hidden',
-    backgroundColor: COLORS.cardAlt,
+    backgroundColor: '#FFF4F4',
   },
   qtyAction: {
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.peach50,
+    backgroundColor: 'rgba(217,44,58,0.08)',
   },
   qtyValue: {
-    minWidth: 30,
+    minWidth: 28,
     textAlign: 'center',
     color: COLORS.text,
     fontWeight: '800',
@@ -403,12 +392,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   paymentPill: {
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.cardAlt,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
   },
   paymentPillActive: {
     backgroundColor: COLORS.peach50,
@@ -421,11 +410,6 @@ const styles = StyleSheet.create({
   },
   paymentPillTextActive: {
     color: COLORS.peach600,
-  },
-  helperText: {
-    color: COLORS.muted,
-    fontSize: 12,
-    lineHeight: 18,
   },
   billRow: {
     flexDirection: 'row',
@@ -461,7 +445,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     gap: 8,
     padding: 15,
-    borderRadius: 22,
+    borderRadius: 20,
     backgroundColor: COLORS.cardAlt,
   },
   progressTitle: {
@@ -483,8 +467,8 @@ const styles = StyleSheet.create({
   checkoutButton: {
     marginTop: 4,
     backgroundColor: COLORS.peach600,
-    borderRadius: 24,
-    paddingVertical: 18,
+    borderRadius: 22,
+    paddingVertical: 17,
     alignItems: 'center',
     justifyContent: 'center',
     ...createShadow(0.2, 18, 9),
