@@ -416,8 +416,8 @@ function AuthPanel({
 
   return (
     <SectionCard
-      title="Welcome to Grab Basket"
-      subtitle="Sign in to place orders, save addresses, and track deliveries live.">
+      title="One app for food, grocery, dining and more in mins!"
+      subtitle="Login to unlock offers, saved addresses, live tracking, reorder, and support.">
       <Field
         label="Email"
         value={email}
@@ -440,7 +440,7 @@ function AuthPanel({
         onPress={onSubmit}>
         {loading ? <ActivityIndicator color="#FFFFFF" /> : null}
         <Text style={styles.primaryButtonText}>
-          {isRegister ? 'Create account' : 'Sign in'}
+          {isRegister ? 'Create account' : 'Login'}
         </Text>
       </TouchableOpacity>
 
@@ -1377,12 +1377,14 @@ export default function AccountScreen() {
         </View>
         <View style={styles.heroCard}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.heroEyebrow}>Grab Basket account</Text>
+            <Text style={styles.heroEyebrow}>Grab Basket</Text>
             <Text style={styles.heroTitle}>
-              {isAuthenticated ? 'Orders, tracking, addresses, and profile' : 'Sign in to continue'}
+              {isAuthenticated ? 'Orders, tracking, addresses, and profile' : 'One app for food, grocery, dining and more in mins!'}
             </Text>
             <Text style={styles.heroSubtitle}>
-              Push notifications, live order updates, and delivery tracking are wired from here.
+              {isAuthenticated
+                ? 'Push notifications, live order updates, and delivery tracking are wired from here.'
+                : 'By tapping Login, you can continue to the full Grab Basket order flow.'}
             </Text>
           </View>
 
