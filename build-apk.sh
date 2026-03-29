@@ -30,6 +30,14 @@ is_truthy() {
   esac
 }
 
+presence_label() {
+  if [[ -n "${1:-}" ]]; then
+    printf 'present'
+  else
+    printf 'missing'
+  fi
+}
+
 if [[ ! -d "$MOBILE_DIR" && -d "$ROOT_DIR/Grab_basket-main/mobile" ]]; then
   REPO_DIR="$ROOT_DIR/Grab_basket-main"
   MOBILE_DIR="$REPO_DIR/mobile"
@@ -156,11 +164,22 @@ fi
 INPUT_API_BASE_URL="${INPUT_API_BASE_URL%/}"
 
 if [[ "$BUILD_TYPE" == "release" ]]; then
-  case "$INPUT_API_BASE_URL" in
-    http://10.0.2.2*|http://127.0.0.1*|http://localhost*|https://127.0.0.1*|https://localhost*)
-      fail "Release builds cannot use emulator/local URLs. Use your live backend URL."
+  if [[ "$INPUT_API_BASE_URL" != https://* ]]; then
+    fail "Release builds require an HTTPS EXPO_PUBLIC_API_BASE_URL. Current value: $INPUT_API_BASE_URL"
+  fi
+
+  RELEASE_API_HOST="$(node -e "try { console.log(new URL(process.argv[1]).hostname) } catch { process.exit(1) }" "$INPUT_API_BASE_URL")" \
+    || fail "EXPO_PUBLIC_API_BASE_URL is invalid for a release build: $INPUT_API_BASE_URL"
+
+  case "$RELEASE_API_HOST" in
+    localhost|127.0.0.1|0.0.0.0|10.0.2.2|10.0.3.2|*.local)
+      fail "Release builds cannot use localhost or private network API hosts. Current value: $INPUT_API_BASE_URL"
       ;;
   esac
+
+  if [[ "$RELEASE_API_HOST" =~ ^192\.168\. ]] || [[ "$RELEASE_API_HOST" =~ ^10\. ]] || [[ "$RELEASE_API_HOST" =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]]; then
+    fail "Release builds cannot use localhost or private network API hosts. Current value: $INPUT_API_BASE_URL"
+  fi
 fi
 
 if [[ "$BUILD_TYPE" == "release" ]]; then
@@ -198,6 +217,23 @@ fi
 
 export EXPO_PUBLIC_APP_ENV="$RESOLVED_APP_ENV"
 export EXPO_PUBLIC_API_BASE_URL="$INPUT_API_BASE_URL"
+
+ALLOW_CLEARTEXT_VALUE="${EXPO_PUBLIC_ALLOW_CLEARTEXT-}"
+if [[ "$BUILD_TYPE" == "release" ]]; then
+  if [[ -z "$ALLOW_CLEARTEXT_VALUE" ]]; then
+    ALLOW_CLEARTEXT_VALUE="false"
+  fi
+
+  if is_truthy "$ALLOW_CLEARTEXT_VALUE"; then
+    fail "EXPO_PUBLIC_ALLOW_CLEARTEXT must be false in production. Unset it or set EXPO_PUBLIC_ALLOW_CLEARTEXT=false for release builds."
+  fi
+
+  ALLOW_CLEARTEXT_VALUE="false"
+fi
+
+if [[ -n "$ALLOW_CLEARTEXT_VALUE" ]]; then
+  export EXPO_PUBLIC_ALLOW_CLEARTEXT="$ALLOW_CLEARTEXT_VALUE"
+fi
 
 # Keep runtime crash reporting enabled, but disable source-map upload by default for local APK builds.
 export EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED="${EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED:-false}"
@@ -300,6 +336,10 @@ echo "  BUILD_TYPE=$BUILD_TYPE"
 echo "  NODE_ENV=$NODE_ENV"
 echo "  EXPO_PUBLIC_APP_ENV=$EXPO_PUBLIC_APP_ENV"
 echo "  EXPO_PUBLIC_API_BASE_URL=$EXPO_PUBLIC_API_BASE_URL"
+echo "  EXPO_PUBLIC_ALLOW_CLEARTEXT=${EXPO_PUBLIC_ALLOW_CLEARTEXT:-unset}"
+echo "  EXPO_PUBLIC_EAS_PROJECT_ID=$(presence_label "${EXPO_PUBLIC_EAS_PROJECT_ID-}")"
+echo "  EXPO_PUBLIC_SENTRY_DSN=$(presence_label "${EXPO_PUBLIC_SENTRY_DSN-}")"
+echo "  EXPO_PUBLIC_POSTHOG_API_KEY=$(presence_label "${EXPO_PUBLIC_POSTHOG_API_KEY-}")"
 info "App variants: ${APP_VARIANTS[*]}"
 
 cd "$MOBILE_DIR"
@@ -367,3 +407,8 @@ echo "Install on device with:"
 echo "  adb install -r \"$DIST_DIR/grab-basket-${BUILD_TYPE}.apk\""
 echo "  adb install -r \"$DIST_DIR/grab-basket-delivery-${BUILD_TYPE}.apk\""
 echo "  adb install -r \"$DIST_DIR/grab-basket-partner-${BUILD_TYPE}.apk\""
+echo ""
+echo "Capture startup crash logs with:"
+echo "  adb logcat -c"
+echo "  adb logcat | grep -E \"AndroidRuntime|ReactNativeJS|ReactNative|Expo|Sentry\""
+echo "  (or run: cd mobile && npm run android:logcat)"
