@@ -19,6 +19,7 @@ import { BrandPalette, ConsumerServiceThemes, createShadow } from '@/constants/t
 import { buildApiUrl } from '../../config';
 import { useGrabBasket } from '../../../App';
 const PALETTE = BrandPalette;
+const BRAND_LOGO = require('../../../assets/images/consumer-native-icon.png');
 
 const SERVICE_TABS = [
   { key: 'food', label: 'Food', icon: 'fast-food-outline', hint: 'Everyday meals' },
@@ -440,6 +441,28 @@ function HeroBanner({ theme, activeService, vendors = [] }) {
         activeService === 'scenes' ? styles.heroBannerDark : styles.heroBannerLight,
       ]}>
       <View style={[styles.heroBannerGlow, { backgroundColor: theme.heroAccent }]} />
+      <View style={styles.heroBadgeRow}>
+        <View style={[styles.heroBrandPill, activeService === 'scenes' && styles.heroBrandPillDark]}>
+          <Image source={BRAND_LOGO} style={styles.heroBrandLogo} contentFit="contain" />
+          <Text style={[styles.heroBrandLabel, activeService === 'scenes' && styles.heroBrandLabelDark]}>
+            Grab Basket Select
+          </Text>
+        </View>
+        <View style={[styles.heroSignalPill, activeService === 'scenes' && styles.heroSignalPillDark]}>
+          <Ionicons
+            name="sparkles-outline"
+            size={13}
+            color={activeService === 'scenes' ? PALETTE.peach200 : PALETTE.peach600}
+          />
+          <Text
+            style={[
+              styles.heroSignalText,
+              activeService === 'scenes' && styles.heroSignalTextDark,
+            ]}>
+            Refreshed today
+          </Text>
+        </View>
+      </View>
       <Text style={[styles.heroEyebrow, activeService === 'scenes' && styles.heroEyebrowDark]}>
         {theme.bannerEyebrow}
       </Text>
@@ -857,6 +880,17 @@ export default function HomeScreen() {
 
           <View style={styles.topRow}>
             <View style={{ flex: 1, paddingRight: 12 }}>
+              <View style={styles.brandRow}>
+                <View style={styles.brandBadge}>
+                  <Image source={BRAND_LOGO} style={styles.brandBadgeLogo} contentFit="contain" />
+                </View>
+                <View>
+                  <Text style={[styles.brandTitle, { color: theme.heroText }]}>Grab Basket</Text>
+                  <Text style={[styles.brandCaption, { color: theme.heroSub }]}>
+                    Local commerce, refined for faster browsing
+                  </Text>
+                </View>
+              </View>
               <View style={styles.locationRow}>
                 <Ionicons
                   name={activeService === 'warehouse' ? 'time-outline' : 'location-outline'}
@@ -1133,8 +1167,38 @@ const styles = StyleSheet.create({
   },
   topRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 20,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
+  },
+  brandBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandBadgeLogo: {
+    width: 32,
+    height: 32,
+  },
+  brandTitle: {
+    fontSize: 19,
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+  brandCaption: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '700',
   },
   locationRow: {
     flexDirection: 'row',
@@ -1153,12 +1217,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   profileGhostBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1167,13 +1231,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   serviceChip: {
-    width: 152,
-    borderRadius: 24,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
+    width: 164,
+    borderRadius: 26,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.10)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -1235,13 +1299,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    borderRadius: 22,
+    borderRadius: 24,
     paddingHorizontal: 16,
-    paddingVertical: 15,
-    backgroundColor: '#FFFDF9',
+    paddingVertical: 16,
+    backgroundColor: 'rgba(255,249,241,0.98)',
     borderWidth: 1,
-    borderColor: 'rgba(20,18,16,0.08)',
-    ...createShadow(0.08, 14, 6),
+    borderColor: 'rgba(20,18,16,0.06)',
+    ...createShadow(0.1, 18, 8),
   },
   searchBarDark: {
     backgroundColor: '#231A16',
@@ -1261,8 +1325,8 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(20,18,16,0.08)',
-    backgroundColor: '#FFF8F0',
+    borderColor: 'rgba(20,18,16,0.06)',
+    backgroundColor: 'rgba(255,246,235,0.98)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1272,15 +1336,15 @@ const styles = StyleSheet.create({
   },
   heroBanner: {
     marginTop: 16,
-    borderRadius: 28,
-    paddingHorizontal: 18,
-    paddingTop: 20,
-    paddingBottom: 18,
+    borderRadius: 30,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 20,
     overflow: 'hidden',
-    ...createShadow(0.1, 22, 10),
+    ...createShadow(0.12, 24, 12),
   },
   heroBannerLight: {
-    backgroundColor: 'rgba(255,253,249,0.92)',
+    backgroundColor: 'rgba(255,250,244,0.96)',
     borderWidth: 1,
     borderColor: 'rgba(20,18,16,0.06)',
   },
@@ -1297,6 +1361,60 @@ const styles = StyleSheet.create({
     right: -30,
     top: -20,
     opacity: 0.28,
+  },
+  heroBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 12,
+  },
+  heroBrandPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(20,18,16,0.06)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  heroBrandPillDark: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  heroBrandLogo: {
+    width: 20,
+    height: 20,
+  },
+  heroBrandLabel: {
+    color: PALETTE.text,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  heroBrandLabelDark: {
+    color: PALETTE.sceneText,
+  },
+  heroSignalPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    backgroundColor: PALETTE.primarySoft,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  heroSignalPillDark: {
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  heroSignalText: {
+    color: PALETTE.peach600,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  heroSignalTextDark: {
+    color: PALETTE.peach200,
   },
   heroEyebrow: {
     color: PALETTE.peach600,
@@ -1334,10 +1452,10 @@ const styles = StyleSheet.create({
   },
   heroStat: {
     flex: 1,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   heroStatDark: {
     backgroundColor: '#2A2018',
@@ -1372,12 +1490,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 14,
-    borderRadius: 20,
+    padding: 15,
+    borderRadius: 22,
     backgroundColor: PALETTE.surface,
     borderWidth: 1,
     borderColor: PALETTE.border,
-    ...createShadow(0.06, 14, 6),
+    ...createShadow(0.08, 16, 8),
   },
   basketBannerDark: {
     backgroundColor: '#1D1712',
@@ -1418,10 +1536,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    borderRadius: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: PALETTE.surface,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    backgroundColor: PALETTE.chip,
     borderWidth: 1,
     borderColor: PALETTE.border,
   },
@@ -1490,9 +1608,9 @@ const styles = StyleSheet.create({
     width: 220,
   },
   vendorRailVisual: {
-    height: 140,
-    borderRadius: 24,
-    padding: 14,
+    height: 152,
+    borderRadius: 26,
+    padding: 15,
     justifyContent: 'space-between',
     marginBottom: 12,
     overflow: 'hidden',
@@ -1647,12 +1765,12 @@ const styles = StyleSheet.create({
   vendorListCard: {
     flexDirection: 'row',
     gap: 14,
-    padding: 14,
-    borderRadius: 24,
+    padding: 15,
+    borderRadius: 26,
     backgroundColor: PALETTE.surface,
     borderWidth: 1,
     borderColor: PALETTE.border,
-    ...createShadow(0.06, 14, 6),
+    ...createShadow(0.08, 16, 8),
   },
   vendorListThumb: {
     width: 72,
@@ -1798,12 +1916,12 @@ const styles = StyleSheet.create({
   },
   dealCard: {
     width: 170,
-    padding: 14,
-    borderRadius: 24,
+    padding: 15,
+    borderRadius: 26,
     backgroundColor: PALETTE.surface,
     borderWidth: 1,
     borderColor: PALETTE.border,
-    ...createShadow(0.06, 14, 6),
+    ...createShadow(0.08, 16, 8),
   },
   dealVisual: {
     height: 96,

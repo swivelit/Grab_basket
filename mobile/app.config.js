@@ -164,6 +164,10 @@ function assetPathIfExists(relativePath) {
   return fs.existsSync(target) ? relativePath : '';
 }
 
+function resolveFirstExistingAsset(...relativePaths) {
+  return relativePaths.find((relativePath) => assetPathIfExists(relativePath)) || '';
+}
+
 const APP_VARIANT = normalizeAppVariant(
   readEnv('EXPO_PUBLIC_APP_VARIANT', 'consumer')
 );
@@ -195,35 +199,74 @@ const VARIANT_DEFAULTS = {
 const VARIANT = VARIANT_DEFAULTS[APP_VARIANT] || VARIANT_DEFAULTS.consumer;
 const IS_DELIVERY_APP = APP_VARIANT === 'delivery';
 
+const SHARED_NATIVE_ASSETS = {
+  icon: './assets/images/consumer-native-icon.png',
+  splash: './assets/images/consumer-splash.png',
+  adaptiveForeground: './assets/images/android-icon-foreground.png',
+  adaptiveBackground: './assets/images/android-icon-background.png',
+  adaptiveMonochrome: './assets/images/android-icon-monochrome.png',
+  notificationIcon: './assets/images/android-icon-monochrome.png',
+  favicon: './assets/images/favicon.png',
+};
+
 const VARIANT_BRAND_ASSETS = {
   consumer: {
-    icon: './assets/images/GrabBasket - Consumer Logo.jpg',
-    splash: './assets/images/GrabBasket - Consumer Logo.jpg',
-    adaptiveForeground: './assets/images/GrabBasket - Consumer Logo.jpg',
+    icon: './assets/images/consumer-native-icon.png',
+    splash: './assets/images/consumer-splash.png',
+    adaptiveForeground: './assets/images/consumer-native-icon.png',
   },
   delivery: {
-    icon: './assets/images/Grabbasket - Delivery Logo.jpg',
-    splash: './assets/images/Grabbasket - Delivery Logo.jpg',
-    adaptiveForeground: './assets/images/Grabbasket - Delivery Logo.jpg',
+    icon: './assets/images/delivery-native-icon.png',
+    splash: './assets/images/delivery-splash.png',
+    adaptiveForeground: './assets/images/delivery-native-icon.png',
   },
   partner: {
-    icon: './assets/images/Grabbasket - Partner Logo.jpg',
-    splash: './assets/images/Grabbasket - Partner Logo.jpg',
-    adaptiveForeground: './assets/images/Grabbasket - Partner Logo.jpg',
+    icon: './assets/images/partner-native-icon.png',
+    splash: './assets/images/partner-splash.png',
+    adaptiveForeground: './assets/images/partner-native-icon.png',
   },
 };
 
 const variantAssets = VARIANT_BRAND_ASSETS[APP_VARIANT] || VARIANT_BRAND_ASSETS.consumer;
-const APP_ICON = assetPathIfExists(variantAssets.icon) || './assets/images/icon.png';
-const SPLASH_IMAGE = assetPathIfExists(variantAssets.splash) || './assets/images/splash-icon.png';
-const ADAPTIVE_FOREGROUND =
-  assetPathIfExists(variantAssets.adaptiveForeground) ||
-  './assets/images/android-icon-foreground.png';
-const ADAPTIVE_BACKGROUND =
-  assetPathIfExists('./assets/images/logo-glow.png') || './assets/images/android-icon-background.png';
-const ADAPTIVE_MONOCHROME =
-  assetPathIfExists('./assets/images/android-icon-monochrome.png') ||
-  './assets/images/android-icon-monochrome.png';
+const APP_ICON = resolveFirstExistingAsset(
+  variantAssets.icon,
+  SHARED_NATIVE_ASSETS.icon,
+  './assets/images/logo-glow.png'
+);
+const SPLASH_IMAGE = resolveFirstExistingAsset(
+  variantAssets.splash,
+  SHARED_NATIVE_ASSETS.splash,
+  APP_ICON
+);
+const ADAPTIVE_FOREGROUND = resolveFirstExistingAsset(
+  variantAssets.adaptiveForeground,
+  SHARED_NATIVE_ASSETS.adaptiveForeground,
+  APP_ICON
+);
+const ADAPTIVE_BACKGROUND = resolveFirstExistingAsset(
+  SHARED_NATIVE_ASSETS.adaptiveBackground,
+  './assets/images/logo-glow.png'
+);
+const ADAPTIVE_MONOCHROME = resolveFirstExistingAsset(
+  SHARED_NATIVE_ASSETS.adaptiveMonochrome,
+  ADAPTIVE_FOREGROUND,
+  APP_ICON
+);
+const NOTIFICATION_ICON = resolveFirstExistingAsset(
+  SHARED_NATIVE_ASSETS.notificationIcon,
+  ADAPTIVE_MONOCHROME,
+  APP_ICON
+);
+const FAVICON = resolveFirstExistingAsset(
+  SHARED_NATIVE_ASSETS.favicon,
+  APP_ICON
+);
+
+if (!APP_ICON || !SPLASH_IMAGE || !ADAPTIVE_FOREGROUND || !ADAPTIVE_BACKGROUND) {
+  throw new Error(
+    `[Grab Basket][${APP_VARIANT}] native assets are incomplete. Check mobile/assets/images for icon/splash/adaptive assets.`
+  );
+}
 
 const APP_NAME = readEnv('EXPO_PUBLIC_APP_NAME', VARIANT.appName);
 const APP_SLUG = readEnv('EXPO_PUBLIC_APP_SLUG', VARIANT.slug);
@@ -508,8 +551,8 @@ function buildPlugins() {
   const nextPlugins = [
     [
       'expo-notifications',
-      {
-        icon: './assets/images/android-icon-monochrome.png',
+        {
+        icon: NOTIFICATION_ICON,
         color: '#D97651',
         sounds: [],
         defaultChannel: 'orders-updates',
@@ -628,8 +671,8 @@ function buildAndroidConfig() {
       googleMaps: GOOGLE_MAPS_API_KEY ? { apiKey: GOOGLE_MAPS_API_KEY } : undefined,
     },
     notification: {
-      icon: './assets/images/android-icon-monochrome.png',
-      color: '#D97651',
+      icon: NOTIFICATION_ICON,
+      color: '#F42245',
       defaultChannel: 'orders-updates',
     },
   };
@@ -666,8 +709,8 @@ const expoConfig = {
     policy: 'appVersion',
   },
   notification: {
-    icon: './assets/images/android-icon-monochrome.png',
-    color: '#D97651',
+    icon: NOTIFICATION_ICON,
+    color: '#F42245',
     androidMode: 'default',
     androidCollapsedTitle: APP_NAME,
   },
@@ -679,7 +722,7 @@ const expoConfig = {
   android: buildAndroidConfig(),
   web: {
     bundler: 'metro',
-    favicon: './assets/images/favicon.png',
+    favicon: FAVICON,
   },
   plugins: buildPlugins(),
   extra: {

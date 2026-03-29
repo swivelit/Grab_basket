@@ -21,6 +21,7 @@ import { APP_ENV } from '../../config';
 import { captureEvent } from '../../lib/telemetry';
 import { FEATURE_FLAGS } from '../../constants/feature-flags';
 import { ANALYTICS_EVENTS, ANALYTICS_TAXONOMY_VERSION } from '../../constants/analytics-taxonomy';
+const BRAND_LOGO = require('../../../assets/images/consumer-native-icon.png');
 
 const COLORS = {
   ...BrandPalette,
@@ -672,6 +673,24 @@ export default function VendorDetailsScreen() {
           </View>
 
           <View style={styles.heroContent}>
+            <View style={styles.heroBrandRow}>
+              <View style={[styles.heroBrandPill, isDark && styles.heroBrandPillDark]}>
+                <Image source={BRAND_LOGO} style={styles.heroBrandLogo} contentFit="contain" />
+                <Text style={[styles.heroBrandLabel, isDark && styles.heroBrandLabelDark]}>
+                  Grab Basket merchant
+                </Text>
+              </View>
+              <View style={[styles.heroMetaBadge, isDark && styles.heroMetaBadgeDark]}>
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={14}
+                  color={isDark ? COLORS.text : theme.heroAccent}
+                />
+                <Text style={[styles.heroMetaBadgeText, isDark && styles.heroMetaBadgeTextDark]}>
+                  Curated details
+                </Text>
+              </View>
+            </View>
             <View style={styles.heroTitleRow}>
               <View style={[styles.heroMonogram, { backgroundColor: theme.pillBg }]}>
                 {getVendorImage(vendor) ? (
@@ -1037,6 +1056,59 @@ const styles = StyleSheet.create({
   heroContent: {
     marginTop: 18,
   },
+  heroBrandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 14,
+  },
+  heroBrandPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  heroBrandPillDark: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  heroBrandLogo: {
+    width: 20,
+    height: 20,
+  },
+  heroBrandLabel: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  heroBrandLabelDark: {
+    color: COLORS.text,
+  },
+  heroMetaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  heroMetaBadgeDark: {
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  heroMetaBadgeText: {
+    color: COLORS.text,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  heroMetaBadgeTextDark: {
+    color: COLORS.text,
+  },
   heroTitleRow: {
     flexDirection: 'row',
     gap: 14,
@@ -1096,10 +1168,10 @@ const styles = StyleSheet.create({
   },
   heroMetaStrip: {
     marginTop: 14,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
   },
   heroMetaText: {
     color: '#ffffff',
@@ -1110,10 +1182,10 @@ const styles = StyleSheet.create({
   content: {
     marginTop: -10,
     backgroundColor: COLORS.page,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+    borderTopLeftRadius: 34,
+    borderTopRightRadius: 34,
     paddingHorizontal: 16,
-    paddingTop: 18,
+    paddingTop: 20,
   },
   contentDark: {
     backgroundColor: COLORS.dark,
@@ -1121,14 +1193,14 @@ const styles = StyleSheet.create({
 
   searchBar: {
     minHeight: 58,
-    borderRadius: 22,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    ...createShadow(0.08, 16, 8),
+    ...createShadow(0.1, 18, 8),
   },
   searchBarDark: {
     borderColor: COLORS.darkBorder,
@@ -1148,7 +1220,7 @@ const styles = StyleSheet.create({
 
   warningBanner: {
     marginTop: 12,
-    borderRadius: 18,
+    borderRadius: 20,
     backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1174,7 +1246,7 @@ const styles = StyleSheet.create({
 
   trustCard: {
     marginTop: 12,
-    borderRadius: 18,
+    borderRadius: 22,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1211,7 +1283,7 @@ const styles = StyleSheet.create({
   },
   couponCard: {
     marginTop: 12,
-    borderRadius: 18,
+    borderRadius: 22,
     backgroundColor: COLORS.primarySoft,
     borderWidth: 1,
     borderColor: '#F8C7CE',
@@ -1249,7 +1321,7 @@ const styles = StyleSheet.create({
   },
   reviewCard: {
     marginTop: 12,
-    borderRadius: 18,
+    borderRadius: 22,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1295,8 +1367,8 @@ const styles = StyleSheet.create({
   },
   membershipCard: {
     marginTop: 12,
-    borderRadius: 18,
-    backgroundColor: '#F7EDE5',
+    borderRadius: 22,
+    backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 14,
@@ -1333,7 +1405,7 @@ const styles = StyleSheet.create({
 
   savingsCard: {
     marginTop: 12,
-    borderRadius: 20,
+    borderRadius: 22,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1381,7 +1453,7 @@ const styles = StyleSheet.create({
   },
   categoryChip: {
     borderRadius: 999,
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 16,
@@ -1431,12 +1503,12 @@ const styles = StyleSheet.create({
   },
   recommendedCard: {
     width: 244,
-    borderRadius: 26,
+    borderRadius: 28,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 14,
-    ...createShadow(0.06, 14, 8),
+    ...createShadow(0.08, 16, 8),
   },
   recommendedCardDark: {
     backgroundColor: COLORS.darkCard,
@@ -1499,14 +1571,14 @@ const styles = StyleSheet.create({
 
   menuCard: {
     marginBottom: 14,
-    borderRadius: 24,
+    borderRadius: 26,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 14,
     flexDirection: 'row',
     gap: 12,
-    ...createShadow(0.05, 12, 6),
+    ...createShadow(0.07, 14, 7),
   },
   menuCardDark: {
     backgroundColor: COLORS.darkCard,
@@ -1633,13 +1705,13 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     bottom: 14,
-    borderRadius: 24,
+    borderRadius: 26,
     paddingHorizontal: 18,
     paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    ...createShadow(0.18, 18, 8),
+    ...createShadow(0.2, 20, 10),
   },
   floatingCartDark: {},
   floatingCartTitle: {
