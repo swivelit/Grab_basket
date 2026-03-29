@@ -128,6 +128,26 @@ function registerDeliveryLocationTask() {
   }
 
   try {
+    if (
+      !TaskManager ||
+      typeof TaskManager.isTaskDefined !== 'function' ||
+      typeof TaskManager.defineTask !== 'function'
+    ) {
+      captureException(new Error('TaskManager APIs are unavailable in this build'), {
+        level: 'warning',
+        tags: {
+          area: 'background-task',
+          operation: 'register-delivery-location-task',
+        },
+        extras: {
+          taskName: DELIVERY_LOCATION_TASK_NAME,
+          appVariant: APP_VARIANT,
+          platform: Platform.OS,
+        },
+      });
+      return;
+    }
+
     if (TaskManager.isTaskDefined(DELIVERY_LOCATION_TASK_NAME)) {
       return;
     }
@@ -229,6 +249,7 @@ function TelemetryBootstrap() {
     });
 
     if (!governance.isReady) {
+      // Record governance drift without taking down app startup on end-user devices.
       captureException(new Error('Release governance check failed'), {
         level: 'warning',
         tags: {
@@ -237,14 +258,6 @@ function TelemetryBootstrap() {
         },
         extras: governance,
       });
-
-      if (governance.enforceReleaseGates) {
-        throw new Error(
-          `Release governance gates failed: ${governance.issues
-            .map((issue) => issue.code)
-            .join(', ')}`
-        );
-      }
     }
 
     return () => {

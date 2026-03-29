@@ -39,7 +39,7 @@ fi
 [[ -d "$MOBILE_DIR" ]] || fail "Could not find the Expo mobile app folder."
 [[ -f "$MOBILE_DIR/package.json" ]] || fail "mobile/package.json not found. Create the Expo app first."
 
-BUILD_TYPE="${BUILD_TYPE:-debug}"
+BUILD_TYPE="${BUILD_TYPE:-release}"
 BUILD_TYPE="$(printf '%s' "$BUILD_TYPE" | tr '[:upper:]' '[:lower:]')"
 export BUILD_TYPE
 
@@ -202,10 +202,14 @@ export EXPO_PUBLIC_API_BASE_URL="$INPUT_API_BASE_URL"
 # Keep runtime crash reporting enabled, but disable source-map upload by default for local APK builds.
 export EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED="${EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED:-false}"
 
-APP_VARIANTS_RAW="${APP_VARIANTS:-consumer,delivery,partner}"
+APP_VARIANTS_RAW="${APP_VARIANTS:-consumer}"
 APP_VARIANTS_RAW="${APP_VARIANTS_RAW// /,}"
 IFS=',' read -r -a APP_VARIANTS <<< "$APP_VARIANTS_RAW"
 [[ "${#APP_VARIANTS[@]}" -gt 0 ]] || fail "No app variants were provided."
+
+if [[ "$BUILD_TYPE" == "debug" ]]; then
+  warn "Debug APKs are for local development only. If you install a debug APK directly on a physical device without the expected dev workflow, it may open the Expo dev launcher or close immediately. Use ./build-apk.sh for the standalone release APK."
+fi
 
 normalize_variant() {
   local value
@@ -353,6 +357,7 @@ done
 echo ""
 echo "Examples:"
 echo "  ./build-apk.sh"
+echo "  BUILD_TYPE=debug ./build-apk.sh"
 echo "  BUILD_TYPE=release ./build-apk.sh"
 echo "  APP_VARIANTS=consumer ./build-apk.sh"
 echo "  APP_VARIANTS=delivery ./build-apk.sh"

@@ -14,6 +14,8 @@ import { captureEvent, captureException } from '../lib/telemetry';
 const APP_VARIANT = getAppVariant();
 const ORDER_SYNC_EVENT = 'grab_basket:orders_sync_requested';
 const ORDER_OPEN_EVENT = 'grab_basket:push_order_open_requested';
+const NOTIFICATIONS_UNAVAILABLE_MESSAGE =
+  'Notifications not available in this build';
 
 const KNOWN_APP_ROUTES = new Set([
   '/(tabs)/index',
@@ -31,6 +33,16 @@ const KNOWN_APP_ROUTES = new Set([
   '/cart',
   '/explore',
 ]);
+
+let notificationHandlerConfigured = false;
+
+function hasNotificationFunction(name) {
+  return Boolean(Notifications && typeof Notifications?.[name] === 'function');
+}
+
+function warnNotificationCapability(message) {
+  console.warn(`[PushNotificationBootstrap] ${message}`);
+}
 
 async function getStoredAccessToken() {
   return String((await readStoredValue(STORAGE_KEYS.authToken)) || '').trim();
@@ -84,157 +96,199 @@ function resolveNotificationRoute({ appVariant = APP_VARIANT, deepLinkPath = '' 
   return getOrdersRoute(appVariant);
 }
 
-async function ensureAndroidChannel() {
-  if (Platform.OS !== 'android') return;
-
-  await Notifications.setNotificationChannelAsync('orders-updates', {
-    name: 'Order updates',
-    importance: Notifications.AndroidImportance.MAX,
-    vibrationPattern: [0, 250, 250, 250],
-    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-    bypassDnd: false,
-    sound: 'default',
-  });
-}
-
-async function getPushTokenAsync() {
-  const projectId = getExpoProjectId();
-
-  if (projectId) {
-    const response = await Notifications.getExpoPushTokenAsync({ projectId });
-    return response?.data || '';
+function configureNotificationHandler() {
+  if (notificationHandlerConfigured) {
+    return true;
   }
 
-  const response = await Notifications.getExpoPushTokenAsync();
-  return response?.data || '';
+  if (!hasNotificationFunction('setNotificationHandler')) {
+    warnNotificationCapability(`${NOTIFICATIONS_UNAVAILABLE_MESSAGE}. setNotificationHandler is missing.`);
+    return false;
+  }
+
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+    notificationHandlerConfigured = true;
+    return true;
+  } catch (error) {
+    console.error('[PushNotificationBootstrap] Failed to configure notification handler:', error);
+    captureException(error, {
+      tags: {
+        area: 'push',
+        operation: 'set-handler',
+      },
+    });
+    return false;
+  }
 }
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+async function ensureAndroidChannel() {
+  if (Platform.OS !== 'android') return true;
 
-export default function PushNotificationBootstrap() {
-  const router = useRouter();
-  const { authToken, authEmail, isAuthenticated, sessionReady, loadOrders, appVariant } =
-    useGrabBasket();
-  const tapHandledRef = useRef('');
+  if (!hasNotificationFunction('setNotificationChannelAsync')) {
+    warnNotificationCapability(`${NOTIFICATIONS_UNAVAILABLE_MESSAGE}. setNotificationChannelAsync is missing.`);
+    return false;
+  }
 
-  const syncOrders = useCallback(() => {
-    DeviceEventEmitter.emit(ORDER_SYNC_EVENT, {
-      app_variant: appVariant || APP_VARIANT,
-      source: 'push',
-      at: Date.now(),
+  try {
+    await Notifications.setNotificationChannelAsync('orders-updates', {
+      name: 'Order updates',
+      importance: Notifications?.AndroidImportance?.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lockscreenVisibility: Notifications?.AndroidNotificationVisibility?.PUBLIC,
+      bypassDnd: false,
+      sound: 'default',
     });
+    return true;
+  } catch (error) {
+    console.error('[PushNotificationBootstrap] Failed to configure Android notification channel:', error);
+    captureException(error, {
+      tags: {
+        area: 'push',
+        operation: 'android-channel',
+      },
+      extras: {
+        platform: Platform.OS,
+      },
+    });
+    return false;
+  }
+}
 
-    if (typeof loadOrders === 'function') {
-      loadOrders({ silent: true }).catch((error) => {
-        captureException(error, {
-          tags: {
-            area: 'push',
-            operation: 'sync-orders',
-          },
-        });
-      });
+async function getPushTokenAsync(projectId) {
+  if (!hasNotificationFunction('getExpoPushTokenAsync')) {
+    warnNotificationCapability(`${NOTIFICATIONS_UNAVAILABLE_MESSAGE}. getExpoPushTokenAsync is missing.`);
+    return '';
+  }
+
+  if (!projectId) {
+    warnNotificationCapability(
+      'EXPO_PUBLIC_EAS_PROJECT_ID is missing. Skipping push token registration.'
+    );
+    return '';
+  }
+
+  try {
+    const response = await Notifications.getExpoPushTokenAsync({ projectId });
+    return response?.data || '';
+  } catch (error) {
+    console.error('[PushNotificationBootstrap] Failed to fetch Expo push token:', error);
+    captureException(error, {
+      tags: {
+        area: 'push',
+        operation: 'get-push-token',
+      },
+      extras: {
+        hasProjectId: Boolean(projectId),
+      },
+    });
+    return '';
+  }
+}
+
+async function getNotificationPermissionStatus() {
+  if (
+    !hasNotificationFunction('getPermissionsAsync') ||
+    !hasNotificationFunction('requestPermissionsAsync')
+  ) {
+    warnNotificationCapability(
+      `${NOTIFICATIONS_UNAVAILABLE_MESSAGE}. Permission APIs are missing.`
+    );
+    return '';
+  }
+
+  try {
+    const permissionStatus = await Notifications.getPermissionsAsync();
+    let finalStatus = permissionStatus?.status || '';
+
+    if (finalStatus !== 'granted') {
+      const requested = await Notifications.requestPermissionsAsync();
+      finalStatus = requested?.status || '';
     }
-  }, [appVariant, loadOrders]);
 
-  const openOrdersScreen = useCallback(
-    (notificationData = {}) => {
-      const normalizedData = sanitizeNotificationData(notificationData);
-      const dedupeKey = `${normalizedData.notification_id}:${normalizedData.order_id}:${normalizedData.status}:${normalizedData.deep_link_path}`;
+    return finalStatus;
+  } catch (error) {
+    console.error('[PushNotificationBootstrap] Failed to resolve notification permissions:', error);
+    captureException(error, {
+      tags: {
+        area: 'push',
+        operation: 'permissions',
+      },
+      extras: {
+        platform: Platform.OS,
+      },
+    });
+    return '';
+  }
+}
 
-      if (dedupeKey && tapHandledRef.current === dedupeKey) {
-        return;
-      }
+export async function initPushNotifications({
+  appVariant = APP_VARIANT,
+  authEmail = '',
+  authToken = '',
+  isAuthenticated = false,
+  sessionReady = false,
+} = {}) {
+  try {
+    if (Platform.OS === 'web') return false;
 
-      if (dedupeKey) {
-        tapHandledRef.current = dedupeKey;
-      }
+    configureNotificationHandler();
 
-      captureEvent('push_notification_opened', {
-        app_variant: appVariant || APP_VARIANT,
-        ...normalizedData,
-      });
+    if (!sessionReady || !isAuthenticated) {
+      return false;
+    }
 
-      syncOrders();
+    if (!Notifications || !hasNotificationFunction('getExpoPushTokenAsync')) {
+      warnNotificationCapability(NOTIFICATIONS_UNAVAILABLE_MESSAGE);
+      return false;
+    }
 
-      const activeVariant = appVariant || APP_VARIANT;
-      const targetPath = resolveNotificationRoute({
-        appVariant: activeVariant,
-        deepLinkPath: normalizedData.deep_link_path,
-      });
-
-      if (normalizedData.order_id) {
-        DeviceEventEmitter.emit(ORDER_OPEN_EVENT, {
-          app_variant: activeVariant,
-          order_id: normalizedData.order_id,
-          status: normalizedData.status,
-          type: normalizedData.type,
-          source: 'push',
-          at: Date.now(),
-        });
-      }
-
-      router.push({
-        pathname: targetPath,
-        params: normalizedData.order_id
-          ? {
-              orderId: normalizedData.order_id,
-              highlightOrderId: normalizedData.order_id,
-              source: 'push',
-            }
-          : undefined,
-      });
-    },
-    [appVariant, router, syncOrders]
-  );
-
-  const registerPushToken = useCallback(async () => {
-    if (Platform.OS === 'web') return;
-    if (!sessionReady || !isAuthenticated) return;
-    if (!Device.isDevice) {
+    if (!Device?.isDevice) {
       captureEvent('push_registration_skipped', {
         app_variant: appVariant || APP_VARIANT,
         reason: 'simulator_or_emulator',
         platform: Platform.OS,
       });
-      return;
+      return false;
+    }
+
+    const projectId = String(getExpoProjectId() || '').trim();
+    if (!projectId) {
+      warnNotificationCapability(
+        'EXPO_PUBLIC_EAS_PROJECT_ID is missing. Skipping push token registration.'
+      );
+      return false;
     }
 
     let accessToken = String(authToken || '').trim();
     if (!accessToken) {
       accessToken = await getStoredAccessToken();
     }
-    if (!accessToken) return;
+    if (!accessToken) return false;
 
     await ensureAndroidChannel();
 
-    const permissionStatus = await Notifications.getPermissionsAsync();
-    let finalStatus = permissionStatus.status;
-
-    if (finalStatus !== 'granted') {
-      const requested = await Notifications.requestPermissionsAsync();
-      finalStatus = requested.status;
-    }
-
+    const finalStatus = await getNotificationPermissionStatus();
     if (finalStatus !== 'granted') {
       captureEvent('push_permission_denied', {
         app_variant: appVariant || APP_VARIANT,
         platform: Platform.OS,
-        status: finalStatus,
+        status: finalStatus || 'unknown',
       });
-      return;
+      return false;
     }
 
-    const pushToken = String(await getPushTokenAsync()).trim();
+    const pushToken = String(await getPushTokenAsync(projectId)).trim();
     if (!pushToken) {
-      throw new Error('Push registration did not return a token.');
+      return false;
     }
 
     const nextSignature = `${String(authEmail || '').trim().toLowerCase()}|${pushToken}`;
@@ -243,7 +297,7 @@ export default function PushNotificationBootstrap() {
     ).trim();
 
     if (previousSignature === nextSignature) {
-      return;
+      return true;
     }
 
     await apiPost(
@@ -263,81 +317,267 @@ export default function PushNotificationBootstrap() {
     captureEvent('push_token_registered', {
       app_variant: appVariant || APP_VARIANT,
       platform: Platform.OS,
-      has_project_id: Boolean(getExpoProjectId()),
-    });
-  }, [appVariant, authEmail, authToken, isAuthenticated, sessionReady]);
-
-  useEffect(() => {
-    registerPushToken().catch((error) => {
-      captureException(error, {
-        tags: {
-          area: 'push',
-          operation: 'register-token',
-        },
-        extras: {
-          appVariant: appVariant || APP_VARIANT,
-          platform: Platform.OS,
-        },
-      });
-    });
-  }, [appVariant, registerPushToken]);
-
-  useEffect(() => {
-    if (Platform.OS === 'web') return undefined;
-
-    const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
-      const data = sanitizeNotificationData(notification?.request?.content?.data || {});
-      captureEvent('push_notification_received', {
-        app_variant: appVariant || APP_VARIANT,
-        ...data,
-      });
-      syncOrders();
+      has_project_id: true,
     });
 
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const data = response?.notification?.request?.content?.data || {};
-        openOrdersScreen(data);
-        Notifications.clearLastNotificationResponseAsync?.().catch((error) => {
+    return true;
+  } catch (error) {
+    console.error('[PushNotificationBootstrap] Push init failed:', error);
+    captureException(error, {
+      tags: {
+        area: 'push',
+        operation: 'init',
+      },
+      extras: {
+        appVariant: appVariant || APP_VARIANT,
+        platform: Platform.OS,
+      },
+    });
+    return false;
+  }
+}
+
+function removeSubscription(subscription) {
+  try {
+    if (subscription && typeof subscription.remove === 'function') {
+      subscription.remove();
+    }
+  } catch (error) {
+    captureException(error, {
+      tags: {
+        area: 'push',
+        operation: 'remove-listener',
+      },
+    });
+  }
+}
+
+function attachPushListeners({ appVariant, openOrdersScreen, syncOrders }) {
+  if (Platform.OS === 'web') {
+    return () => {};
+  }
+
+  try {
+    if (
+      !hasNotificationFunction('addNotificationReceivedListener') ||
+      !hasNotificationFunction('addNotificationResponseReceivedListener')
+    ) {
+      warnNotificationCapability(
+        `${NOTIFICATIONS_UNAVAILABLE_MESSAGE}. Listener APIs are missing.`
+      );
+      return () => {};
+    }
+
+    const receivedSubscription = Notifications.addNotificationReceivedListener(
+      (notification) => {
+        try {
+          const data = sanitizeNotificationData(notification?.request?.content?.data || {});
+          captureEvent('push_notification_received', {
+            app_variant: appVariant || APP_VARIANT,
+            ...data,
+          });
+          syncOrders();
+        } catch (error) {
           captureException(error, {
             tags: {
               area: 'push',
-              operation: 'clear-last-response',
+              operation: 'received-listener',
+            },
+          });
+        }
+      }
+    );
+
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        try {
+          const data = response?.notification?.request?.content?.data || {};
+          openOrdersScreen(data);
+
+          const clearLastResponse = Notifications?.clearLastNotificationResponseAsync;
+          if (typeof clearLastResponse === 'function') {
+            clearLastResponse.call(Notifications).catch((error) => {
+              captureException(error, {
+                tags: {
+                  area: 'push',
+                  operation: 'clear-last-response',
+                },
+              });
+            });
+          }
+        } catch (error) {
+          captureException(error, {
+            tags: {
+              area: 'push',
+              operation: 'response-listener',
+            },
+          });
+        }
+      }
+    );
+
+    const getLastResponse = Notifications?.getLastNotificationResponseAsync;
+    if (typeof getLastResponse === 'function') {
+      getLastResponse
+        .call(Notifications)
+        .then((response) => {
+          const data = response?.notification?.request?.content?.data || {};
+          if (!Object.keys(data).length) {
+            return;
+          }
+
+          openOrdersScreen(data);
+
+          const clearLastResponse = Notifications?.clearLastNotificationResponseAsync;
+          if (typeof clearLastResponse === 'function') {
+            clearLastResponse.call(Notifications).catch((error) => {
+              captureException(error, {
+                tags: {
+                  area: 'push',
+                  operation: 'clear-last-response-initial',
+                },
+              });
+            });
+          }
+        })
+        .catch((error) => {
+          captureException(error, {
+            tags: {
+              area: 'push',
+              operation: 'get-last-response',
+            },
+          });
+        });
+    }
+
+    return () => {
+      removeSubscription(receivedSubscription);
+      removeSubscription(responseSubscription);
+    };
+  } catch (error) {
+    console.error('[PushNotificationBootstrap] Failed to attach push listeners:', error);
+    captureException(error, {
+      tags: {
+        area: 'push',
+        operation: 'attach-listeners',
+      },
+      extras: {
+        platform: Platform.OS,
+      },
+    });
+    return () => {};
+  }
+}
+
+export default function PushNotificationBootstrap() {
+  const router = useRouter();
+  const { authToken, authEmail, isAuthenticated, sessionReady, loadOrders, appVariant } =
+    useGrabBasket();
+  const tapHandledRef = useRef('');
+
+  const syncOrders = useCallback(() => {
+    try {
+      DeviceEventEmitter.emit(ORDER_SYNC_EVENT, {
+        app_variant: appVariant || APP_VARIANT,
+        source: 'push',
+        at: Date.now(),
+      });
+
+      if (typeof loadOrders === 'function') {
+        loadOrders({ silent: true }).catch((error) => {
+          captureException(error, {
+            tags: {
+              area: 'push',
+              operation: 'sync-orders',
             },
           });
         });
       }
-    );
+    } catch (error) {
+      captureException(error, {
+        tags: {
+          area: 'push',
+          operation: 'emit-sync-orders',
+        },
+      });
+    }
+  }, [appVariant, loadOrders]);
 
-    Notifications.getLastNotificationResponseAsync()
-      .then((response) => {
-        const data = response?.notification?.request?.content?.data || {};
-        if (Object.keys(data).length) {
-          openOrdersScreen(data);
-          Notifications.clearLastNotificationResponseAsync?.().catch((error) => {
-            captureException(error, {
-              tags: {
-                area: 'push',
-                operation: 'clear-last-response-initial',
-              },
-            });
+  const openOrdersScreen = useCallback(
+    (notificationData = {}) => {
+      try {
+        const normalizedData = sanitizeNotificationData(notificationData);
+        const dedupeKey = `${normalizedData.notification_id}:${normalizedData.order_id}:${normalizedData.status}:${normalizedData.deep_link_path}`;
+
+        if (dedupeKey && tapHandledRef.current === dedupeKey) {
+          return;
+        }
+
+        if (dedupeKey) {
+          tapHandledRef.current = dedupeKey;
+        }
+
+        captureEvent('push_notification_opened', {
+          app_variant: appVariant || APP_VARIANT,
+          ...normalizedData,
+        });
+
+        syncOrders();
+
+        const activeVariant = appVariant || APP_VARIANT;
+        const targetPath = resolveNotificationRoute({
+          appVariant: activeVariant,
+          deepLinkPath: normalizedData.deep_link_path,
+        });
+
+        if (normalizedData.order_id) {
+          DeviceEventEmitter.emit(ORDER_OPEN_EVENT, {
+            app_variant: activeVariant,
+            order_id: normalizedData.order_id,
+            status: normalizedData.status,
+            type: normalizedData.type,
+            source: 'push',
+            at: Date.now(),
           });
         }
-      })
-      .catch((error) => {
+
+        router.push({
+          pathname: targetPath,
+          params: normalizedData.order_id
+            ? {
+                orderId: normalizedData.order_id,
+                highlightOrderId: normalizedData.order_id,
+                source: 'push',
+              }
+            : undefined,
+        });
+      } catch (error) {
         captureException(error, {
           tags: {
             area: 'push',
-            operation: 'get-last-response',
+            operation: 'open-orders-screen',
           },
         });
-      });
+      }
+    },
+    [appVariant, router, syncOrders]
+  );
 
-    return () => {
-      receivedSubscription.remove();
-      responseSubscription.remove();
-    };
-  }, [appVariant, openOrdersScreen, syncOrders]);
+  useEffect(() => {
+    initPushNotifications({
+      appVariant,
+      authEmail,
+      authToken,
+      isAuthenticated,
+      sessionReady,
+    }).catch(() => {});
+  }, [appVariant, authEmail, authToken, isAuthenticated, sessionReady]);
+
+  useEffect(() => attachPushListeners({ appVariant, openOrdersScreen, syncOrders }), [
+    appVariant,
+    openOrdersScreen,
+    syncOrders,
+  ]);
 
   return null;
 }

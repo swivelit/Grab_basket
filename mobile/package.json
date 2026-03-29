@@ -10,6 +10,7 @@
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "android:run": "expo run:android",
+    "android:logcat": "./scripts/android-logcat.sh",
     "android:consumer": "node ./scripts/with-variant.js consumer run:android",
     "android:delivery": "node ./scripts/with-variant.js delivery run:android",
     "android:partner": "node ./scripts/with-variant.js partner run:android",
@@ -35,7 +36,6 @@
     "expo-application": "~55.0.10",
     "expo-build-properties": "~55.0.10",
     "expo-constants": "~55.0.9",
-    "expo-dev-client": "~55.0.18",
     "expo-device": "~55.0.10",
     "expo-file-system": "~55.0.11",
     "expo-font": "~55.0.4",
@@ -46,8 +46,8 @@
     "expo-location": "~55.1.4",
     "expo-notifications": "~55.0.13",
     "expo-router": "~55.0.7",
-    "expo-splash-screen": "~55.0.12",
     "expo-secure-store": "~55.0.9",
+    "expo-splash-screen": "~55.0.12",
     "expo-status-bar": "~55.0.4",
     "expo-symbols": "~55.0.5",
     "expo-system-ui": "~55.0.10",
@@ -69,9 +69,9 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
-    "typescript": "~5.9.2",
     "eslint": "^9.0.0",
-    "eslint-config-expo": "~55.0.0"
+    "eslint-config-expo": "~55.0.0",
+    "typescript": "~5.9.2"
   },
   "private": true
 }
