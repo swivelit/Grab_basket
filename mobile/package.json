@@ -10,7 +10,7 @@
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "android:run": "expo run:android",
-    "android:logcat": "./scripts/android-logcat.sh",
+    "android:logcat": "./scripts/android-logcat-crash.sh",
     "android:consumer": "node ./scripts/with-variant.js consumer run:android",
     "android:delivery": "node ./scripts/with-variant.js delivery run:android",
     "android:partner": "node ./scripts/with-variant.js partner run:android",

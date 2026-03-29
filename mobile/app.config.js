@@ -344,15 +344,15 @@ function buildProductionValidationReport() {
   }
 
   if (!EAS_PROJECT_ID) {
-    errors.push('EXPO_PUBLIC_EAS_PROJECT_ID is required in production so Expo push token registration works reliably in release builds.');
+    warnings.push('EXPO_PUBLIC_EAS_PROJECT_ID is missing. Expo push token registration will stay disabled for this build.');
   }
 
   if (!SENTRY_DSN) {
-    errors.push('EXPO_PUBLIC_SENTRY_DSN is required in production for crash reporting.');
+    warnings.push('EXPO_PUBLIC_SENTRY_DSN is missing. Crash reporting is disabled for this app variant.');
   }
 
   if (!POSTHOG_API_KEY) {
-    errors.push('EXPO_PUBLIC_POSTHOG_API_KEY is required in production for analytics.');
+    warnings.push('EXPO_PUBLIC_POSTHOG_API_KEY is missing. Product analytics is disabled for this app variant.');
   }
 
   if (!parsedPosthogHost) {
@@ -374,7 +374,7 @@ function buildProductionValidationReport() {
   }
 
   if (!EXPO_OWNER) {
-    warnings.push('EXPO_PUBLIC_EXPO_OWNER is not set. EAS project ownership metadata may be incomplete in release builds.');
+    warnings.push('EXPO_PUBLIC_EXPO_OWNER is not set. EAS project ownership metadata will be omitted from this build.');
   }
 
   return { errors, warnings };

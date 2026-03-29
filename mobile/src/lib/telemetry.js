@@ -178,8 +178,24 @@ function isNativeRuntime() {
   return Platform.OS === 'android' || Platform.OS === 'ios';
 }
 
+function logTelemetryWarning(message, error) {
+  if (error) {
+    console.warn(`[telemetry] ${message}`, error);
+    return;
+  }
+
+  console.warn(`[telemetry] ${message}`);
+}
+
 function ensureSentryInitialized() {
-  const Sentry = getSentryModule();
+  let Sentry = null;
+
+  try {
+    Sentry = getSentryModule();
+  } catch (error) {
+    logTelemetryWarning('Failed to load Sentry module.', error);
+    return null;
+  }
 
   if (sentryInitialized) {
     return Sentry;
@@ -199,39 +215,44 @@ function ensureSentryInitialized() {
     Application?.nativeApplicationVersion || Constants?.expoConfig?.version || '1.0.0';
   const buildVersion = Application?.nativeBuildVersion || '1';
 
-  Sentry.init({
-    dsn: SENTRY_DSN,
-    enabled: true,
-    environment: SENTRY_ENVIRONMENT,
-    sendDefaultPii: true,
-    tracesSampleRate: SENTRY_TRACES_SAMPLE_RATE,
-    profilesSampleRate: SENTRY_PROFILES_SAMPLE_RATE,
-    enableNativeFramesTracking: true,
-    release: `${APP_VARIANT}@${appVersion}`,
-    dist: String(buildVersion),
-  });
-
-  if (typeof Sentry.setTags === 'function') {
-    Sentry.setTags({
-      app_name: APP_SHELL.appName || 'Grab Basket',
-      app_variant: APP_VARIANT,
-      app_env: APP_ENV,
-      platform: Platform.OS,
+  try {
+    Sentry.init({
+      dsn: SENTRY_DSN,
+      enabled: true,
+      environment: SENTRY_ENVIRONMENT,
+      sendDefaultPii: true,
+      tracesSampleRate: SENTRY_TRACES_SAMPLE_RATE,
+      profilesSampleRate: SENTRY_PROFILES_SAMPLE_RATE,
+      enableNativeFramesTracking: true,
+      release: `${APP_VARIANT}@${appVersion}`,
+      dist: String(buildVersion),
     });
-  }
 
-  if (typeof Sentry.setContext === 'function') {
-    Sentry.setContext('device', {
-      brand: Device?.brand || '',
-      manufacturer: Device?.manufacturer || '',
-      modelName: Device?.modelName || '',
-      osName: Device?.osName || Platform.OS,
-      osVersion: Device?.osVersion || '',
-      locale:
-        Localization?.getLocales?.()?.[0]?.languageTag ||
-        Localization?.locale ||
-        '',
-    });
+    if (typeof Sentry.setTags === 'function') {
+      Sentry.setTags({
+        app_name: APP_SHELL.appName || 'Grab Basket',
+        app_variant: APP_VARIANT,
+        app_env: APP_ENV,
+        platform: Platform.OS,
+      });
+    }
+
+    if (typeof Sentry.setContext === 'function') {
+      Sentry.setContext('device', {
+        brand: Device?.brand || '',
+        manufacturer: Device?.manufacturer || '',
+        modelName: Device?.modelName || '',
+        osName: Device?.osName || Platform.OS,
+        osVersion: Device?.osVersion || '',
+        locale:
+          Localization?.getLocales?.()?.[0]?.languageTag ||
+          Localization?.locale ||
+          '',
+      });
+    }
+  } catch (error) {
+    logTelemetryWarning('Sentry initialization failed. Continuing without crash reporting.', error);
+    return null;
   }
 
   return Sentry;
@@ -254,18 +275,23 @@ function getPostHogClient() {
     return posthogClientCache;
   }
 
-  posthogClientCache = new PostHogClass(POSTHOG_API_KEY, {
-    host: POSTHOG_HOST,
-    disable: false,
-  });
-
-  if (typeof posthogClientCache.register === 'function') {
-    posthogClientCache.register({
-      app_env: APP_ENV,
-      app_name: APP_SHELL.appName || 'Grab Basket',
-      app_variant: APP_VARIANT,
-      platform: Platform.OS,
+  try {
+    posthogClientCache = new PostHogClass(POSTHOG_API_KEY, {
+      host: POSTHOG_HOST,
+      disable: false,
     });
+
+    if (typeof posthogClientCache.register === 'function') {
+      posthogClientCache.register({
+        app_env: APP_ENV,
+        app_name: APP_SHELL.appName || 'Grab Basket',
+        app_variant: APP_VARIANT,
+        platform: Platform.OS,
+      });
+    }
+  } catch (error) {
+    logTelemetryWarning('PostHog initialization failed. Continuing without analytics.', error);
+    posthogClientCache = null;
   }
 
   return posthogClientCache;
@@ -298,34 +324,42 @@ function captureException(error, context = {}) {
     typeof Sentry.withScope === 'function' &&
     typeof Sentry.captureException === 'function'
   ) {
-    Sentry.withScope((scope) => {
-      if (typeof scope.setLevel === 'function') {
-        scope.setLevel(level);
-      }
-
-      Object.entries(toPlainObject(tags)).forEach(([key, value]) => {
-        if (typeof scope.setTag === 'function') {
-          scope.setTag(key, String(value));
+    try {
+      Sentry.withScope((scope) => {
+        if (typeof scope.setLevel === 'function') {
+          scope.setLevel(level);
         }
+
+        Object.entries(toPlainObject(tags)).forEach(([key, value]) => {
+          if (typeof scope.setTag === 'function') {
+            scope.setTag(key, String(value));
+          }
+        });
+
+        if (typeof scope.setContext === 'function') {
+          scope.setContext('debug_context', toPlainObject(extras));
+        }
+
+        Sentry.captureException(normalizedError);
       });
-
-      if (typeof scope.setContext === 'function') {
-        scope.setContext('debug_context', toPlainObject(extras));
-      }
-
-      Sentry.captureException(normalizedError);
-    });
+    } catch (captureError) {
+      logTelemetryWarning('Sentry exception capture failed.', captureError);
+    }
   }
 
   const posthog = getPostHogClient();
   if (posthog && typeof posthog.capture === 'function') {
-    posthog.capture('exception_captured', {
-      app_variant: APP_VARIANT,
-      message: normalizedError.message,
-      name: normalizedError.name,
-      ...toPlainObject(tags),
-      ...toPlainObject(extras),
-    });
+    try {
+      posthog.capture('exception_captured', {
+        app_variant: APP_VARIANT,
+        message: normalizedError.message,
+        name: normalizedError.name,
+        ...toPlainObject(tags),
+        ...toPlainObject(extras),
+      });
+    } catch (captureError) {
+      logTelemetryWarning('PostHog exception capture failed.', captureError);
+    }
   }
 }
 
@@ -335,13 +369,17 @@ function captureEvent(name, properties = {}) {
     return;
   }
 
-  posthog.capture(String(name || 'app_event'), {
-    app_env: APP_ENV,
-    app_name: APP_SHELL.appName || 'Grab Basket',
-    app_variant: APP_VARIANT,
-    platform: Platform.OS,
-    ...toPlainObject(properties),
-  });
+  try {
+    posthog.capture(String(name || 'app_event'), {
+      app_env: APP_ENV,
+      app_name: APP_SHELL.appName || 'Grab Basket',
+      app_variant: APP_VARIANT,
+      platform: Platform.OS,
+      ...toPlainObject(properties),
+    });
+  } catch (error) {
+    logTelemetryWarning('PostHog event capture failed.', error);
+  }
 }
 
 function trackScreen(pathname, params = {}) {
@@ -355,13 +393,17 @@ function trackScreen(pathname, params = {}) {
     return;
   }
 
-  posthog.screen(screenName, {
-    app_env: APP_ENV,
-    app_name: APP_SHELL.appName || 'Grab Basket',
-    app_variant: APP_VARIANT,
-    platform: Platform.OS,
-    ...cleanedParams,
-  });
+  try {
+    posthog.screen(screenName, {
+      app_env: APP_ENV,
+      app_name: APP_SHELL.appName || 'Grab Basket',
+      app_variant: APP_VARIANT,
+      platform: Platform.OS,
+      ...cleanedParams,
+    });
+  } catch (error) {
+    logTelemetryWarning('PostHog screen tracking failed.', error);
+  }
 }
 
 function identifyUser(userId, traits = {}) {
@@ -374,34 +416,50 @@ function identifyUser(userId, traits = {}) {
 
   const Sentry = ensureSentryInitialized();
   if (Sentry && typeof Sentry.setUser === 'function') {
-    Sentry.setUser({
-      id: normalizedUserId,
-      email: String(normalizedTraits.email || normalizedUserId || ''),
-      app_variant: APP_VARIANT,
-      ...normalizedTraits,
-    });
+    try {
+      Sentry.setUser({
+        id: normalizedUserId,
+        email: String(normalizedTraits.email || normalizedUserId || ''),
+        app_variant: APP_VARIANT,
+        ...normalizedTraits,
+      });
+    } catch (error) {
+      logTelemetryWarning('Sentry user identification failed.', error);
+    }
   }
 
   const posthog = getPostHogClient();
   if (posthog && typeof posthog.identify === 'function') {
-    posthog.identify(normalizedUserId, {
-      app_env: APP_ENV,
-      app_name: APP_SHELL.appName || 'Grab Basket',
-      app_variant: APP_VARIANT,
-      ...normalizedTraits,
-    });
+    try {
+      posthog.identify(normalizedUserId, {
+        app_env: APP_ENV,
+        app_name: APP_SHELL.appName || 'Grab Basket',
+        app_variant: APP_VARIANT,
+        ...normalizedTraits,
+      });
+    } catch (error) {
+      logTelemetryWarning('PostHog user identification failed.', error);
+    }
   }
 }
 
 function resetTelemetryUser() {
   const Sentry = ensureSentryInitialized();
   if (Sentry && typeof Sentry.setUser === 'function') {
-    Sentry.setUser(null);
+    try {
+      Sentry.setUser(null);
+    } catch (error) {
+      logTelemetryWarning('Sentry user reset failed.', error);
+    }
   }
 
   const posthog = getPostHogClient();
   if (posthog && typeof posthog.reset === 'function') {
-    posthog.reset();
+    try {
+      posthog.reset();
+    } catch (error) {
+      logTelemetryWarning('PostHog reset failed.', error);
+    }
   }
 }
 
@@ -421,7 +479,11 @@ function wrapWithSentry(Component) {
   const Sentry = ensureSentryInitialized();
 
   if (Sentry && typeof Sentry.wrap === 'function') {
-    return Sentry.wrap(Component);
+    try {
+      return Sentry.wrap(Component);
+    } catch (error) {
+      logTelemetryWarning('Sentry component wrapper failed.', error);
+    }
   }
 
   return Component;
