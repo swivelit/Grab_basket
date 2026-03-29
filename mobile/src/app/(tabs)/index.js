@@ -895,12 +895,12 @@ export default function HomeScreen() {
                   color={theme.heroText}
                 />
                 <Text style={[styles.locationTitle, { color: theme.heroText }]} numberOfLines={1}>
-                  Kakkanad
+                  Kochi
                 </Text>
                 <Ionicons name="chevron-down" size={16} color={theme.heroText} />
               </View>
               <Text style={[styles.locationSub, { color: theme.heroSub }]} numberOfLines={1}>
-                28 min window
+                Vidya Nagar Rd, Panampilly Nagar
               </Text>
             </View>
 
