@@ -22,17 +22,17 @@ const PALETTE = BrandPalette;
 const BRAND_LOGO = require('../../../assets/images/consumer-native-icon.png');
 
 const SERVICE_TABS = [
-  { key: 'food', label: 'Food', icon: 'fast-food-outline', hint: 'Everyday meals' },
-  { key: 'warehouse', label: 'Instamart', icon: 'basket-outline', hint: 'Quick grocery' },
-  { key: 'eatout', label: 'Dineout', icon: 'restaurant-outline', hint: 'Tables & offers' },
-  { key: 'scenes', label: 'Scenes', icon: 'sparkles-outline', hint: 'Events & plans' },
+  { key: 'food', label: 'Food', icon: 'fast-food-outline', hint: 'Meals' },
+  { key: 'warehouse', label: 'Instamart', icon: 'basket-outline', hint: 'Groceries' },
+  { key: 'eatout', label: 'Dineout', icon: 'restaurant-outline', hint: 'Book tables' },
+  { key: 'scenes', label: 'Scenes', icon: 'sparkles-outline', hint: 'Plans' },
 ];
 
 const THEMES = ConsumerServiceThemes;
 
 const FOOD_COLLECTIONS = [
-  { key: 'top-rated', label: 'Top rated', icon: 'star-outline' },
-  { key: 'budget', label: 'Budget meals', icon: 'cash-outline' },
+  { key: 'top-rated', label: 'Top', icon: 'star-outline' },
+  { key: 'budget', label: 'Budget', icon: 'cash-outline' },
   { key: 'desserts', label: 'Desserts', icon: 'ice-cream-outline' },
   { key: 'healthy', label: 'Healthy', icon: 'leaf-outline' },
 ];
@@ -42,19 +42,19 @@ const MART_COLLECTIONS = [
   { key: 'fresh', label: 'Fresh', icon: 'leaf-outline' },
   { key: 'snacks', label: 'Snacks', icon: 'nutrition-outline' },
   { key: 'value', label: 'Value', icon: 'pricetag-outline' },
-  { key: 'essentials', label: 'Essentials', icon: 'home-outline' },
+  { key: 'essentials', label: 'Daily', icon: 'home-outline' },
 ];
 
 const DINE_SHORTCUTS = [
-  { key: 'offers', title: 'Flat 50% OFF', subtitle: 'Bill offers', icon: 'pricetag-outline', large: true },
-  { key: 'family', title: 'Family-friendly', subtitle: 'Comfort tables', icon: 'people-outline' },
-  { key: 'cafe', title: 'Cafe picks', subtitle: 'Desserts & coffee', icon: 'cafe-outline' },
-  { key: 'prebook', title: 'Pre-book', subtitle: 'Better savings', icon: 'bookmark-outline' },
-  { key: 'hot', title: 'New & Hot', subtitle: 'Popular this week', icon: 'flame-outline' },
+  { key: 'offers', title: '50% OFF', subtitle: 'Bills', icon: 'pricetag-outline', large: true },
+  { key: 'family', title: 'Family', subtitle: 'Tables', icon: 'people-outline' },
+  { key: 'cafe', title: 'Cafes', subtitle: 'Coffee', icon: 'cafe-outline' },
+  { key: 'prebook', title: 'Pre-book', subtitle: 'Save', icon: 'bookmark-outline' },
+  { key: 'hot', title: 'Hot', subtitle: 'This week', icon: 'flame-outline' },
 ];
 
 const SCENE_FILTERS = [
-  { key: 'all', label: 'All scenes' },
+  { key: 'all', label: 'All' },
   { key: 'today', label: 'Today' },
   { key: 'week', label: 'This week' },
   { key: 'weekend', label: 'Weekend' },
@@ -282,12 +282,12 @@ function getOfferLabel(vendor, service = 'food') {
 
 function getVendorNote(vendor, service = 'food') {
   if (service === 'warehouse') {
-    return vendor?.description || 'Essentials, snacks and quick home needs';
+    return vendor?.description || 'Fresh, daily, quick';
   }
   if (service === 'eatout') {
-    return vendor?.description || 'Reserve tables, unlock bill offers and skip decision fatigue';
+    return vendor?.description || 'Tables, offers, easy plans';
   }
-  return vendor?.description || vendor?.address || 'Comfort food, premium presentation and reliable delivery';
+  return vendor?.description || vendor?.address || 'Fast delivery, local favorites';
 }
 
 function getDeliveryLine(vendor, service = 'food') {
@@ -445,7 +445,7 @@ function HeroBanner({ theme, activeService, vendors = [] }) {
         <View style={[styles.heroBrandPill, activeService === 'scenes' && styles.heroBrandPillDark]}>
           <Image source={BRAND_LOGO} style={styles.heroBrandLogo} contentFit="contain" />
           <Text style={[styles.heroBrandLabel, activeService === 'scenes' && styles.heroBrandLabelDark]}>
-            Grab Basket Select
+            Select
           </Text>
         </View>
         <View style={[styles.heroSignalPill, activeService === 'scenes' && styles.heroSignalPillDark]}>
@@ -459,7 +459,7 @@ function HeroBanner({ theme, activeService, vendors = [] }) {
               styles.heroSignalText,
               activeService === 'scenes' && styles.heroSignalTextDark,
             ]}>
-            Refreshed today
+            Today
           </Text>
         </View>
       </View>
@@ -476,7 +476,7 @@ function HeroBanner({ theme, activeService, vendors = [] }) {
       <View style={styles.heroStatRow}>
         <View style={[styles.heroStat, activeService === 'scenes' && styles.heroStatDark]}>
           <Text style={[styles.heroStatLabel, activeService === 'scenes' && styles.heroStatLabelDark]}>
-            Avg ETA
+            ETA
           </Text>
           <Text style={[styles.heroStatValue, activeService === 'scenes' && styles.heroStatValueDark]}>
             {avgEta}
@@ -485,7 +485,7 @@ function HeroBanner({ theme, activeService, vendors = [] }) {
 
         <View style={[styles.heroStat, activeService === 'scenes' && styles.heroStatDark]}>
           <Text style={[styles.heroStatLabel, activeService === 'scenes' && styles.heroStatLabelDark]}>
-            Live now
+            Live
           </Text>
           <Text style={[styles.heroStatValue, activeService === 'scenes' && styles.heroStatValueDark]}>
             {experienceLabel}
@@ -507,7 +507,7 @@ function BasketBanner({ cartCount, cartTotal, onPress, dark = false }) {
         <Ionicons name="bag-handle-outline" size={18} color={dark ? '#ffffff' : PALETTE.peach600} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.basketTitle, dark && styles.basketTitleDark]}>Active basket</Text>
+        <Text style={[styles.basketTitle, dark && styles.basketTitleDark]}>Basket</Text>
         <Text style={[styles.basketCopy, dark && styles.basketCopyDark]}>
           {cartCount} items · {money(cartTotal)}
         </Text>
@@ -885,12 +885,9 @@ export default function HomeScreen() {
                   <Image source={BRAND_LOGO} style={styles.brandBadgeLogo} contentFit="contain" />
                 </View>
                 <View>
-                  <Text style={[styles.brandTitle, { color: theme.heroText }]}>Grab Basket</Text>
-                  <Text style={[styles.brandCaption, { color: theme.heroSub }]}>
-                    Local commerce, refined for faster browsing
-                  </Text>
-                </View>
+                <Text style={[styles.brandTitle, { color: theme.heroText }]}>Grab Basket</Text>
               </View>
+            </View>
               <View style={styles.locationRow}>
                 <Ionicons
                   name={activeService === 'warehouse' ? 'time-outline' : 'location-outline'}
@@ -898,12 +895,12 @@ export default function HomeScreen() {
                   color={theme.heroText}
                 />
                 <Text style={[styles.locationTitle, { color: theme.heroText }]} numberOfLines={1}>
-                  Delivering to your area
+                  Kakkanad
                 </Text>
                 <Ionicons name="chevron-down" size={16} color={theme.heroText} />
               </View>
               <Text style={[styles.locationSub, { color: theme.heroSub }]} numberOfLines={1}>
-                Curated local picks, quick baskets and booking-ready storefronts
+                28 min window
               </Text>
             </View>
 
@@ -957,7 +954,7 @@ export default function HomeScreen() {
 
               <SectionHeader
                 title="Popular around you"
-                subtitle="Top kitchens with stronger hierarchy, clean ratings and faster first decisions."
+                subtitle=""
               />
 
               {vendorsLoading ? (
@@ -965,7 +962,7 @@ export default function HomeScreen() {
               ) : displayVendors.length === 0 ? (
                 <EmptyState
                   title="No restaurants available"
-                  subtitle="Restaurant results will appear here as soon as nearby vendors are available."
+                  subtitle="Nothing live right now."
                 />
               ) : (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railRow}>
@@ -982,12 +979,12 @@ export default function HomeScreen() {
                 </ScrollView>
               )}
 
-              <SectionHeader title="Restaurants to order from" actionLabel="View all" />
+              <SectionHeader title="Restaurants" actionLabel="All" />
 
               {vendorsLoading ? (
                 <LoadingState label="Refreshing list..." />
               ) : displayVendors.length === 0 ? (
-                <EmptyState title="Your restaurant list is empty" subtitle="Seed more vendors to make discovery feel premium." />
+                <EmptyState title="No restaurants yet" subtitle="Check back in a bit." />
               ) : (
                 displayVendors.slice(0, 6).map((vendor) => (
                   <VendorListCard
@@ -1019,7 +1016,7 @@ export default function HomeScreen() {
 
               <SectionHeader
                 title="Quick add deals"
-                subtitle="Daily essentials and low-friction add-ons surfaced for faster basket building."
+                subtitle="Fast add-ons for the next basket"
               />
 
               {homeDealsLoading && homeDeals.length === 0 ? (
@@ -1038,12 +1035,12 @@ export default function HomeScreen() {
                 </ScrollView>
               )}
 
-              <SectionHeader title="Quick grocery stores" />
+                <SectionHeader title="Stores" />
 
               {vendorsLoading ? (
                 <LoadingState label="Loading nearby stores..." />
               ) : displayVendors.length === 0 ? (
-                <EmptyState title="No stores available" subtitle="Add grocery-ready vendors to complete this flow." />
+                <EmptyState title="No stores yet" subtitle="Nothing nearby right now." />
               ) : (
                 displayVendors.slice(0, 6).map((vendor) => (
                   <VendorListCard
@@ -1063,7 +1060,7 @@ export default function HomeScreen() {
             <>
               <SectionHeader
                 title="Tonight's shortcuts"
-                subtitle="Offer-led dining shortcuts with cleaner spacing and stronger merchant context."
+                subtitle=""
               />
 
               <View style={styles.dineGrid}>
@@ -1077,12 +1074,12 @@ export default function HomeScreen() {
                 </View>
               </View>
 
-              <SectionHeader title="Places worth booking" actionLabel="See all" />
+              <SectionHeader title="Book now" actionLabel="All" />
 
               {vendorsLoading ? (
                 <LoadingState label="Loading restaurants..." />
               ) : displayVendors.length === 0 ? (
-                <EmptyState title="No dineout partners yet" subtitle="Add vendors with dine-in value props to complete this surface." />
+                <EmptyState title="No tables yet" subtitle="No partners live right now." />
               ) : (
                 displayVendors.slice(0, 6).map((vendor) => (
                   <VendorListCard
@@ -1102,7 +1099,7 @@ export default function HomeScreen() {
             <>
               <SectionHeader
                 title="When is the plan?"
-                subtitle="Keep the layout editorial, not marketplace-heavy."
+                subtitle=""
                 light
               />
 
@@ -1118,13 +1115,13 @@ export default function HomeScreen() {
                 ))}
               </ScrollView>
 
-              <SectionHeader title="All scenes" subtitle="Curated drops around you" light />
+              <SectionHeader title="Scenes" subtitle="" light />
 
               {sceneItems.length === 0 ? (
                 <EmptyState
                   dark
                   title="No events in this bucket"
-                  subtitle="Adjust the time filter or add more experiences to expand this collection."
+                  subtitle="Try another day."
                 />
               ) : (
                 <View style={styles.sceneGrid}>

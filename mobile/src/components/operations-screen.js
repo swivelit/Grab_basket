@@ -92,7 +92,7 @@ function formatDate(value) {
 
 function summarizeOrder(order) {
   const items = Array.isArray(order?.items) ? order.items : [];
-  if (!items.length) return 'No items added yet';
+  if (!items.length) return 'No items';
 
   const first = items[0];
   const extraCount = Math.max(0, items.length - 1);
@@ -262,10 +262,8 @@ function Timeline({ events = [] }) {
   if (!events.length) {
     return (
       <View style={styles.timelineEmpty}>
-        <Text style={styles.timelineEmptyTitle}>No timeline events yet</Text>
-        <Text style={styles.timelineEmptySubtitle}>
-          This order will become easier to audit once more lifecycle updates are stored.
-        </Text>
+        <Text style={styles.timelineEmptyTitle}>No timeline yet</Text>
+        <Text style={styles.timelineEmptySubtitle}>Updates will show here.</Text>
       </View>
     );
   }
@@ -383,8 +381,8 @@ function DeliveryIndexScreen({
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
       <SectionCard
-        title="Go online and manage your active trips"
-        subtitle="This version upgrades the rider app from a shell into an operational dashboard with status, trip counts, and location sync."
+        title="Rider status"
+        subtitle=""
         right={
           <View style={styles.switchWrap}>
             <Text style={styles.switchLabel}>{isAvailable ? 'Online' : 'Offline'}</Text>
@@ -399,7 +397,7 @@ function DeliveryIndexScreen({
         <View style={styles.kpiGrid}>
           <KpiTile
             icon="navigate-outline"
-            label="Active trips"
+            label="Trips"
             value={String(summary.active_order_count ?? activeOrders.length)}
             tone="brand"
           />
@@ -411,13 +409,13 @@ function DeliveryIndexScreen({
           />
           <KpiTile
             icon="cash-outline"
-            label="COD collected"
+            label="COD"
             value={money(summary.cod_cash_collected)}
             tone="info"
           />
           <KpiTile
             icon="cube-outline"
-            label="Assigned / ready"
+            label="Ready"
             value={String(summary.assigned_order_count ?? 0)}
             tone="warning"
           />
@@ -426,18 +424,18 @@ function DeliveryIndexScreen({
 
       <SectionCard
         title="Location sync"
-        subtitle="Use this to manually sync rider location until native background tracking is enabled.">
+        subtitle="">
         {latestLocation ? (
           <View style={styles.inlineBanner}>
-            <Ionicons name="locate-outline" size={16} color={COLORS.info} />
-            <Text style={styles.inlineBannerText}>
-              Last location update: {formatDateTime(latestLocation.created_at)}
-            </Text>
-          </View>
+              <Ionicons name="locate-outline" size={16} color={COLORS.info} />
+              <Text style={styles.inlineBannerText}>
+                Last sync: {formatDateTime(latestLocation.created_at)}
+              </Text>
+            </View>
         ) : (
           <View style={styles.inlineBannerWarning}>
             <Ionicons name="alert-circle-outline" size={16} color={COLORS.warning} />
-            <Text style={styles.inlineBannerText}>No rider location has been synced yet.</Text>
+            <Text style={styles.inlineBannerText}>No location synced</Text>
           </View>
         )}
 
@@ -447,7 +445,7 @@ function DeliveryIndexScreen({
               label="Latitude"
               value={state.locationForm.lat}
               onChangeText={(value) => setLocationForm((current) => ({ ...current, lat: value }))}
-              placeholder="12.9716"
+              placeholder="Lat"
               keyboardType="decimal-pad"
             />
           </View>
@@ -457,7 +455,7 @@ function DeliveryIndexScreen({
               label="Longitude"
               value={state.locationForm.lng}
               onChangeText={(value) => setLocationForm((current) => ({ ...current, lng: value }))}
-              placeholder="77.5946"
+              placeholder="Lng"
               keyboardType="decimal-pad"
             />
           </View>
@@ -466,27 +464,27 @@ function DeliveryIndexScreen({
         <View style={styles.twoColRow}>
           <View style={styles.flexOne}>
             <TextField
-              label="Heading (optional)"
+              label="Heading"
               value={state.locationForm.heading}
               onChangeText={(value) => setLocationForm((current) => ({ ...current, heading: value }))}
-              placeholder="180"
+              placeholder="Deg"
               keyboardType="decimal-pad"
             />
           </View>
           <View style={styles.gapCol} />
           <View style={styles.flexOne}>
             <TextField
-              label="Speed (optional)"
+              label="Speed"
               value={state.locationForm.speed}
               onChangeText={(value) => setLocationForm((current) => ({ ...current, speed: value }))}
-              placeholder="24"
+              placeholder="Km/h"
               keyboardType="decimal-pad"
             />
           </View>
         </View>
 
         <PrimaryButton
-          label="Sync rider location"
+          label="Sync location"
           icon="locate-outline"
           onPress={saveLocation}
           disabled={loadingAction}
@@ -495,8 +493,8 @@ function DeliveryIndexScreen({
       </SectionCard>
 
       <SectionCard
-        title="Live pickup / delivery queue"
-        subtitle="These are the orders a rider should be able to act on without opening another screen.">
+        title="Active queue"
+        subtitle="">
         {activeOrders.length ? (
           activeOrders.map((order) => {
             const isPickedUp = String(order.status || '').toUpperCase() === 'PICKED_UP';
@@ -518,7 +516,7 @@ function DeliveryIndexScreen({
                 {latestLocation ? (
                   <View style={styles.infoStrip}>
                     <Text style={styles.infoStripText}>
-                      Latest rider ping at {formatDateTime(latestLocation.created_at)}
+                      Last ping: {formatDateTime(latestLocation.created_at)}
                     </Text>
                   </View>
                 ) : null}
@@ -529,7 +527,7 @@ function DeliveryIndexScreen({
           <EmptyState
             icon="bicycle-outline"
             title="No live trips"
-            subtitle="Once a seller accepts and dispatches an order, it will show up here."
+            subtitle="No active order"
           />
         )}
       </SectionCard>
@@ -558,7 +556,7 @@ function DeliveryOrdersScreen({ state, refresh, loadingAction }) {
     <ScrollView
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
-      <SectionCard title="Assigned orders" subtitle="Fast rider actions matter more than decorative screens.">
+      <SectionCard title="Assigned" subtitle="">
         {activeOrders.length ? (
           activeOrders.map((order) => {
             const isPickedUp = String(order.status || '').toUpperCase() === 'PICKED_UP';
@@ -584,21 +582,21 @@ function DeliveryOrdersScreen({ state, refresh, loadingAction }) {
           <EmptyState
             icon="time-outline"
             title="Nothing assigned"
-            subtitle="Your dispatch queue is empty right now."
+            subtitle="Queue is empty"
           />
         )}
       </SectionCard>
 
       <SectionCard
-        title="Recent completed / closed orders"
-        subtitle="Delivered and cancelled orders stay visible here so the rider can verify history.">
+        title="Recent"
+        subtitle="">
         {completedOrders.length ? (
           completedOrders.slice(0, 12).map((order) => <OrderCard key={order.id} order={order} />)
         ) : (
           <EmptyState
             icon="checkmark-done-outline"
-            title="No completed history yet"
-            subtitle="Delivered or closed orders will appear here."
+            title="No history yet"
+            subtitle="Closed orders appear here"
           />
         )}
       </SectionCard>
@@ -631,7 +629,8 @@ function DeliveryEarningsScreen({ state, refresh }) {
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
       <SectionCard
         title="Earnings & cash summary"
-        subtitle="Delivered orders, COD collected and basket trends stay visible here while payout tooling matures.">
+        subtitle=""
+      >
         <View style={styles.kpiGrid}>
           <KpiTile
             icon="checkmark-circle-outline"
@@ -647,14 +646,14 @@ function DeliveryEarningsScreen({ state, refresh }) {
 
       <SectionCard
         title="Delivered order log"
-        subtitle="Use this history to validate completed deliveries and payout-related order trails.">
+        subtitle="">
         {deliveredOrders.length ? (
           deliveredOrders.map((order) => <OrderCard key={order.id} order={order} />)
         ) : (
           <EmptyState
             icon="cash-outline"
-            title="No delivered orders yet"
-            subtitle="Once deliveries are completed, a usable payout trail will appear here."
+            title="No delivered orders"
+            subtitle="Delivered trips appear here"
           />
         )}
       </SectionCard>
@@ -672,7 +671,7 @@ function DeliveryAccountScreen({ state, setAvailability, refresh, logout, loadin
     <ScrollView
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
-      <SectionCard title="Partner account" subtitle="Keep rider identity, availability and sync status in one operational view.">
+      <SectionCard title="Account" subtitle="">
         <View style={styles.profileRow}>
           <View style={styles.avatarWrap}>
             <Ionicons name="person-outline" size={26} color={COLORS.brand} />
@@ -743,7 +742,7 @@ function PartnerIndexScreen({ state, refresh, toggleStoreOpen }) {
         title={state.vendor?.name || 'Create your outlet profile'}
         subtitle={
           state.vendor?.description ||
-          'This screen now behaves like a real seller dashboard instead of a static shell.'
+          ''
         }
         right={
           state.vendor ? (
@@ -768,7 +767,7 @@ function PartnerIndexScreen({ state, refresh, toggleStoreOpen }) {
 
       <SectionCard
         title="Store health"
-        subtitle="Operational status, coverage and fulfillment health stay visible here for quick decisions.">
+        subtitle="">
         {state.vendor ? (
           <View style={styles.metaList}>
             <MetaLine icon="location-outline" label={state.vendor.address || 'Add a business address in Account.'} />
@@ -788,22 +787,22 @@ function PartnerIndexScreen({ state, refresh, toggleStoreOpen }) {
         ) : (
           <EmptyState
             icon="storefront-outline"
-            title="No store attached yet"
-            subtitle="Open the Account tab, save your outlet details, then return here."
+            title="No store yet"
+            subtitle="Add store details in Account"
           />
         )}
       </SectionCard>
 
       <SectionCard
         title="Latest queue"
-        subtitle="Sellers need quick visibility into new, preparing, and ready orders.">
+        subtitle="">
         {state.orders.slice(0, 5).length ? (
           state.orders.slice(0, 5).map((order) => <OrderCard key={order.id} order={order} />)
         ) : (
           <EmptyState
             icon="receipt-outline"
             title="No orders yet"
-            subtitle="Create a customer order and it will show up here."
+            subtitle="New orders will show here"
           />
         )}
       </SectionCard>
@@ -829,7 +828,7 @@ function PartnerCatalogScreen({
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
       <SectionCard
         title={productForm.id ? 'Edit menu item' : 'Add menu item'}
-        subtitle="Manage catalog details, availability and pricing without leaving the operations flow.">
+        subtitle="">
         <TextField
           label="Item name"
           value={productForm.name}
@@ -881,7 +880,7 @@ function PartnerCatalogScreen({
         </View>
       </SectionCard>
 
-      <SectionCard title="Catalog" subtitle="You now have working CRUD plus fast availability toggles.">
+      <SectionCard title="Catalog" subtitle="">
         {products.length ? (
           products.map((product) => (
             <View key={product.id} style={styles.catalogCard}>
@@ -930,7 +929,7 @@ function PartnerCatalogScreen({
           <EmptyState
             icon="restaurant-outline"
             title="No menu yet"
-            subtitle="Add your first product above and it will appear here."
+            subtitle="Add your first item"
           />
         )}
       </SectionCard>
@@ -953,7 +952,7 @@ function PartnerOrdersScreen({ state, refresh, acceptOrder, readyOrder, rejectOr
     <ScrollView
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
-      <SectionCard title="New orders" subtitle="Accept or reject the queue quickly.">
+      <SectionCard title="New orders" subtitle="">
         {created.length ? (
           created.map((order) => (
             <OrderCard
@@ -983,12 +982,12 @@ function PartnerOrdersScreen({ state, refresh, acceptOrder, readyOrder, rejectOr
           <EmptyState
             icon="receipt-outline"
             title="No new orders"
-            subtitle="Fresh customer orders will appear here."
+            subtitle="New orders appear here"
           />
         )}
       </SectionCard>
 
-      <SectionCard title="Preparing / assigned" subtitle="Mark orders ready without opening another app shell.">
+      <SectionCard title="Preparing" subtitle="">
         {preparing.length ? (
           preparing.map((order) => (
             <OrderCard
@@ -1010,19 +1009,19 @@ function PartnerOrdersScreen({ state, refresh, acceptOrder, readyOrder, rejectOr
           <EmptyState
             icon="restaurant-outline"
             title="Nothing in preparation"
-            subtitle="Accepted orders will move here."
+            subtitle="Accepted orders appear here"
           />
         )}
       </SectionCard>
 
-      <SectionCard title="Ready / closed orders" subtitle="Useful for kitchen visibility and dispatch verification.">
+      <SectionCard title="Ready and closed" subtitle="">
         {[...ready, ...closed].length ? (
           [...ready, ...closed].slice(0, 12).map((order) => <OrderCard key={order.id} order={order} />)
         ) : (
           <EmptyState
             icon="checkmark-done-outline"
             title="No history yet"
-            subtitle="Once orders move forward, they will show here."
+            subtitle="Order history appears here"
           />
         )}
       </SectionCard>
@@ -1037,7 +1036,7 @@ function PartnerAccountScreen({ state, setVendorForm, saveVendor, refresh, logou
     <ScrollView
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={refresh} />}>
-      <SectionCard title="Store settings" subtitle="Sellers need editable business information and operational controls.">
+      <SectionCard title="Store settings" subtitle="">
         <TextField
           label="Store name"
           value={vendorForm.name}
@@ -1108,7 +1107,7 @@ function PartnerAccountScreen({ state, setVendorForm, saveVendor, refresh, logou
         </View>
       </SectionCard>
 
-      <SectionCard title="Logged-in business account" subtitle="Keep seller identity separate from rider and customer roles.">
+      <SectionCard title="Business account" subtitle="">
         <View style={styles.metaList}>
           <MetaLine icon="mail-outline" label={state.profile?.email || '—'} />
           <MetaLine icon="shield-checkmark-outline" label={`Role: ${formatStatus(state.profile?.role)}`} />

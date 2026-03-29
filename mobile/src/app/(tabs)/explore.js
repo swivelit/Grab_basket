@@ -49,29 +49,29 @@ const COLORS = {
 const THEMES = {
   food: {
     ...ConsumerServiceThemes.food,
-    title: 'Explore food',
-    subtitle: 'Search-first restaurant discovery with calmer spacing and clearer merchant signals.',
+    title: 'Food',
+    subtitle: '',
     placeholder: 'Search cuisines, dishes, restaurants',
     accent: BrandPalette.peach200,
   },
   warehouse: {
     ...ConsumerServiceThemes.warehouse,
-    title: 'Explore instamart',
-    subtitle: 'Faster grocery browsing with cleaner aisles, stronger deal visibility and softer surfaces.',
+    title: 'Instamart',
+    subtitle: '',
     placeholder: 'Search categories, brands, essentials',
     accent: BrandPalette.primary,
   },
   eatout: {
     ...ConsumerServiceThemes.eatout,
-    title: 'Explore dineout',
-    subtitle: 'Dining shortcuts, premium filters and better intent capture for faster table decisions.',
+    title: 'Dineout',
+    subtitle: '',
     placeholder: 'Search restaurants, vibe, area',
     accent: '#E8A46C',
   },
   scenes: {
     ...ConsumerServiceThemes.scenes,
-    title: 'Explore scenes',
-    subtitle: 'Event and experience discovery on a branded editorial dark canvas.',
+    title: 'Scenes',
+    subtitle: '',
     placeholder: 'Search events, creators, experiences',
     accent: '#5C3D31',
   },
@@ -224,12 +224,12 @@ function getEtaLabel(vendor, service = 'food') {
 
 function getVendorMeta(vendor, service = 'food') {
   if (service === 'warehouse') {
-    return vendor?.description || 'Essentials, snacks and quick home needs';
+    return vendor?.description || 'Fresh, quick';
   }
   if (service === 'eatout') {
-    return vendor?.description || 'Reserve tables, unlock bill offers and skip decision fatigue';
+    return vendor?.description || 'Tables, offers';
   }
-  return vendor?.description || vendor?.address || 'Comfort food, premium presentation and reliable delivery';
+  return vendor?.description || vendor?.address || 'Fast, local';
 }
 
 function getVendorBadge(vendor, service = 'food') {
@@ -600,11 +600,11 @@ function SearchBar({ value, onChangeText, onSubmitEditing, onClear, placeholder,
 function MetaBanner({ isFetching, isFromCache, updatedAt, onRefresh, dark = false }) {
   const title = isFetching
     ? isFromCache
-      ? 'Showing cached results while refreshing'
-      : 'Refreshing results'
+      ? 'Refreshing picks'
+      : 'Refreshing'
     : isFromCache
-      ? 'Showing cached results'
-      : 'Showing fresh results';
+      ? 'Saved picks'
+      : 'Live picks';
 
   return (
     <View style={[styles.metaBanner, dark && styles.metaBannerDark]}>
@@ -915,7 +915,7 @@ export default function ExploreScreen() {
         <View style={[styles.body, isDark && styles.bodyDark]}>
           <SectionHeader
             title="Filters"
-            subtitle={`Active controls: ${activeControlCount}`}
+            subtitle=""
             actionLabel={activeControlCount ? 'Reset' : ''}
             onActionPress={resetControls}
             light={isDark}
@@ -947,39 +947,35 @@ export default function ExploreScreen() {
             ))}
           </ScrollView>
 
-          <SectionHeader title="Suggestions" subtitle="Powered by recent intent + cached consumer data." light={isDark} />
+          <SectionHeader title="Recent" subtitle="" light={isDark} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
             {suggestionItems.length ? (
               suggestionItems.map((item) => (
                 <SuggestionChip key={item} label={item} onPress={() => applySuggestion(item)} dark={isDark} />
               ))
             ) : (
-              <Text style={[styles.helperText, isDark && styles.helperTextDark]}>No suggestions yet.</Text>
+              <Text style={[styles.helperText, isDark && styles.helperTextDark]}>No recent searches</Text>
             )}
           </ScrollView>
 
           {queryState.isLoading && !isQueryActive ? (
             <View style={[styles.loadingCard, isDark && styles.loadingCardDark]}>
               <ActivityIndicator color={isDark ? '#ffffff' : COLORS.orange} />
-              <Text style={[styles.helperText, isDark && styles.helperTextDark]}>Preparing consumer discovery…</Text>
+              <Text style={[styles.helperText, isDark && styles.helperTextDark]}>Loading picks…</Text>
             </View>
           ) : null}
 
           {emptyQuery ? (
             <EmptyState
               title="No matches found"
-              subtitle="Try a broader search, reset filters, or pick a suggestion."
+              subtitle="Try another keyword."
               dark={isDark}
             />
           ) : null}
 
           <SectionHeader
             title={isQueryActive ? `Stores (${queryState.data.vendors.length})` : 'Featured stores'}
-            subtitle={
-              isQueryActive
-                ? `${queryState.data.totalMatches} total matches across stores, deals and events.`
-                : 'Curated from your consumer feed and recent behavior.'
-            }
+            subtitle={isQueryActive ? `${queryState.data.totalMatches}` : ''}
             light={isDark}
           />
 
@@ -1000,7 +996,7 @@ export default function ExploreScreen() {
           ) : (
             <EmptyState
               title="No stores available"
-              subtitle="Your vendor feed is empty for this service right now."
+              subtitle="Nothing live right now."
               dark={isDark}
             />
           )}
@@ -1009,7 +1005,7 @@ export default function ExploreScreen() {
             <>
               <SectionHeader
                 title={isQueryActive ? `Deals (${queryState.data.deals.length})` : 'Trending deals'}
-                subtitle="Quick product discovery now shares the same cache lifecycle as the other apps."
+                subtitle=""
                 light={isDark}
               />
 
@@ -1027,7 +1023,7 @@ export default function ExploreScreen() {
               ) : (
                 <EmptyState
                   title="No quick deals yet"
-                  subtitle="Once product feeds are richer, this section will feel much stronger."
+                  subtitle="No deals right now."
                   dark={isDark}
                 />
               )}
@@ -1038,7 +1034,7 @@ export default function ExploreScreen() {
             <>
               <SectionHeader
                 title={isQueryActive ? `Experiences (${queryState.data.events.length})` : 'Trending experiences'}
-                subtitle="Scene discovery is now included in the same shared cache model."
+                subtitle=""
                 light={isDark}
               />
 
@@ -1051,7 +1047,7 @@ export default function ExploreScreen() {
               ) : (
                 <EmptyState
                   title="No experiences found"
-                  subtitle="Try another keyword or reset your active filters."
+                  subtitle="Try another keyword."
                   dark={isDark}
                 />
               )}
