@@ -199,6 +199,7 @@ const APP_ENV = normalizeAppEnv(
     process.env.NODE_ENV === 'production' ? 'production' : 'development'
   )
 );
+const BUILD_TYPE = readEnv('BUILD_TYPE', '');
 
 const IOS_BUNDLE_IDENTIFIER = readEnv(
   'EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER',
@@ -379,11 +380,49 @@ function buildProductionValidationReport() {
 }
 
 const PRODUCTION_VALIDATION = buildProductionValidationReport();
+const PRODUCTION_WORKFLOW_WARNINGS = [];
+
+if (APP_ENV === 'production') {
+  const parsedApiUrl = safeParseUrl(API_BASE_URL);
+  const normalizedBuildType = String(BUILD_TYPE || '').trim().toLowerCase();
+  const normalizedNodeEnv = String(process.env.NODE_ENV || '')
+    .trim()
+    .toLowerCase();
+
+  if (normalizedBuildType === 'debug') {
+    PRODUCTION_WORKFLOW_WARNINGS.push(
+      'APP_ENV=production while BUILD_TYPE=debug. This usually means a local debug build inherited production settings from mobile/.env. Run ./build-apk.sh without forcing production, or set EXPO_PUBLIC_APP_ENV=development for local debug APKs.'
+    );
+  }
+
+  if (normalizedNodeEnv && normalizedNodeEnv !== 'production') {
+    PRODUCTION_WORKFLOW_WARNINGS.push(
+      `APP_ENV=production while NODE_ENV=${process.env.NODE_ENV}. Production validation is active even though the surrounding workflow does not look like a release build.`
+    );
+  }
+
+  if (
+    parsedApiUrl &&
+    (parsedApiUrl.protocol !== 'https:' ||
+      isLocalOrPrivateHost(parsedApiUrl.hostname))
+  ) {
+    PRODUCTION_WORKFLOW_WARNINGS.push(
+      `APP_ENV=production with API base URL ${API_BASE_URL}. Production builds must use a public HTTPS backend.`
+    );
+  }
+}
 
 if (PRODUCTION_VALIDATION.warnings.length) {
   console.warn(
     `[Grab Basket][${APP_VARIANT}] build warnings:
 - ${PRODUCTION_VALIDATION.warnings.join('\n- ')}`
+  );
+}
+
+if (PRODUCTION_WORKFLOW_WARNINGS.length) {
+  console.warn(
+    `[Grab Basket][${APP_VARIANT}] production-mode diagnostics:
+- ${PRODUCTION_WORKFLOW_WARNINGS.join('\n- ')}`
   );
 }
 
