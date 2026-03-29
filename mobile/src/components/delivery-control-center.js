@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { BrandPalette, createShadow } from '@/constants/theme';
 
 import { useGrabBasket } from '../../App';
 import InlineErrorCard from './inline-error-card';
@@ -34,25 +35,26 @@ const FILTERS = [
 ];
 
 const COLORS = {
-  page: '#FFF9F3',
-  surface: '#FFFFFF',
-  surfaceAlt: '#FFF6EC',
-  border: '#F0D9C3',
-  line: '#F3E0CD',
-  text: '#2F241C',
-  muted: '#7A6758',
-  subtle: '#A18B79',
-  brand: '#D97651',
-  brandSoft: '#FFF0E7',
-  success: '#1F8F5F',
-  successSoft: '#EAF8F0',
-  info: '#2C69C9',
-  infoSoft: '#EBF2FF',
-  warning: '#C57B12',
-  warningSoft: '#FFF6DE',
-  danger: '#D45454',
-  dangerSoft: '#FDECEC',
-  black: '#241A14',
+  ...BrandPalette,
+  page: BrandPalette.page,
+  surface: BrandPalette.surface,
+  surfaceAlt: BrandPalette.surfaceAlt,
+  border: BrandPalette.border,
+  line: BrandPalette.line,
+  text: BrandPalette.text,
+  muted: BrandPalette.textMuted,
+  subtle: BrandPalette.subtle,
+  brand: BrandPalette.primary,
+  brandSoft: BrandPalette.primarySoft,
+  success: BrandPalette.success,
+  successSoft: BrandPalette.successSoft,
+  info: '#8E4430',
+  infoSoft: BrandPalette.infoSoft,
+  warning: BrandPalette.warning,
+  warningSoft: BrandPalette.warningSoft,
+  danger: BrandPalette.danger,
+  dangerSoft: BrandPalette.dangerSoft,
+  black: BrandPalette.ink,
 };
 
 function normalizeText(value = '') {
@@ -876,12 +878,13 @@ const styles = StyleSheet.create({
   card: {
     marginHorizontal: 16,
     marginTop: 14,
-    borderRadius: 22,
+    borderRadius: 24,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 16,
     gap: 14,
+    ...createShadow(0.06, 14, 6),
   },
   cardHeader: {
     flexDirection: 'row',
@@ -985,7 +988,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     minHeight: 48,
-    borderRadius: 16,
+    borderRadius: 18,
     backgroundColor: COLORS.surfaceAlt,
     borderWidth: 1,
     borderColor: COLORS.border,

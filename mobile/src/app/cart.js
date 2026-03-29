@@ -10,24 +10,26 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BrandPalette, createShadow } from '@/constants/theme';
 
 import { useGrabBasket } from '../../App';
 import InlineErrorCard from '../components/inline-error-card';
 
 const COLORS = {
-  bg: '#FFF9F3',
-  card: '#FFFFFF',
-  cardAlt: '#FFF6EC',
-  text: '#2F241C',
-  muted: '#756354',
-  subtle: '#A18C7B',
-  border: '#F2DDC7',
-  line: '#F4E6D7',
-  peach50: '#FFF7EE',
-  peach600: '#D97651',
-  success: '#2E8B57',
-  successSoft: '#EAF7EF',
-  black: '#2B211A',
+  ...BrandPalette,
+  bg: BrandPalette.page,
+  card: BrandPalette.surface,
+  cardAlt: BrandPalette.surfaceAlt,
+  text: BrandPalette.text,
+  muted: BrandPalette.textMuted,
+  subtle: BrandPalette.subtle,
+  border: BrandPalette.border,
+  line: BrandPalette.line,
+  peach50: BrandPalette.primarySoft,
+  peach600: BrandPalette.primary,
+  success: BrandPalette.success,
+  successSoft: BrandPalette.successSoft,
+  black: BrandPalette.ink,
 };
 
 function money(value) {
@@ -260,7 +262,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingVertical: 16,
   },
   iconButton: {
     width: 38,
@@ -271,6 +273,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
+    ...createShadow(0.05, 10, 4),
   },
   headerTitle: {
     color: COLORS.text,
@@ -280,15 +283,16 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 18,
     paddingBottom: 28,
-    gap: 14,
+    gap: 16,
   },
   sectionCard: {
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 16,
     gap: 12,
+    ...createShadow(0.06, 14, 6),
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -388,12 +392,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.cardAlt,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
   },
   paymentPillActive: {
     backgroundColor: COLORS.peach50,
-    borderColor: COLORS.peach600,
+    borderColor: '#F6C5CD',
   },
   paymentPillText: {
     color: COLORS.text,
@@ -441,8 +445,8 @@ const styles = StyleSheet.create({
   progressCard: {
     marginTop: 6,
     gap: 8,
-    padding: 12,
-    borderRadius: 16,
+    padding: 14,
+    borderRadius: 18,
     backgroundColor: COLORS.cardAlt,
   },
   progressTitle: {
@@ -464,10 +468,11 @@ const styles = StyleSheet.create({
   checkoutButton: {
     marginTop: 4,
     backgroundColor: COLORS.black,
-    borderRadius: 18,
-    paddingVertical: 16,
+    borderRadius: 20,
+    paddingVertical: 17,
     alignItems: 'center',
     justifyContent: 'center',
+    ...createShadow(0.16, 16, 8),
   },
   checkoutButtonDisabled: {
     opacity: 0.55,
@@ -499,8 +504,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
     backgroundColor: COLORS.black,
     borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    ...createShadow(0.14, 14, 8),
   },
   primaryActionText: {
     color: '#FFF7F0',
@@ -509,7 +515,7 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     backgroundColor: COLORS.successSoft,
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 14,
     gap: 8,
     flexDirection: 'row',

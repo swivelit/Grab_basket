@@ -2,31 +2,7 @@ import React from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-
-const SHELL_THEME = {
-  delivery: {
-    page: '#F6F9FC',
-    barBackground: '#FFFFFF',
-    barBorder: '#DCE7F4',
-    activeTint: '#1463FF',
-    inactiveTint: '#7E8AA0',
-    focusedSurface: '#EAF2FF',
-    focusedBorder: '#C6D9FF',
-    iconSurface: '#DDE9FF',
-    shadowColor: '#0F172A',
-  },
-  partner: {
-    page: '#FFF9F3',
-    barBackground: '#FFFFFF',
-    barBorder: '#F0DDCA',
-    activeTint: '#D97651',
-    inactiveTint: '#8A7766',
-    focusedSurface: '#FFF3E8',
-    focusedBorder: '#F3D6BF',
-    iconSurface: '#FFEADB',
-    shadowColor: '#7C4A2D',
-  },
-};
+import { AppShellThemes, createShadow } from '@/constants/theme';
 
 function TabItem({ focused, color, icon, label, focusedSurface, focusedBorder, iconSurface }) {
   return (
@@ -55,7 +31,7 @@ function TabItem({ focused, color, icon, label, focusedSurface, focusedBorder, i
 }
 
 export default function AppShellTabs({ shell = 'delivery', screens = [] }) {
-  const theme = SHELL_THEME[shell] || SHELL_THEME.delivery;
+  const theme = AppShellThemes[shell] || AppShellThemes.delivery;
 
   return (
     <Tabs
@@ -69,18 +45,19 @@ export default function AppShellTabs({ shell = 'delivery', screens = [] }) {
           backgroundColor: theme.page,
         },
         tabBarStyle: {
-          height: 88,
-          paddingTop: 10,
-          paddingBottom: 14,
+          height: 92,
+          paddingTop: 12,
+          paddingBottom: 16,
+          paddingHorizontal: 10,
+          borderTopLeftRadius: 26,
+          borderTopRightRadius: 26,
           backgroundColor: theme.barBackground,
           borderTopWidth: 1,
           borderTopColor: theme.barBorder,
           ...Platform.select({
             ios: {
               shadowColor: theme.shadowColor,
-              shadowOpacity: 0.08,
-              shadowRadius: 18,
-              shadowOffset: { width: 0, height: -6 },
+              ...createShadow(0.1, 18, -6),
             },
             android: {
               elevation: 16,
@@ -121,11 +98,11 @@ export default function AppShellTabs({ shell = 'delivery', screens = [] }) {
 const styles = StyleSheet.create({
   tabItem: {
     minWidth: 74,
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: 'transparent',
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 9,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,

@@ -1,4 +1,6 @@
 const pkg = require('./package.json');
+const fs = require('fs');
+const path = require('path');
 
 function readEnv(key, fallback = '') {
   const value = process.env[key];
@@ -157,6 +159,11 @@ function dedupeList(values = []) {
   );
 }
 
+function assetPathIfExists(relativePath) {
+  const target = path.join(__dirname, relativePath);
+  return fs.existsSync(target) ? relativePath : '';
+}
+
 const APP_VARIANT = normalizeAppVariant(
   readEnv('EXPO_PUBLIC_APP_VARIANT', 'consumer')
 );
@@ -187,6 +194,36 @@ const VARIANT_DEFAULTS = {
 
 const VARIANT = VARIANT_DEFAULTS[APP_VARIANT] || VARIANT_DEFAULTS.consumer;
 const IS_DELIVERY_APP = APP_VARIANT === 'delivery';
+
+const VARIANT_BRAND_ASSETS = {
+  consumer: {
+    icon: './assets/images/GrabBasket - Consumer Logo.jpg',
+    splash: './assets/images/GrabBasket - Consumer Logo.jpg',
+    adaptiveForeground: './assets/images/GrabBasket - Consumer Logo.jpg',
+  },
+  delivery: {
+    icon: './assets/images/Grabbasket - Delivery Logo.jpg',
+    splash: './assets/images/Grabbasket - Delivery Logo.jpg',
+    adaptiveForeground: './assets/images/Grabbasket - Delivery Logo.jpg',
+  },
+  partner: {
+    icon: './assets/images/Grabbasket - Partner Logo.jpg',
+    splash: './assets/images/Grabbasket - Partner Logo.jpg',
+    adaptiveForeground: './assets/images/Grabbasket - Partner Logo.jpg',
+  },
+};
+
+const variantAssets = VARIANT_BRAND_ASSETS[APP_VARIANT] || VARIANT_BRAND_ASSETS.consumer;
+const APP_ICON = assetPathIfExists(variantAssets.icon) || './assets/images/icon.png';
+const SPLASH_IMAGE = assetPathIfExists(variantAssets.splash) || './assets/images/splash-icon.png';
+const ADAPTIVE_FOREGROUND =
+  assetPathIfExists(variantAssets.adaptiveForeground) ||
+  './assets/images/android-icon-foreground.png';
+const ADAPTIVE_BACKGROUND =
+  assetPathIfExists('./assets/images/logo-glow.png') || './assets/images/android-icon-background.png';
+const ADAPTIVE_MONOCHROME =
+  assetPathIfExists('./assets/images/android-icon-monochrome.png') ||
+  './assets/images/android-icon-monochrome.png';
 
 const APP_NAME = readEnv('EXPO_PUBLIC_APP_NAME', VARIANT.appName);
 const APP_SLUG = readEnv('EXPO_PUBLIC_APP_SLUG', VARIANT.slug);
@@ -583,9 +620,9 @@ function buildAndroidConfig() {
       ? DELIVERY_ANDROID_PERMISSIONS
       : DEFAULT_ANDROID_PERMISSIONS,
     adaptiveIcon: {
-      foregroundImage: './assets/images/android-icon-foreground.png',
-      backgroundImage: './assets/images/android-icon-background.png',
-      monochromeImage: './assets/images/android-icon-monochrome.png',
+      foregroundImage: ADAPTIVE_FOREGROUND,
+      backgroundImage: ADAPTIVE_BACKGROUND,
+      monochromeImage: ADAPTIVE_MONOCHROME,
     },
     config: {
       googleMaps: GOOGLE_MAPS_API_KEY ? { apiKey: GOOGLE_MAPS_API_KEY } : undefined,
@@ -616,11 +653,11 @@ const expoConfig = {
     typedRoutes: true,
   },
   assetBundlePatterns: ['**/*'],
-  icon: './assets/images/icon.png',
+  icon: APP_ICON,
   splash: {
-    image: './assets/images/splash-icon.png',
+    image: SPLASH_IMAGE,
     resizeMode: 'contain',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#FBF6EE',
   },
   updates: {
     fallbackToCacheTimeout: 0,
