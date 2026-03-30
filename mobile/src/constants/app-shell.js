@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import EMBEDDED_APP_VARIANT from '../generated/app-variant';
 
 export const APP_SHELLS = {
   consumer: {
@@ -31,8 +32,8 @@ export function normalizeAppVariant(value = '', fallback = 'consumer') {
     return fallback;
   }
 
-  if (normalized === 'customer') return 'consumer';
-  if (normalized === 'seller' || normalized === 'merchant') return 'partner';
+  if (normalized === 'customer' || normalized === 'user') return 'consumer';
+  if (normalized === 'seller' || normalized === 'merchant' || normalized === 'vendor') return 'partner';
   if (normalized === 'delivery' || normalized === 'partner_delivery' || normalized === 'rider') {
     return 'delivery';
   }
@@ -72,9 +73,25 @@ function getVariantFromNativeApplicationId() {
   return '';
 }
 
+export function getAppVariantDebugInfo() {
+  const expoExtra = getExpoExtra();
+  const nativeApplicationId = getNativeApplicationId();
+
+  return {
+    embeddedVariant: normalizeAppVariant(EMBEDDED_APP_VARIANT, ''),
+    expoExtraVariant: normalizeAppVariant(expoExtra?.appVariant, ''),
+    nativeApplicationId,
+    nativeVariant: getVariantFromNativeApplicationId(),
+    processEnvVariant: normalizeAppVariant(process?.env?.EXPO_PUBLIC_APP_VARIANT, ''),
+  };
+}
+
 export function getAppVariant() {
-  // Prefer the embedded native/expo config first.
-  // This is more stable across release APK builds than relying on Metro-inlined env values.
+  const fromEmbeddedVariant = normalizeAppVariant(EMBEDDED_APP_VARIANT, '');
+  if (fromEmbeddedVariant) {
+    return fromEmbeddedVariant;
+  }
+
   const expoExtra = getExpoExtra();
 
   const fromExpoExtra = normalizeAppVariant(expoExtra?.appVariant, '');
@@ -87,7 +104,6 @@ export function getAppVariant() {
     return fromApplicationId;
   }
 
-  // Last-resort fallback only.
   const fromProcessEnv = normalizeAppVariant(process?.env?.EXPO_PUBLIC_APP_VARIANT, '');
   if (fromProcessEnv) {
     return fromProcessEnv;
