@@ -295,6 +295,16 @@ const ANDROID_VERSION_CODE = readInt('EXPO_PUBLIC_ANDROID_VERSION_CODE', 1, {
 
 const EAS_PROJECT_ID = readEnv('EXPO_PUBLIC_EAS_PROJECT_ID', '');
 const EXPO_OWNER = readEnv('EXPO_PUBLIC_EXPO_OWNER', '');
+const UPDATE_CHANNEL = readVariantEnv(
+  'EXPO_PUBLIC_UPDATE_CHANNEL',
+  APP_VARIANT,
+  APP_ENV === 'production' ? APP_VARIANT : `${APP_VARIANT}-${APP_ENV}`
+);
+const RUNTIME_VERSION = readVariantEnv(
+  'EXPO_PUBLIC_RUNTIME_VERSION',
+  APP_VARIANT,
+  `${APP_VARIANT}-${APP_ENV}-${APP_VERSION}`
+);
 
 const META_APP_ID = readEnv('EXPO_PUBLIC_META_APP_ID', '');
 const META_CLIENT_TOKEN = readEnv('EXPO_PUBLIC_META_CLIENT_TOKEN', '');
@@ -551,7 +561,7 @@ function buildPlugins() {
   const nextPlugins = [
     [
       'expo-notifications',
-        {
+      {
         icon: NOTIFICATION_ICON,
         color: '#D97651',
         sounds: [],
@@ -704,10 +714,13 @@ const expoConfig = {
   },
   updates: {
     fallbackToCacheTimeout: 0,
+    requestHeaders: EAS_PROJECT_ID
+      ? {
+          'expo-channel-name': UPDATE_CHANNEL,
+        }
+      : undefined,
   },
-  runtimeVersion: {
-    policy: 'appVersion',
-  },
+  runtimeVersion: RUNTIME_VERSION,
   notification: {
     icon: NOTIFICATION_ICON,
     color: '#F42245',
@@ -768,6 +781,10 @@ const expoConfig = {
     },
     googleMaps: {
       apiKey: GOOGLE_MAPS_API_KEY,
+    },
+    updates: {
+      channel: UPDATE_CHANNEL,
+      runtimeVersion: RUNTIME_VERSION,
     },
     validation: {
       release: {
