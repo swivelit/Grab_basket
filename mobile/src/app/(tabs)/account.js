@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as Application from 'expo-application';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
@@ -26,24 +27,24 @@ const QUICK_ACTIONS = [
   { key: 'help', label: 'Help & support', icon: 'help-circle-outline' },
 ];
 
-const GUEST_ACTIONS = [
+const GUEST_LINKS = [
   { key: 'offers', label: 'Offers', icon: 'pricetag-outline' },
   { key: 'feedback', label: 'Feedback', icon: 'chatbox-ellipses-outline' },
-  { key: 'support', label: 'Need help?', icon: 'headset-outline' },
+  { key: 'privacy', label: 'Privacy & terms', icon: 'shield-checkmark-outline' },
 ];
 
 const KOCHI_LAT = '9.9672';
 const KOCHI_LNG = '76.2911';
 
-function formatDate(value) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString();
-}
-
 function money(value) {
   return `₹${Number(value || 0).toFixed(0)}`;
+}
+
+function formatDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function mapOrderStatus(order) {
@@ -61,36 +62,41 @@ function initials(value = '') {
     .toUpperCase();
 }
 
-function QuickActionCard({ label, icon, onPress }) {
-  return (
-    <TouchableOpacity activeOpacity={0.92} style={styles.quickActionCard} onPress={onPress}>
-      <View style={styles.quickActionIconWrap}>
-        <Ionicons name={icon} size={20} color={BrandPalette.primary} />
-      </View>
-      <Text style={styles.quickActionLabel}>{label}</Text>
-      <Ionicons name="chevron-forward" size={16} color={BrandPalette.subtle} />
-    </TouchableOpacity>
-  );
-}
-
-function Field({
-  value,
-  onChangeText,
-  placeholder,
-  secureTextEntry = false,
-  keyboardType = 'default',
-}) {
+function Field({ value, onChangeText, placeholder, secureTextEntry = false, keyboardType = 'default' }) {
   return (
     <TextInput
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
-      placeholderTextColor="#9A9A9A"
+      placeholderTextColor={BrandPalette.subtle}
       secureTextEntry={secureTextEntry}
       keyboardType={keyboardType}
       autoCapitalize="none"
       style={styles.input}
     />
+  );
+}
+
+function RowCard({ label, icon, onPress }) {
+  return (
+    <TouchableOpacity activeOpacity={0.95} style={styles.rowCard} onPress={onPress}>
+      <View style={styles.rowCardLeft}>
+        <View style={styles.rowCardIconWrap}>
+          <Ionicons name={icon} size={18} color={BrandPalette.primary} />
+        </View>
+        <Text style={styles.rowCardLabel}>{label}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={BrandPalette.subtle} />
+    </TouchableOpacity>
+  );
+}
+
+function StatPill({ label, value }) {
+  return (
+    <View style={styles.statPill}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -135,9 +141,7 @@ export default function AccountScreen() {
   const [localNotice, setLocalNotice] = useState('');
 
   useEffect(() => {
-    if (authEmail) {
-      setEmail(authEmail);
-    }
+    if (authEmail) setEmail(authEmail);
   }, [authEmail]);
 
   useEffect(() => {
@@ -146,7 +150,15 @@ export default function AccountScreen() {
     loadOrders({ silent: true }).catch(() => {});
   }, [isAuthenticated, loadAddresses, loadOrders]);
 
+  const versionText = useMemo(() => {
+    const version = Application.nativeApplicationVersion || '1.0.0';
+    const build = Application.nativeBuildVersion || '1';
+    return `App version ${version} (${build})`;
+  }, []);
+
   const memberSince = useMemo(() => formatDate(profile?.created_at), [profile?.created_at]);
+  const activeAddressLabel = defaultAddress?.label || defaultAddress?.line1 || 'No default address';
+  const orderCount = Array.isArray(pastOrders) ? pastOrders.length : 0;
 
   const handleAuth = async () => {
     if (!email.trim() || !password.trim()) return;
@@ -192,13 +204,14 @@ export default function AccountScreen() {
 
     if (key === 'addresses') {
       loadAddresses().catch(() => {});
+      setLocalNotice('Addresses refreshed.');
       return;
     }
 
     setLocalNotice(
       key === 'offers'
-        ? 'Offers section will be expanded next.'
-        : 'Support tools will be connected next.'
+        ? 'Offers section is ready for the next production sprint.'
+        : 'Support workflows can be wired next.'
     );
   };
 
@@ -217,326 +230,181 @@ export default function AccountScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <StatusBar barStyle="dark-content" />
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 28 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: tabBarHeight + 28 }}>
         {!isAuthenticated ? (
           <>
             <View style={styles.guestHero}>
-              <View style={styles.guestHeroBadge}>
-                <View style={styles.guestLogoWrap}>
-                  <Ionicons name="bag-handle-outline" size={24} color="#FFFFFF" />
-                </View>
-                <Text style={styles.guestHeroBadgeText}>{appVariantName}</Text>
-              </View>
-
-              <Text style={styles.guestHeroTitle}>
-                One app for food, grocery, dining and more in mins!
-              </Text>
-              <Text style={styles.guestHeroSubtitle}>
-                Sign in to unlock fast checkout, saved addresses, and cleaner reorders.
+              <Text style={styles.guestEyebrow}>{appVariantName}</Text>
+              <Text style={styles.guestTitle}>One app for food, grocery, dining and more in minutes.</Text>
+              <Text style={styles.guestSubtitle}>
+                Match the clean, conversion-first flow from leading consumer apps while keeping the GrabBasket brand language.
               </Text>
             </View>
 
             <View style={styles.sheetCard}>
               <View style={styles.authToggleRow}>
                 <TouchableOpacity
-                  activeOpacity={0.92}
+                  activeOpacity={0.94}
                   style={[styles.authToggle, authMode === 'login' && styles.authToggleActive]}
                   onPress={() => setAuthMode('login')}>
-                  <Text
-                    style={[
-                      styles.authToggleText,
-                      authMode === 'login' && styles.authToggleTextActive,
-                    ]}>
-                    Login
-                  </Text>
+                  <Text style={[styles.authToggleText, authMode === 'login' && styles.authToggleTextActive]}>Login</Text>
                 </TouchableOpacity>
-
                 <TouchableOpacity
-                  activeOpacity={0.92}
+                  activeOpacity={0.94}
                   style={[styles.authToggle, authMode === 'register' && styles.authToggleActive]}
                   onPress={() => setAuthMode('register')}>
-                  <Text
-                    style={[
-                      styles.authToggleText,
-                      authMode === 'register' && styles.authToggleTextActive,
-                    ]}>
-                    Create account
-                  </Text>
+                  <Text style={[styles.authToggleText, authMode === 'register' && styles.authToggleTextActive]}>Sign up</Text>
                 </TouchableOpacity>
               </View>
 
-              {inlineErrors?.auth ? (
-                <InlineErrorCard title="Could not continue" message={inlineErrors.auth} />
-              ) : null}
+              {inlineErrors.auth ? <InlineErrorCard title="Authentication issue" message={inlineErrors.auth} /> : null}
+              {localNotice ? <InlineNoticeCard title="Ready" message={localNotice} onDismiss={() => setLocalNotice('')} /> : null}
 
-              {localNotice ? (
-                <InlineNoticeCard
-                  title="Done"
-                  message={localNotice}
-                  onDismiss={() => setLocalNotice('')}
-                />
-              ) : null}
+              <Field value={email} onChangeText={setEmail} placeholder="Email address" keyboardType="email-address" />
+              <Field value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
 
-              <Field
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Email address"
-                keyboardType="email-address"
-              />
-              <Field
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Password"
-                secureTextEntry
-              />
-
-              <TouchableOpacity
-                activeOpacity={0.92}
-                style={styles.primaryButton}
-                onPress={handleAuth}
-                disabled={authLoading}>
-                <Text style={styles.primaryButtonText}>
-                  {authLoading
-                    ? 'Please wait...'
-                    : authMode === 'login'
-                      ? 'Login'
-                      : 'Create account'}
-                </Text>
+              <TouchableOpacity activeOpacity={0.95} style={styles.primaryButton} onPress={handleAuth} disabled={authLoading}>
+                {authLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>{authMode === 'login' ? 'Login' : 'Create account'}</Text>
+                )}
               </TouchableOpacity>
 
-              <View style={styles.demoCard}>
-                <Text style={styles.demoTitle}>Demo sign-in</Text>
-                <Text style={styles.demoText}>customer@demo.com</Text>
-                <Text style={styles.demoText}>password</Text>
-              </View>
+              <Text style={styles.legalText}>
+                By tapping in, you agree to our terms of service and privacy policy.
+              </Text>
 
-              <View style={styles.linkList}>
-                {GUEST_ACTIONS.map((item) => (
-                  <QuickActionCard
-                    key={item.key}
-                    label={item.label}
-                    icon={item.icon}
-                    onPress={() => handleQuickAction(item.key)}
-                  />
+              <View style={styles.guestLinkGroup}>
+                {GUEST_LINKS.map((item) => (
+                  <RowCard key={item.key} label={item.label} icon={item.icon} onPress={() => setLocalNotice(`${item.label} can be expanded next.`)} />
                 ))}
               </View>
 
-              <Text style={styles.versionText}>App version 4.103.4 · consumer build</Text>
+              <Text style={styles.versionText}>{versionText}</Text>
             </View>
           </>
         ) : (
-          <View style={styles.authenticatedWrap}>
-            <View style={styles.profileHero}>
-              <View style={styles.profileHeroTopRow}>
-                <View style={styles.avatarCircle}>
-                  <Text style={styles.avatarText}>{initials(authEmail)}</Text>
+          <View style={styles.pageBody}>
+            <View style={styles.profileCard}>
+              <View style={styles.profileTopRow}>
+                <View style={styles.avatarWrap}>
+                  <Text style={styles.avatarText}>{initials(authEmail || profile?.email || 'GB')}</Text>
                 </View>
-
-                <TouchableOpacity activeOpacity={0.92} style={styles.logoutButton} onPress={logout}>
-                  <Ionicons name="log-out-outline" size={16} color={BrandPalette.primary} />
-                  <Text style={styles.logoutButtonText}>Logout</Text>
-                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.profileTitle}>{profile?.full_name || authEmail || 'GrabBasket member'}</Text>
+                  <Text style={styles.profileSubtitle}>{memberSince !== '—' ? `Member since ${memberSince}` : 'Production-ready account shell'}</Text>
+                  <Text style={styles.profileMeta}>{activeAddressLabel}</Text>
+                </View>
               </View>
 
-              <Text style={styles.profileTitle}>Welcome back</Text>
-              <Text style={styles.profileEmail}>{authEmail}</Text>
-
-              <View style={styles.profileStatsRow}>
-                <View style={styles.profileStatCard}>
-                  <Text style={styles.profileStatLabel}>Orders</Text>
-                  <Text style={styles.profileStatValue}>{pastOrders.length}</Text>
-                </View>
-
-                <View style={styles.profileStatCard}>
-                  <Text style={styles.profileStatLabel}>Addresses</Text>
-                  <Text style={styles.profileStatValue}>{addresses.length}</Text>
-                </View>
-
-                <View style={styles.profileStatCard}>
-                  <Text style={styles.profileStatLabel}>Member since</Text>
-                  <Text style={styles.profileStatValueSmall}>{memberSince || 'Today'}</Text>
-                </View>
+              <View style={styles.statsRow}>
+                <StatPill label="Orders" value={String(orderCount)} />
+                <StatPill label="Addresses" value={String(addresses.length || 0)} />
+                <StatPill label="Saved" value={defaultAddress ? '1' : '0'} />
               </View>
             </View>
 
-            <View style={styles.contentWrap}>
-              {localNotice ? (
-                <InlineNoticeCard
-                  title="Updated"
-                  message={localNotice}
-                  onDismiss={() => setLocalNotice('')}
-                />
-              ) : null}
+            {localNotice ? <InlineNoticeCard title="Updated" message={localNotice} onDismiss={() => setLocalNotice('')} /> : null}
+            {inlineErrors.orders ? <InlineErrorCard title="Orders issue" message={inlineErrors.orders} /> : null}
+            {inlineErrors.addresses ? <InlineErrorCard title="Address issue" message={inlineErrors.addresses} /> : null}
 
-              {inlineErrors?.addresses ? (
-                <InlineErrorCard title="Address issue" message={inlineErrors.addresses} />
-              ) : null}
-
-              {inlineErrors?.orders ? (
-                <InlineErrorCard title="Orders could not be refreshed" message={inlineErrors.orders} />
-              ) : null}
-
-              <View style={styles.sectionCard}>
-                <Text style={styles.sectionTitle}>Quick actions</Text>
-                <View style={styles.quickActionList}>
-                  {QUICK_ACTIONS.map((item) => (
-                    <QuickActionCard
-                      key={item.key}
-                      label={item.label}
-                      icon={item.icon}
-                      onPress={() => handleQuickAction(item.key)}
-                    />
-                  ))}
-                </View>
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionTitle}>Quick actions</Text>
+              <View style={styles.quickActionList}>
+                {QUICK_ACTIONS.map((item) => (
+                  <RowCard key={item.key} label={item.label} icon={item.icon} onPress={() => handleQuickAction(item.key)} />
+                ))}
               </View>
+            </View>
 
-              <View style={styles.sectionCard}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionTitle}>Saved addresses</Text>
-                  {addressesLoading ? <ActivityIndicator size="small" color={BrandPalette.primary} /> : null}
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionTitle}>Add a saved address</Text>
+              <View style={styles.cardSurface}>
+                <Field value={addressForm.label} onChangeText={(value) => setAddressForm((current) => ({ ...current, label: value }))} placeholder="Label" />
+                <Field value={addressForm.line1} onChangeText={(value) => setAddressForm((current) => ({ ...current, line1: value }))} placeholder="Address line" />
+                <View style={styles.inlineFields}>
+                  <View style={{ flex: 1 }}>
+                    <Field value={addressForm.city} onChangeText={(value) => setAddressForm((current) => ({ ...current, city: value }))} placeholder="City" />
+                  </View>
+                  <View style={{ width: 120 }}>
+                    <Field value={addressForm.pincode} onChangeText={(value) => setAddressForm((current) => ({ ...current, pincode: value }))} placeholder="Pincode" keyboardType="number-pad" />
+                  </View>
                 </View>
 
-                {defaultAddress ? (
-                  <View style={styles.defaultAddressBanner}>
-                    <Ionicons name="navigate" size={18} color={BrandPalette.primary} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.defaultAddressTitle}>{defaultAddress.label}</Text>
-                      <Text style={styles.defaultAddressText}>
-                        {[defaultAddress.line1, defaultAddress.city, defaultAddress.pincode]
-                          .filter(Boolean)
-                          .join(', ')}
-                      </Text>
-                    </View>
-                  </View>
-                ) : null}
+                <TouchableOpacity activeOpacity={0.95} style={styles.primaryButton} onPress={handleAddAddress} disabled={addressSaving}>
+                  {addressSaving ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Text style={styles.primaryButtonText}>Save address</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
 
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionTitle}>Saved addresses</Text>
+              {addressesLoading ? (
+                <View style={styles.cardSurface}><ActivityIndicator color={BrandPalette.primary} /></View>
+              ) : addresses.length ? (
                 <View style={styles.addressList}>
-                  {addresses.map((item) => {
-                    const isDefault = String(defaultAddress?.id) === String(item.id);
-
+                  {addresses.slice(0, 4).map((address) => {
+                    const isDefault = String(address?.id) === String(defaultAddress?.id);
                     return (
                       <TouchableOpacity
-                        key={item.id}
-                        activeOpacity={0.92}
-                        style={styles.addressCard}
-                        onPress={() => setDefaultAddress(item.id)}>
-                        <View style={{ flex: 1 }}>
-                          <View style={styles.addressHeadRow}>
-                            <Text style={styles.addressTitle}>{item.label}</Text>
-                            {isDefault ? (
-                              <View style={styles.defaultChip}>
-                                <Text style={styles.defaultChipText}>Default</Text>
-                              </View>
-                            ) : null}
-                          </View>
-                          <Text style={styles.addressText}>
-                            {[item.line1, item.city, item.pincode].filter(Boolean).join(', ')}
-                          </Text>
+                        key={address.id}
+                        activeOpacity={0.94}
+                        style={[styles.addressCard, isDefault && styles.addressCardActive]}
+                        onPress={() => setDefaultAddress(address.id)}>
+                        <View style={styles.addressHeader}>
+                          <Text style={styles.addressLabel}>{address.label || 'Saved address'}</Text>
+                          {isDefault ? <Text style={styles.addressBadge}>Default</Text> : null}
                         </View>
+                        <Text style={styles.addressLine}>{address.line1}</Text>
+                        <Text style={styles.addressMeta}>{[address.city, address.pincode].filter(Boolean).join(' · ')}</Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
+              ) : (
+                <View style={styles.cardSurface}><Text style={styles.helperText}>No saved addresses yet.</Text></View>
+              )}
+            </View>
 
-                <View style={styles.formWrap}>
-                  <Text style={styles.formTitle}>Add a new address</Text>
-                  <Field
-                    value={addressForm.label}
-                    onChangeText={(value) =>
-                      setAddressForm((current) => ({ ...current, label: value }))
-                    }
-                    placeholder="Label"
-                  />
-                  <Field
-                    value={addressForm.line1}
-                    onChangeText={(value) =>
-                      setAddressForm((current) => ({ ...current, line1: value }))
-                    }
-                    placeholder="Address line 1"
-                  />
-
-                  <View style={styles.rowInputs}>
-                    <View style={{ flex: 1 }}>
-                      <Field
-                        value={addressForm.city}
-                        onChangeText={(value) =>
-                          setAddressForm((current) => ({ ...current, city: value }))
-                        }
-                        placeholder="City"
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Field
-                        value={addressForm.pincode}
-                        onChangeText={(value) =>
-                          setAddressForm((current) => ({ ...current, pincode: value }))
-                        }
-                        placeholder="Pincode"
-                        keyboardType="number-pad"
-                      />
-                    </View>
-                  </View>
-
-                  <Text style={styles.coordsHint}>
-                    Delivery pin defaults to Kochi demo coordinates so checkout works immediately.
-                  </Text>
-
-                  <TouchableOpacity
-                    activeOpacity={0.92}
-                    style={styles.secondaryButton}
-                    onPress={handleAddAddress}
-                    disabled={addressSaving}>
-                    <Text style={styles.secondaryButtonText}>
-                      {addressSaving ? 'Saving...' : 'Save address'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.sectionCard}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionTitle}>Recent orders</Text>
-                  {ordersLoading ? <ActivityIndicator size="small" color={BrandPalette.primary} /> : null}
-                </View>
-
-                {pastOrders.length ? (
-                  <View style={styles.orderList}>
-                    {pastOrders.slice(0, 4).map((order) => (
-                      <View key={order.id} style={styles.orderCard}>
-                        <View style={styles.orderTopRow}>
-                          <Text style={styles.orderVendor}>
-                            {order.vendor_name || order.vendor?.name || 'GrabBasket order'}
-                          </Text>
-                          <Text style={styles.orderAmount}>
-                            {money(order.total_amount || order.amount || 0)}
-                          </Text>
-                        </View>
-                        <Text style={styles.orderMeta}>
-                          {mapOrderStatus(order)} · {formatDate(order.created_at) || 'Just now'}
-                        </Text>
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionTitle}>Recent orders</Text>
+              {ordersLoading ? (
+                <View style={styles.cardSurface}><ActivityIndicator color={BrandPalette.primary} /></View>
+              ) : pastOrders.length ? (
+                <View style={styles.orderList}>
+                  {pastOrders.slice(0, 5).map((order) => (
+                    <TouchableOpacity key={order.id} activeOpacity={0.94} style={styles.orderCard} onPress={() => router.push('/(tabs)/reorder')}>
+                      <View style={styles.orderCardTop}>
+                        <Text style={styles.orderCardTitle}>Order #{order.id}</Text>
+                        <Text style={styles.orderCardAmount}>{money(order?.total_amount || 0)}</Text>
                       </View>
-                    ))}
-                  </View>
-                ) : (
-                  <View style={styles.emptyStateCard}>
-                    <Ionicons name="receipt-outline" size={20} color={BrandPalette.primary} />
-                    <Text style={styles.emptyStateTitle}>No orders yet</Text>
-                    <Text style={styles.emptyStateText}>
-                      Your first checkout will show up here for quick reorder.
-                    </Text>
-                  </View>
-                )}
-              </View>
+                      <Text style={styles.orderCardStatus}>{mapOrderStatus(order)}</Text>
+                      <Text style={styles.orderCardMeta}>{formatDate(order?.created_at)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.cardSurface}><Text style={styles.helperText}>Your order history will appear here.</Text></View>
+              )}
+            </View>
 
-              <View style={styles.sectionCard}>
-                <Text style={styles.sectionTitle}>App details</Text>
-                <Text style={styles.metaText}>Device ID: {deviceId || 'Not available'}</Text>
-                <Text style={styles.metaText}>Build: consumer · production prep</Text>
+            <View style={styles.sectionBlock}>
+              <Text style={styles.sectionTitle}>Device</Text>
+              <View style={styles.cardSurface}>
+                <Text style={styles.helperText}>Device ID: {deviceId || 'Unavailable'}</Text>
               </View>
             </View>
+
+            <TouchableOpacity
+              activeOpacity={0.95}
+              style={[styles.primaryButton, styles.logoutButton]}
+              onPress={async () => {
+                await logout();
+                setLocalNotice('You have been signed out.');
+              }}>
+              <Text style={styles.primaryButtonText}>Logout</Text>
+            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
@@ -547,7 +415,7 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8F8F8',
+    backgroundColor: BrandPalette.page,
   },
   loadingState: {
     flex: 1,
@@ -556,428 +424,345 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   loadingText: {
+    fontSize: 15,
+    lineHeight: 19,
     color: BrandPalette.textMuted,
-    fontSize: 13,
-    fontWeight: '700',
   },
   guestHero: {
-    backgroundColor: BrandPalette.primary,
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingTop: 10,
     paddingBottom: 28,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    backgroundColor: BrandPalette.primary,
   },
-  guestHeroBadge: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 18,
-  },
-  guestLogoWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  guestHeroBadgeText: {
-    color: '#FFFFFF',
+  guestEyebrow: {
     fontSize: 12,
-    fontWeight: '800',
-  },
-  guestHeroTitle: {
-    color: '#FFFFFF',
-    fontSize: 34,
-    lineHeight: 40,
+    lineHeight: 14,
     fontWeight: '900',
-    marginBottom: 10,
-    maxWidth: '92%',
+    color: 'rgba(255,255,255,0.88)',
+    textTransform: 'uppercase',
   },
-  guestHeroSubtitle: {
-    color: 'rgba(255,255,255,0.82)',
+  guestTitle: {
+    marginTop: 14,
+    fontSize: 34,
+    lineHeight: 39,
+    fontWeight: '900',
+    color: BrandPalette.white,
+  },
+  guestSubtitle: {
+    marginTop: 12,
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: '600',
-    maxWidth: '92%',
+    color: 'rgba(255,255,255,0.84)',
   },
   sheetCard: {
-    marginTop: -10,
-    marginHorizontal: 14,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 28,
-    padding: 16,
-    gap: 14,
-    ...createShadow(0.08, 16, 8),
+    marginTop: -12,
+    marginHorizontal: 16,
+    borderRadius: 30,
+    backgroundColor: BrandPalette.white,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: BrandPalette.line,
+    ...createShadow(0.08, 14, 6),
   },
   authToggleRow: {
     flexDirection: 'row',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 18,
-    padding: 4,
-    gap: 4,
+    gap: 10,
+    marginBottom: 16,
   },
   authToggle: {
     flex: 1,
-    borderRadius: 14,
-    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BrandPalette.line,
+    backgroundColor: BrandPalette.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 12,
   },
   authToggleActive: {
-    backgroundColor: '#FFFFFF',
-    ...createShadow(0.06, 10, 4),
+    backgroundColor: BrandPalette.primary,
+    borderColor: BrandPalette.primary,
   },
   authToggleText: {
-    color: BrandPalette.textMuted,
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '800',
+    color: BrandPalette.text,
   },
   authToggleTextActive: {
-    color: BrandPalette.text,
+    color: BrandPalette.white,
   },
   input: {
-    borderRadius: 18,
-    backgroundColor: '#F8F8F8',
+    height: 52,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#ECECEC',
-    color: BrandPalette.text,
+    borderColor: BrandPalette.line,
+    backgroundColor: BrandPalette.backgroundAlt,
+    paddingHorizontal: 14,
     fontSize: 15,
-    fontWeight: '600',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    lineHeight: 19,
+    color: BrandPalette.text,
+    marginBottom: 12,
   },
   primaryButton: {
-    backgroundColor: BrandPalette.primary,
+    height: 54,
     borderRadius: 18,
+    backgroundColor: BrandPalette.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 15,
+    marginTop: 4,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
     fontSize: 15,
+    lineHeight: 18,
     fontWeight: '900',
+    color: BrandPalette.white,
   },
-  demoCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: BrandPalette.border,
-    backgroundColor: '#FFF8F6',
-    padding: 14,
-    gap: 4,
-  },
-  demoTitle: {
-    color: BrandPalette.text,
-    fontSize: 13,
-    fontWeight: '900',
-    marginBottom: 4,
-  },
-  demoText: {
+  legalText: {
+    marginTop: 16,
+    fontSize: 12,
+    lineHeight: 17,
     color: BrandPalette.textMuted,
-    fontSize: 13,
-    fontWeight: '700',
+    textAlign: 'center',
   },
-  linkList: {
+  guestLinkGroup: {
+    marginTop: 20,
     gap: 10,
   },
-  quickActionCard: {
+  rowCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: BrandPalette.line,
+    backgroundColor: BrandPalette.white,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  rowCardLeft: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#EFEFEF',
-    padding: 14,
   },
-  quickActionIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
+  rowCardIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: BrandPalette.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  quickActionLabel: {
+  rowCardLabel: {
     flex: 1,
-    color: BrandPalette.text,
     fontSize: 15,
+    lineHeight: 18,
     fontWeight: '800',
+    color: BrandPalette.text,
   },
   versionText: {
-    color: BrandPalette.subtle,
-    fontSize: 12,
-    fontWeight: '700',
+    marginTop: 20,
     textAlign: 'center',
-    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 16,
+    color: BrandPalette.subtle,
   },
-  authenticatedWrap: {
-    gap: 18,
+  pageBody: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    gap: 16,
   },
-  profileHero: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 22,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    ...createShadow(0.06, 12, 6),
-  },
-  profileHeroTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  avatarCircle: {
-    width: 56,
-    height: 56,
+  profileCard: {
     borderRadius: 28,
+    backgroundColor: BrandPalette.white,
+    borderWidth: 1,
+    borderColor: BrandPalette.line,
+    padding: 18,
+    ...createShadow(0.08, 14, 6),
+  },
+  profileTopRow: {
+    flexDirection: 'row',
+    gap: 14,
+  },
+  avatarWrap: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     backgroundColor: BrandPalette.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    color: BrandPalette.primary,
-    fontSize: 20,
+    fontSize: 22,
+    lineHeight: 24,
     fontWeight: '900',
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#F0C9CC',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  logoutButtonText: {
     color: BrandPalette.primary,
-    fontSize: 12,
-    fontWeight: '900',
   },
   profileTitle: {
-    color: BrandPalette.text,
-    fontSize: 26,
+    fontSize: 20,
+    lineHeight: 24,
     fontWeight: '900',
-    marginBottom: 6,
+    color: BrandPalette.text,
   },
-  profileEmail: {
+  profileSubtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 17,
     color: BrandPalette.textMuted,
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 16,
   },
-  profileStatsRow: {
+  profileMeta: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 17,
+    color: BrandPalette.inkSoft,
+    fontWeight: '700',
+  },
+  statsRow: {
+    marginTop: 18,
     flexDirection: 'row',
     gap: 10,
   },
-  profileStatCard: {
+  statPill: {
     flex: 1,
-    backgroundColor: '#F8F8F8',
-    borderRadius: 20,
-    padding: 12,
-    minHeight: 76,
-  },
-  profileStatLabel: {
-    color: BrandPalette.textMuted,
-    fontSize: 11,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  profileStatValue: {
-    color: BrandPalette.text,
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  profileStatValueSmall: {
-    color: BrandPalette.text,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '900',
-  },
-  contentWrap: {
-    paddingHorizontal: 16,
-    gap: 16,
-  },
-  sectionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 26,
-    padding: 16,
-    gap: 14,
-    ...createShadow(0.06, 12, 6),
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
+    borderRadius: 18,
+    backgroundColor: BrandPalette.backgroundAlt,
+    borderWidth: 1,
+    borderColor: BrandPalette.line,
+    paddingVertical: 14,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+  },
+  statValue: {
+    fontSize: 19,
+    lineHeight: 22,
+    fontWeight: '900',
+    color: BrandPalette.text,
+  },
+  statLabel: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 14,
+    color: BrandPalette.textMuted,
+  },
+  sectionBlock: {
+    gap: 10,
   },
   sectionTitle: {
-    color: BrandPalette.text,
-    fontSize: 18,
+    fontSize: 20,
+    lineHeight: 24,
     fontWeight: '900',
+    color: BrandPalette.text,
   },
   quickActionList: {
     gap: 10,
   },
-  defaultAddressBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 20,
-    backgroundColor: '#FFF8F6',
+  cardSurface: {
+    borderRadius: 22,
+    backgroundColor: BrandPalette.white,
     borderWidth: 1,
-    borderColor: '#F4DEDF',
-    padding: 14,
+    borderColor: BrandPalette.line,
+    padding: 16,
+    gap: 12,
   },
-  defaultAddressTitle: {
-    color: BrandPalette.text,
-    fontSize: 14,
-    fontWeight: '900',
-    marginBottom: 4,
-  },
-  defaultAddressText: {
-    color: BrandPalette.textMuted,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '600',
+  inlineFields: {
+    flexDirection: 'row',
+    gap: 10,
   },
   addressList: {
     gap: 10,
   },
   addressCard: {
-    borderRadius: 20,
+    borderRadius: 18,
+    backgroundColor: BrandPalette.white,
     borderWidth: 1,
-    borderColor: '#EFEFEF',
-    backgroundColor: '#FFFFFF',
+    borderColor: BrandPalette.line,
     padding: 14,
   },
-  addressHeadRow: {
+  addressCardActive: {
+    borderColor: BrandPalette.primary,
+    backgroundColor: '#FFF5F5',
+  },
+  addressHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 6,
-  },
-  addressTitle: {
-    color: BrandPalette.text,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  defaultChip: {
-    borderRadius: 999,
-    backgroundColor: BrandPalette.primarySoft,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  defaultChipText: {
-    color: BrandPalette.primary,
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  addressText: {
-    color: BrandPalette.textMuted,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
-  formWrap: {
     gap: 12,
-    paddingTop: 6,
   },
-  formTitle: {
-    color: BrandPalette.text,
+  addressLabel: {
     fontSize: 15,
+    lineHeight: 18,
     fontWeight: '900',
+    color: BrandPalette.text,
   },
-  rowInputs: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  coordsHint: {
-    color: BrandPalette.subtle,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFF8F6',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#F4DEDF',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  secondaryButtonText: {
+  addressBadge: {
+    fontSize: 11,
+    lineHeight: 13,
+    fontWeight: '900',
     color: BrandPalette.primary,
-    fontSize: 13,
-    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  addressLine: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 18,
+    color: BrandPalette.text,
+  },
+  addressMeta: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 15,
+    color: BrandPalette.textMuted,
   },
   orderList: {
     gap: 10,
   },
   orderCard: {
-    borderRadius: 20,
-    backgroundColor: '#F8F8F8',
+    borderRadius: 18,
+    backgroundColor: BrandPalette.white,
+    borderWidth: 1,
+    borderColor: BrandPalette.line,
     padding: 14,
   },
-  orderTopRow: {
+  orderCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    marginBottom: 6,
   },
-  orderVendor: {
-    flex: 1,
-    color: BrandPalette.text,
+  orderCardTitle: {
     fontSize: 15,
-    fontWeight: '800',
-  },
-  orderAmount: {
+    lineHeight: 18,
+    fontWeight: '900',
     color: BrandPalette.text,
+  },
+  orderCardAmount: {
     fontSize: 14,
+    lineHeight: 17,
     fontWeight: '900',
+    color: BrandPalette.primary,
   },
-  orderMeta: {
-    color: BrandPalette.textMuted,
+  orderCardStatus: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 16,
+    color: BrandPalette.inkSoft,
+    fontWeight: '700',
+  },
+  orderCardMeta: {
+    marginTop: 4,
     fontSize: 12,
-    fontWeight: '600',
-  },
-  emptyStateCard: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    borderRadius: 22,
-    backgroundColor: '#F8F8F8',
-    paddingVertical: 28,
-    paddingHorizontal: 18,
-  },
-  emptyStateTitle: {
-    color: BrandPalette.text,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  emptyStateText: {
+    lineHeight: 15,
     color: BrandPalette.textMuted,
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: '600',
-    textAlign: 'center',
   },
-  metaText: {
-    color: BrandPalette.textMuted,
+  helperText: {
     fontSize: 13,
-    lineHeight: 19,
-    fontWeight: '600',
+    lineHeight: 18,
+    color: BrandPalette.textMuted,
+  },
+  logoutButton: {
+    marginTop: 4,
+    marginBottom: 12,
   },
 });

@@ -37,7 +37,26 @@ const KNOWN_APP_ROUTES = new Set([
 let notificationHandlerConfigured = false;
 
 function hasNotificationFunction(name) {
-  return Boolean(Notifications && typeof Notifications?.[name] === 'function');
+  switch (name) {
+    case 'setNotificationHandler':
+      return typeof Notifications?.setNotificationHandler === 'function';
+    case 'setNotificationChannelAsync':
+      return typeof Notifications?.setNotificationChannelAsync === 'function';
+    case 'getPermissionsAsync':
+      return typeof Notifications?.getPermissionsAsync === 'function';
+    case 'requestPermissionsAsync':
+      return typeof Notifications?.requestPermissionsAsync === 'function';
+    case 'getExpoPushTokenAsync':
+      return typeof Notifications?.getExpoPushTokenAsync === 'function';
+    case 'getDevicePushTokenAsync':
+      return typeof Notifications?.getDevicePushTokenAsync === 'function';
+    case 'addNotificationResponseReceivedListener':
+      return typeof Notifications?.addNotificationResponseReceivedListener === 'function';
+    case 'addNotificationReceivedListener':
+      return typeof Notifications?.addNotificationReceivedListener === 'function';
+    default:
+      return false;
+  }
 }
 
 function warnNotificationCapability(message) {
