@@ -6,102 +6,34 @@ import { Ionicons } from '@expo/vector-icons';
 import { useGrabBasket } from '../../../App';
 import { BrandPalette, createShadow } from '@/constants/theme';
 
-const TAB_CONFIG = {
+const SERVICE_TAB_COPY = {
   food: {
-    sceneBackground: '#F8F8F8',
-    barBackground: 'rgba(255,255,255,0.98)',
-    barBorder: '#ECECEC',
-    activeTint: '#FF5A00',
-    inactiveTint: '#A1A1AA',
-    activeSurface: '#FFF1E5',
-    activeBorder: '#FFD5BD',
-    iconSurface: '#FFF8F2',
-    shadowColor: 'rgba(17,17,17,0.14)',
-    titleMap: {
-      index: 'Food',
-      explore: '99 store',
-      reorder: 'Reorder',
-      account: 'Profile',
-    },
-    iconMap: {
-      index: 'fast-food-outline',
-      explore: 'storefront-outline',
-      reorder: 'refresh-outline',
-      account: 'person-outline',
-    },
+    index: { label: 'Food', icon: 'fast-food-outline' },
+    explore: { label: '99 Store', icon: 'storefront-outline' },
+    reorder: { label: 'Reorder', icon: 'repeat-outline' },
+    account: { label: 'Account', icon: 'person-outline' },
   },
   warehouse: {
-    sceneBackground: '#EEF4FF',
-    barBackground: 'rgba(255,255,255,0.98)',
-    barBorder: '#E6EBF5',
-    activeTint: BrandPalette.primary,
-    inactiveTint: '#9398A3',
-    activeSurface: '#FFF1E8',
-    activeBorder: '#F0D3C4',
-    iconSurface: '#FFF8F3',
-    shadowColor: 'rgba(17,17,17,0.14)',
-    titleMap: {
-      index: 'Mart',
-      explore: 'Categories',
-      reorder: 'Reorder',
-      account: 'Profile',
-    },
-    iconMap: {
-      index: 'basket-outline',
-      explore: 'grid-outline',
-      reorder: 'reload-outline',
-      account: 'person-outline',
-    },
+    index: { label: 'Instamart', icon: 'basket-outline' },
+    explore: { label: 'Categories', icon: 'grid-outline' },
+    reorder: { label: 'Reorder', icon: 'repeat-outline' },
+    account: { label: 'Account', icon: 'person-outline' },
   },
   eatout: {
-    sceneBackground: '#EAF9F5',
-    barBackground: 'rgba(255,255,255,0.98)',
-    barBorder: '#E2EEE9',
-    activeTint: BrandPalette.primary,
-    inactiveTint: '#93A09B',
-    activeSurface: '#FFF1E8',
-    activeBorder: '#EDD4C7',
-    iconSurface: '#FFF8F3',
-    shadowColor: 'rgba(17,17,17,0.14)',
-    titleMap: {
-      index: 'Dineout',
-      explore: 'My corner',
-      reorder: 'New & Hot',
-      account: 'Profile',
-    },
-    iconMap: {
-      index: 'restaurant-outline',
-      explore: 'sparkles-outline',
-      reorder: 'flame-outline',
-      account: 'person-outline',
-    },
+    index: { label: 'Dineout', icon: 'restaurant-outline' },
+    explore: { label: 'My Corner', icon: 'sparkles-outline' },
+    reorder: { label: 'New & Hot', icon: 'flame-outline' },
+    account: { label: 'Account', icon: 'person-outline' },
   },
   scenes: {
-    sceneBackground: '#FFF4ED',
-    barBackground: 'rgba(255,255,255,0.98)',
-    barBorder: '#ECE2D7',
-    activeTint: BrandPalette.primary,
-    inactiveTint: '#A38F80',
-    activeSurface: '#FFF1E8',
-    activeBorder: '#F3D7C0',
-    iconSurface: '#FFF8F3',
-    shadowColor: 'rgba(17,17,17,0.14)',
-    titleMap: {
-      index: 'Scenes',
-      explore: 'Explore',
-      reorder: 'Saved',
-      account: 'Profile',
-    },
-    iconMap: {
-      index: 'sparkles-outline',
-      explore: 'compass-outline',
-      reorder: 'bookmark-outline',
-      account: 'person-outline',
-    },
+    index: { label: 'Scenes', icon: 'sparkles-outline' },
+    explore: { label: 'Explore', icon: 'compass-outline' },
+    reorder: { label: 'Saved', icon: 'bookmark-outline' },
+    account: { label: 'Account', icon: 'person-outline' },
   },
 };
 
-function getReorderBadge(cartCount, orderHistory = []) {
+function getBadgeText(cartCount, orderHistory) {
   if (cartCount > 0) {
     return cartCount > 9 ? '9+' : String(cartCount);
   }
@@ -113,25 +45,15 @@ function getReorderBadge(cartCount, orderHistory = []) {
   return '';
 }
 
-function TabBarItem({ focused, color, icon, label, badge, theme }) {
+function TabIcon({ focused, color, icon, label, badge }) {
   return (
-    <View
-      style={[
-        styles.tabItem,
-        focused && {
-          backgroundColor: theme.activeSurface,
-          borderColor: theme.activeBorder,
-        },
-      ]}>
+    <View style={styles.tabItem}>
       <View
         style={[
-          styles.iconBubble,
-          focused && {
-            backgroundColor: theme.iconSurface,
-          },
+          styles.iconWrap,
+          focused && styles.iconWrapActive,
         ]}>
         <Ionicons name={icon} size={20} color={color} />
-
         {badge ? (
           <View style={styles.badge}>
             <Text numberOfLines={1} style={styles.badgeText}>
@@ -140,16 +62,7 @@ function TabBarItem({ focused, color, icon, label, badge, theme }) {
           </View>
         ) : null}
       </View>
-
-      <Text
-        numberOfLines={1}
-        style={[
-          styles.tabLabel,
-          { color },
-          focused && styles.tabLabelFocused,
-        ]}>
-        {label}
-      </Text>
+      <Text style={[styles.tabLabel, { color }, focused && styles.tabLabelActive]}>{label}</Text>
     </View>
   );
 }
@@ -157,21 +70,20 @@ function TabBarItem({ focused, color, icon, label, badge, theme }) {
 export default function TabsLayout() {
   const { activeService, cartCount, orderHistory } = useGrabBasket();
 
-  const theme = TAB_CONFIG[activeService] || TAB_CONFIG.food;
-  const reorderBadge = getReorderBadge(cartCount, orderHistory);
+  const copy = SERVICE_TAB_COPY[activeService] || SERVICE_TAB_COPY.food;
+  const badge = getBadgeText(cartCount, orderHistory);
 
-  const makeOptions = (routeName) => ({
+  const makeOptions = (name) => ({
     headerShown: false,
-    title: theme.titleMap[routeName],
+    title: copy[name]?.label || name,
     tabBarLabel: () => null,
     tabBarIcon: ({ focused, color }) => (
-      <TabBarItem
+      <TabIcon
         focused={focused}
         color={color}
-        icon={theme.iconMap[routeName]}
-        label={theme.titleMap[routeName]}
-        badge={routeName === 'reorder' ? reorderBadge : ''}
-        theme={theme}
+        icon={copy[name]?.icon || 'ellipse-outline'}
+        label={copy[name]?.label || name}
+        badge={name === 'reorder' ? badge : ''}
       />
     ),
   });
@@ -180,36 +92,25 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        lazy: true,
+        sceneStyle: { backgroundColor: BrandPalette.page },
         tabBarHideOnKeyboard: true,
-        sceneStyle: {
-          backgroundColor: theme.sceneBackground,
-        },
-        tabBarActiveTintColor: theme.activeTint,
-        tabBarInactiveTintColor: theme.inactiveTint,
+        tabBarActiveTintColor: BrandPalette.primary,
+        tabBarInactiveTintColor: '#A08F83',
         tabBarStyle: {
-          height: 96,
-          paddingTop: 10,
-          paddingBottom: 14,
-          paddingHorizontal: 14,
-          backgroundColor: theme.barBackground,
+          height: 82,
+          paddingTop: 8,
+          paddingBottom: Platform.OS === 'ios' ? 20 : 12,
+          backgroundColor: BrandPalette.tabBar,
+          borderTopColor: BrandPalette.line,
           borderTopWidth: 1,
-          borderTopColor: theme.barBorder,
-          borderTopLeftRadius: 28,
-          borderTopRightRadius: 28,
           ...Platform.select({
-            ios: {
-              ...createShadow(0.12, 18, -6),
-              shadowColor: theme.shadowColor,
-            },
-            android: {
-              elevation: 18,
-            },
+            ios: createShadow(0.08, 12, -6),
+            android: { elevation: 14 },
             default: {},
           }),
         },
         tabBarItemStyle: {
-          paddingHorizontal: 2,
+          paddingVertical: 0,
         },
       }}>
       <Tabs.Screen name="index" options={makeOptions('index')} />
@@ -222,47 +123,42 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   tabItem: {
-    minWidth: 78,
-    minHeight: 58,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 7,
+    gap: 4,
   },
-  iconBubble: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  iconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
+    backgroundColor: 'transparent',
+  },
+  iconWrapActive: {
+    backgroundColor: BrandPalette.primarySoft,
   },
   tabLabel: {
-    marginTop: 4,
-    fontSize: 10,
-    lineHeight: 12,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontSize: 11,
+    lineHeight: 13,
+    fontWeight: '700',
   },
-  tabLabelFocused: {
-    fontWeight: '900',
+  tabLabelActive: {
+    fontWeight: '800',
   },
   badge: {
     position: 'absolute',
-    top: -4,
-    right: -6,
-    minWidth: 17,
-    height: 17,
-    borderRadius: 8.5,
-    paddingHorizontal: 4,
-    backgroundColor: BrandPalette.primary,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.8)',
+    right: -3,
+    top: -2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: BrandPalette.primary,
+    borderWidth: 1,
+    borderColor: BrandPalette.white,
   },
   badgeText: {
     color: BrandPalette.white,
