@@ -246,7 +246,6 @@ if [[ -n "$ALLOW_CLEARTEXT_VALUE" ]]; then
   export EXPO_PUBLIC_ALLOW_CLEARTEXT="$ALLOW_CLEARTEXT_VALUE"
 fi
 
-# Keep runtime crash reporting enabled, but disable source-map upload by default for local APK builds.
 export EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED="${EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED:-false}"
 
 APP_VARIANTS_RAW="${APP_VARIANTS:-consumer}"
@@ -260,7 +259,7 @@ fi
 
 normalize_variant() {
   local value
-  value="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | xargs)"
+  value="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
   case "$value" in
     customer|consumer)
@@ -358,14 +357,26 @@ reset_js_variant_caches() {
   fi
 }
 
-declare -A SEEN_VARIANTS=()
+array_contains() {
+  local seeking="$1"
+  shift
+  local item
+
+  for item in "$@"; do
+    if [[ "$item" == "$seeking" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 APP_VARIANTS=()
 
 for raw_variant in "${RAW_APP_VARIANTS[@]}"; do
   variant="$(normalize_variant "$raw_variant")" || fail "Unknown app variant: $raw_variant"
 
-  if [[ -z "${SEEN_VARIANTS[$variant]:-}" ]]; then
-    SEEN_VARIANTS["$variant"]=1
+  if ! array_contains "$variant" "${APP_VARIANTS[@]:-}"; then
     APP_VARIANTS+=("$variant")
   fi
 done
@@ -394,7 +405,6 @@ npx expo --version >/dev/null
 
 mkdir -p "$DIST_DIR"
 
-# Remove only the output APKs that correspond to the variants we are about to build.
 for variant in "${APP_VARIANTS[@]}"; do
   APK_NAME="$(variant_output_name "$variant")-${BUILD_TYPE}.apk"
   rm -f "$DIST_DIR/$APK_NAME"
