@@ -1,5 +1,5 @@
 import Constants from 'expo-constants';
-import EMBEDDED_APP_VARIANT from '../generated/app-variant';
+import BUILD_CONFIG from '../generated/app-build-config';
 
 export const APP_SHELLS = {
   consumer: {
@@ -25,6 +25,8 @@ export const APP_SHELLS = {
   },
 };
 
+const VALID_HREFS = Object.values(APP_SHELLS).map((item) => item.href);
+
 export function normalizeAppVariant(value = '', fallback = 'consumer') {
   const normalized = String(value || '').trim().toLowerCase();
 
@@ -39,6 +41,11 @@ export function normalizeAppVariant(value = '', fallback = 'consumer') {
   }
 
   return APP_SHELLS[normalized] ? normalized : fallback;
+}
+
+function normalizeShellHref(value = '', fallback = '') {
+  const normalized = String(value || '').trim();
+  return VALID_HREFS.includes(normalized) ? normalized : fallback;
 }
 
 function getExpoExtra() {
@@ -73,23 +80,18 @@ function getVariantFromNativeApplicationId() {
   return '';
 }
 
-export function getAppVariantDebugInfo() {
-  const expoExtra = getExpoExtra();
-  const nativeApplicationId = getNativeApplicationId();
+export function getEmbeddedAppVariant() {
+  return normalizeAppVariant(BUILD_CONFIG?.appVariant, '');
+}
 
-  return {
-    embeddedVariant: normalizeAppVariant(EMBEDDED_APP_VARIANT, ''),
-    expoExtraVariant: normalizeAppVariant(expoExtra?.appVariant, ''),
-    nativeApplicationId,
-    nativeVariant: getVariantFromNativeApplicationId(),
-    processEnvVariant: normalizeAppVariant(process?.env?.EXPO_PUBLIC_APP_VARIANT, ''),
-  };
+export function getEmbeddedInitialShellHref() {
+  return normalizeShellHref(BUILD_CONFIG?.initialHref, '');
 }
 
 export function getAppVariant() {
-  const fromEmbeddedVariant = normalizeAppVariant(EMBEDDED_APP_VARIANT, '');
-  if (fromEmbeddedVariant) {
-    return fromEmbeddedVariant;
+  const fromEmbeddedConfig = getEmbeddedAppVariant();
+  if (fromEmbeddedConfig) {
+    return fromEmbeddedConfig;
   }
 
   const expoExtra = getExpoExtra();
@@ -116,6 +118,15 @@ export function getAppShellConfig(variant = getAppVariant()) {
   return APP_SHELLS[normalizeAppVariant(variant)] || APP_SHELLS.consumer;
 }
 
-export function getInitialShellHref(variant = getAppVariant()) {
-  return getAppShellConfig(variant).href;
+export function getInitialShellHref(variant = '') {
+  const explicitVariant = String(variant || '').trim();
+
+  if (!explicitVariant) {
+    const embeddedHref = getEmbeddedInitialShellHref();
+    if (embeddedHref) {
+      return embeddedHref;
+    }
+  }
+
+  return getAppShellConfig(explicitVariant || getAppVariant()).href;
 }
