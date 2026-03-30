@@ -64,7 +64,7 @@ command -v java >/dev/null 2>&1 || fail "Java is required. JDK 17 is recommended
 
 JAVA_MAJOR="$(java -version 2>&1 | awk -F '[\".]' '/version/ {print $2; exit}')"
 if [[ -n "${JAVA_MAJOR:-}" && "$JAVA_MAJOR" != "17" && "$JAVA_MAJOR" != "21" ]]; then
-  echo "⚠️  Detected Java version $JAVA_MAJOR. JDK 17 is the safest choice."
+  warn "Detected Java version $JAVA_MAJOR. JDK 17 is the safest choice."
 fi
 
 ANDROID_SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
@@ -136,6 +136,7 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 ENV_FILE_APP_ENV="${EXPO_PUBLIC_APP_ENV-}"
+
 if [[ "$CALLER_HAS_NODE_ENV" -eq 1 ]]; then
   export NODE_ENV="$ORIGINAL_NODE_ENV"
 fi
@@ -167,7 +168,7 @@ if [[ -z "$INPUT_API_BASE_URL" ]]; then
     fail "No API base URL configured. Set EXPO_PUBLIC_API_BASE_URL in mobile/.env or pass API_BASE_URL=... when running the script."
   else
     INPUT_API_BASE_URL="http://10.0.2.2:8000"
-    echo "⚠️  No API URL configured for debug build. Falling back to $INPUT_API_BASE_URL"
+    warn "No API URL configured for debug build. Falling back to $INPUT_API_BASE_URL"
   fi
 fi
 
@@ -250,8 +251,8 @@ export EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED="${EXPO_PUBLIC_SENTRY_UPLOAD_ENABLED:-f
 
 APP_VARIANTS_RAW="${APP_VARIANTS:-consumer}"
 APP_VARIANTS_RAW="${APP_VARIANTS_RAW// /,}"
-IFS=',' read -r -a APP_VARIANTS <<< "$APP_VARIANTS_RAW"
-[[ "${#APP_VARIANTS[@]}" -gt 0 ]] || fail "No app variants were provided."
+IFS=',' read -r -a RAW_APP_VARIANTS <<< "$APP_VARIANTS_RAW"
+[[ "${#RAW_APP_VARIANTS[@]}" -gt 0 ]] || fail "No app variants were provided."
 
 if [[ "$BUILD_TYPE" == "debug" ]]; then
   warn "Debug APKs are for local development only. If you install a debug APK directly on a physical device without the expected dev workflow, it may open the Expo dev launcher or close immediately. Use ./build-apk.sh for the standalone release APK."
@@ -340,6 +341,37 @@ find_apk_source() {
   return 1
 }
 
+reset_js_variant_caches() {
+  info "Resetting Expo/Metro caches for a clean ${1} bundle"
+
+  rm -rf "$MOBILE_DIR/.expo" "$MOBILE_DIR/.expo-shared"
+  rm -rf "$MOBILE_DIR/node_modules/.cache/metro" "$MOBILE_DIR/node_modules/.cache/expo"
+
+  if [[ -n "${TMPDIR:-}" && -d "${TMPDIR:-}" ]]; then
+    find "$TMPDIR" -maxdepth 1 \
+      \( -name 'metro-*' -o -name 'haste-map-*' -o -name 'react-native-packager-cache-*' \) \
+      -exec rm -rf {} + 2>/dev/null || true
+  fi
+
+  if command -v watchman >/dev/null 2>&1; then
+    watchman watch-del-all >/dev/null 2>&1 || true
+  fi
+}
+
+declare -A SEEN_VARIANTS=()
+APP_VARIANTS=()
+
+for raw_variant in "${RAW_APP_VARIANTS[@]}"; do
+  variant="$(normalize_variant "$raw_variant")" || fail "Unknown app variant: $raw_variant"
+
+  if [[ -z "${SEEN_VARIANTS[$variant]:-}" ]]; then
+    SEEN_VARIANTS["$variant"]=1
+    APP_VARIANTS+=("$variant")
+  fi
+done
+
+[[ "${#APP_VARIANTS[@]}" -gt 0 ]] || fail "No valid app variants were provided."
+
 info "Using mobile app at: $MOBILE_DIR"
 info "Effective build environment"
 echo "  BUILD_TYPE=$BUILD_TYPE"
@@ -361,15 +393,23 @@ info "Checking Expo CLI"
 npx expo --version >/dev/null
 
 mkdir -p "$DIST_DIR"
+
+# Remove only the output APKs that correspond to the variants we are about to build.
+for variant in "${APP_VARIANTS[@]}"; do
+  APK_NAME="$(variant_output_name "$variant")-${BUILD_TYPE}.apk"
+  rm -f "$DIST_DIR/$APK_NAME"
+done
+
 BUILT_APKS=()
 
-for raw_variant in "${APP_VARIANTS[@]}"; do
-  variant="$(normalize_variant "$raw_variant")" || fail "Unknown app variant: $raw_variant"
+for variant in "${APP_VARIANTS[@]}"; do
   set_variant_identity "$variant"
   export EXPO_PUBLIC_APP_VARIANT="$variant"
 
+  reset_js_variant_caches "$variant"
+
   info "Generating native Android project for $variant"
-  CI=1 npx expo prebuild --platform android --clean
+  CI=1 npx expo prebuild --platform android --clean --non-interactive
 
   cat > android/local.properties <<PROPS
 sdk.dir=${ANDROID_SDK//\\/\\\\}
@@ -385,7 +425,7 @@ PROPS
   fi
 
   info "Running Gradle task for $variant: $GRADLE_TASK"
-  ./gradlew "$GRADLE_TASK"
+  ./gradlew clean "$GRADLE_TASK"
   cd ..
 
   APK_SOURCE="$(find_apk_source "$BUILD_TYPE")" || fail "APK was not found after Gradle build for $variant."
@@ -411,12 +451,16 @@ echo "  BUILD_TYPE=debug ./build-apk.sh"
 echo "  BUILD_TYPE=release ./build-apk.sh"
 echo "  APP_VARIANTS=consumer ./build-apk.sh"
 echo "  APP_VARIANTS=delivery ./build-apk.sh"
+echo "  APP_VARIANTS=partner ./build-apk.sh"
+echo "  APP_VARIANTS=consumer,delivery,partner ./build-apk.sh"
 echo "  API_BASE_URL=https://your-api-domain.com ./build-apk.sh"
+
 echo ""
 echo "Install on device with:"
-echo "  adb install -r \"$DIST_DIR/grab-basket-${BUILD_TYPE}.apk\""
-echo "  adb install -r \"$DIST_DIR/grab-basket-delivery-${BUILD_TYPE}.apk\""
-echo "  adb install -r \"$DIST_DIR/grab-basket-partner-${BUILD_TYPE}.apk\""
+for apk_path in "${BUILT_APKS[@]}"; do
+  echo "  adb install -r \"$apk_path\""
+done
+
 echo ""
 echo "Capture startup crash logs with:"
 echo "  adb logcat -c"
