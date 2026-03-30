@@ -4,25 +4,61 @@ set -eu
 ACTION="$(python - <<'PY'
 from __future__ import annotations
 
-import os
 import sys
 
-from sqlalchemy import create_engine, inspect
-
-database_url = os.environ.get("DATABASE_URL")
-if not database_url:
-    print("upgrade")
-    raise SystemExit(0)
+from app.config import settings
 
 try:
-    engine = create_engine(database_url)
-    with engine.connect() as connection:
-        inspector = inspect(connection)
-        tables = set(inspector.get_table_names())
+    import psycopg
+except Exception as exc:
+    print(f"Failed to import psycopg: {exc}", file=sys.stderr)
+    raise SystemExit(1)
 
-    if "alembic_version" in tables:
+
+def to_psycopg_dsn(url: str) -> str:
+    value = (url or "").strip()
+    if value.startswith("postgresql+psycopg://"):
+        return "postgresql://" + value[len("postgresql+psycopg://"):]
+    if value.startswith("postgres://"):
+        return "postgresql://" + value[len("postgres://"):]
+    return value
+
+
+dsn = to_psycopg_dsn(settings.DATABASE_URL)
+
+try:
+    with psycopg.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = 'alembic_version'
+                )
+                """
+            )
+            has_alembic_version = bool(cur.fetchone()[0])
+
+            cur.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name IN (
+                        'users',
+                        'vendors',
+                        'products',
+                        'orders'
+                    )
+                )
+                """
+            )
+            has_existing_app_tables = bool(cur.fetchone()[0])
+
+    if has_alembic_version:
         print("upgrade")
-    elif "users" in tables:
+    elif has_existing_app_tables:
         print("stamp")
     else:
         print("upgrade")
