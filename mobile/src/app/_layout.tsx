@@ -293,7 +293,6 @@ function TelemetryBootstrap() {
     });
 
     if (!governance.isReady) {
-      // Record governance drift without taking down app startup on end-user devices.
       captureException(new Error('Release governance check failed'), {
         level: 'warning',
         tags: {
@@ -330,6 +329,18 @@ function TelemetryBootstrap() {
   return null;
 }
 
+function ActiveShellScreens() {
+  if (APP_VARIANT === 'delivery') {
+    return <Stack.Screen name="(delivery)" options={{ headerShown: false }} />;
+  }
+
+  if (APP_VARIANT === 'partner') {
+    return <Stack.Screen name="(partner)" options={{ headerShown: false }} />;
+  }
+
+  return <Stack.Screen name="(tabs)" options={{ headerShown: false }} />;
+}
+
 function RootLayout() {
   return (
     <StartupErrorBoundary>
@@ -337,9 +348,8 @@ function RootLayout() {
         <TelemetryBootstrap />
         <PushNotificationBootstrap />
         <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(delivery)" options={{ headerShown: false }} />
-          <Stack.Screen name="(partner)" options={{ headerShown: false }} />
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <ActiveShellScreens />
           <Stack.Screen name="store/[vendorId]" options={{ headerShown: false }} />
           <Stack.Screen name="cart" options={{ headerShown: false }} />
         </Stack>
