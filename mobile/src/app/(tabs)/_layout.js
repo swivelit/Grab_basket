@@ -1,9 +1,10 @@
 import React from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useGrabBasket } from '../../../App';
+import { getAppVariant, getInitialShellHref } from '../../constants/app-shell';
 import { BrandPalette, createShadow } from '@/constants/theme';
 
 const SERVICE_TAB_COPY = {
@@ -68,6 +69,10 @@ function TabIcon({ focused, color, icon, label, badge }) {
 }
 
 export default function TabsLayout() {
+  if (getAppVariant() !== 'consumer') {
+    return <Redirect href={getInitialShellHref()} />;
+  }
+
   const { activeService, cartCount, orderHistory } = useGrabBasket();
 
   const copy = SERVICE_TAB_COPY[activeService] || SERVICE_TAB_COPY.food;

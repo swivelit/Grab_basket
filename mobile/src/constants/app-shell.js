@@ -89,14 +89,14 @@ export function getEmbeddedInitialShellHref() {
 }
 
 export function getAppVariant() {
-  const fromProcessEnv = normalizeAppVariant(process?.env?.EXPO_PUBLIC_APP_VARIANT, '');
-  if (fromProcessEnv) {
-    return fromProcessEnv;
-  }
-
   const fromEmbeddedConfig = getEmbeddedAppVariant();
   if (fromEmbeddedConfig) {
     return fromEmbeddedConfig;
+  }
+
+  const fromApplicationId = getVariantFromNativeApplicationId();
+  if (fromApplicationId) {
+    return fromApplicationId;
   }
 
   const expoExtra = getExpoExtra();
@@ -106,9 +106,9 @@ export function getAppVariant() {
     return fromExpoExtra;
   }
 
-  const fromApplicationId = getVariantFromNativeApplicationId();
-  if (fromApplicationId) {
-    return fromApplicationId;
+  const fromProcessEnv = normalizeAppVariant(process?.env?.EXPO_PUBLIC_APP_VARIANT, '');
+  if (fromProcessEnv) {
+    return fromProcessEnv;
   }
 
   return 'consumer';
@@ -119,7 +119,7 @@ export function getAppShellConfig(variant = getAppVariant()) {
 }
 
 export function getInitialShellHref(variant = '') {
-  const explicitVariant = String(variant || '').trim();
+  const explicitVariant = normalizeAppVariant(variant, '');
 
   if (!explicitVariant) {
     const embeddedHref = getEmbeddedInitialShellHref();
