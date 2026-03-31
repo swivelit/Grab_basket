@@ -198,6 +198,7 @@ const VARIANT_DEFAULTS = {
 
 const VARIANT = VARIANT_DEFAULTS[APP_VARIANT] || VARIANT_DEFAULTS.consumer;
 const IS_DELIVERY_APP = APP_VARIANT === 'delivery';
+const IS_CUSTOMER_APP = APP_VARIANT === 'consumer';
 
 const SHARED_NATIVE_ASSETS = {
   icon: './assets/images/consumer-native-icon.png',
@@ -532,6 +533,7 @@ if (PRODUCTION_VALIDATION.errors.length) {
 
 const pushPermissionLabel = `${APP_NAME} uses notifications for order updates, assignment alerts, and payment status changes.`;
 
+const customerLocationWhenInUsePermission = `${APP_NAME} uses your location while the app is open to detect your delivery area, show nearby stores, and estimate delivery time.`;
 const deliveryLocationWhenInUsePermission = `${APP_NAME} uses your location while the app is open so you can navigate to pickup points and drop-off addresses.`;
 const deliveryLocationAlwaysPermission = `${APP_NAME} uses your location in the background during active deliveries so customers and sellers can track orders in real time.`;
 
@@ -550,9 +552,20 @@ const DEFAULT_ANDROID_PERMISSIONS = dedupeList([
   'android.permission.POST_NOTIFICATIONS',
 ]);
 
+const CUSTOMER_ANDROID_PERMISSIONS = dedupeList([
+  ...DEFAULT_ANDROID_PERMISSIONS,
+  'android.permission.ACCESS_COARSE_LOCATION',
+  'android.permission.ACCESS_FINE_LOCATION',
+]);
+
 const NON_DELIVERY_BLOCKED_ANDROID_PERMISSIONS = dedupeList([
   'android.permission.ACCESS_COARSE_LOCATION',
   'android.permission.ACCESS_FINE_LOCATION',
+  'android.permission.ACCESS_BACKGROUND_LOCATION',
+  'android.permission.FOREGROUND_SERVICE_LOCATION',
+]);
+
+const NON_CUSTOMER_BLOCKED_ANDROID_PERMISSIONS = dedupeList([
   'android.permission.ACCESS_BACKGROUND_LOCATION',
   'android.permission.FOREGROUND_SERVICE_LOCATION',
 ]);
@@ -592,17 +605,21 @@ function buildPlugins() {
     ],
   ];
 
-  if (IS_DELIVERY_APP) {
-    nextPlugins.splice(2, 0, [
-      'expo-location',
-      {
-        locationWhenInUsePermission: deliveryLocationWhenInUsePermission,
-        locationAlwaysAndWhenInUsePermission: deliveryLocationAlwaysPermission,
-        isIosBackgroundLocationEnabled: true,
-        isAndroidBackgroundLocationEnabled: true,
-        isAndroidForegroundServiceEnabled: true,
-      },
-    ]);
+  if (IS_DELIVERY_APP || IS_CUSTOMER_APP) {
+    const locationPluginConfig = {
+      locationWhenInUsePermission: IS_DELIVERY_APP
+        ? deliveryLocationWhenInUsePermission
+        : customerLocationWhenInUsePermission,
+    };
+
+    if (IS_DELIVERY_APP) {
+      locationPluginConfig.locationAlwaysAndWhenInUsePermission = deliveryLocationAlwaysPermission;
+      locationPluginConfig.isIosBackgroundLocationEnabled = true;
+      locationPluginConfig.isAndroidBackgroundLocationEnabled = true;
+      locationPluginConfig.isAndroidForegroundServiceEnabled = true;
+    }
+
+    nextPlugins.splice(2, 0, ['expo-location', locationPluginConfig]);
   }
 
   if (SHOULD_ENABLE_SENTRY_PLUGIN) {
@@ -655,6 +672,10 @@ function buildIosInfoPlist() {
       'We use this identifier to improve attribution and personalize relevant sponsored content.',
   };
 
+  if (IS_CUSTOMER_APP) {
+    infoPlist.NSLocationWhenInUseUsageDescription = customerLocationWhenInUsePermission;
+  }
+
   if (IS_DELIVERY_APP) {
     infoPlist.UIBackgroundModes = ['location'];
     infoPlist.NSLocationWhenInUseUsageDescription = deliveryLocationWhenInUsePermission;
@@ -671,7 +692,9 @@ function buildAndroidConfig() {
     versionCode: ANDROID_VERSION_CODE,
     permissions: IS_DELIVERY_APP
       ? DELIVERY_ANDROID_PERMISSIONS
-      : DEFAULT_ANDROID_PERMISSIONS,
+      : IS_CUSTOMER_APP
+        ? CUSTOMER_ANDROID_PERMISSIONS
+        : DEFAULT_ANDROID_PERMISSIONS,
     adaptiveIcon: {
       foregroundImage: ADAPTIVE_FOREGROUND,
       backgroundImage: ADAPTIVE_BACKGROUND,
@@ -688,7 +711,9 @@ function buildAndroidConfig() {
   };
 
   if (!IS_DELIVERY_APP) {
-    androidConfig.blockedPermissions = NON_DELIVERY_BLOCKED_ANDROID_PERMISSIONS;
+    androidConfig.blockedPermissions = IS_CUSTOMER_APP
+      ? NON_CUSTOMER_BLOCKED_ANDROID_PERMISSIONS
+      : NON_DELIVERY_BLOCKED_ANDROID_PERMISSIONS;
   }
 
   return androidConfig;
@@ -752,7 +777,11 @@ const expoConfig = {
     },
     permissions: {
       notifications: pushPermissionLabel,
-      locationWhenInUse: IS_DELIVERY_APP ? deliveryLocationWhenInUsePermission : '',
+      locationWhenInUse: IS_DELIVERY_APP
+        ? deliveryLocationWhenInUsePermission
+        : IS_CUSTOMER_APP
+          ? customerLocationWhenInUsePermission
+          : '',
       backgroundLocation: IS_DELIVERY_APP ? deliveryLocationAlwaysPermission : '',
     },
     meta: {

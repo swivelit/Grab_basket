@@ -167,13 +167,18 @@ function getVendorOffer(vendor, service) {
   return Number(vendor?.total_ratings || 0) > 100 ? 'Top rated around you' : 'Free delivery on first order';
 }
 
-function getLocationTitle(defaultAddress) {
-  return defaultAddress?.city || 'Select location';
+function getLocationTitle(address, { locating = false } = {}) {
+  if (address?.city) return address.city;
+  if (address?.label) return address.label;
+  if (locating) return 'Locating you';
+  return 'Select location';
 }
 
-function getAddressLine(defaultAddress) {
-  const line = [defaultAddress?.line1, defaultAddress?.line2].filter(Boolean).join(', ');
-  return line || 'Add your delivery address';
+function getAddressLine(address, { locating = false } = {}) {
+  const line = [address?.line1, address?.line2].filter(Boolean).join(', ');
+  if (line) return line;
+  if (locating) return 'Detecting your current location';
+  return 'Enable location or add your delivery address';
 }
 
 function getServiceTitle(service) {
@@ -448,14 +453,24 @@ export default function HomeScreen() {
     addToCart,
     cartCount,
     cartTotal,
-    defaultAddress,
+    activeAddress,
+    currentLocationLoading,
   } = useGrabBasket();
 
   const copy = SERVICE_COPY[activeService] || SERVICE_COPY.food;
-  const heroEta = useMemo(
-    () => getFastestEta(vendors, copy.etaFallback),
-    [copy.etaFallback, vendors]
-  );
+  const heroEta = useMemo(() => {
+    if (!activeAddress && currentLocationLoading) {
+      return 'Locating...';
+    }
+
+    const fallback = activeAddress
+      ? copy.etaFallback
+      : activeService === 'eatout'
+        ? 'Discover'
+        : 'Nearby';
+
+    return getFastestEta(vendors, fallback);
+  }, [activeAddress, activeService, copy.etaFallback, currentLocationLoading, vendors]);
 
   const primaryStores = useMemo(() => {
     const list = Array.isArray(featuredVendors) && featuredVendors.length ? featuredVendors : vendors;
@@ -492,8 +507,8 @@ export default function HomeScreen() {
           <HeaderBlock
             activeService={activeService}
             etaText={heroEta}
-            locationTitle={getLocationTitle(defaultAddress)}
-            addressLine={getAddressLine(defaultAddress)}
+            locationTitle={getLocationTitle(activeAddress, { locating: currentLocationLoading })}
+            addressLine={getAddressLine(activeAddress, { locating: currentLocationLoading })}
             onOpenAccount={() => router.push('/(tabs)/account')}
           />
 

@@ -78,7 +78,7 @@ export function GrabBasketProvider({ children }) {
     activeService,
     activeShortcut,
     homeSearch,
-    defaultAddress: addresses.defaultAddress,
+    defaultAddress: addresses.activeAddress,
   });
 
   const cart = useCartDomain();
@@ -240,6 +240,10 @@ export function GrabBasketProvider({ children }) {
     selectedAddressId: addresses.selectedAddressId,
     setSelectedAddressId: addresses.setSelectedAddressId,
     defaultAddress: addresses.defaultAddress,
+    activeAddress: addresses.activeAddress,
+    currentLocationAddress: addresses.currentLocationAddress,
+    currentLocationLoading: addresses.currentLocationLoading,
+    resolveCurrentLocation: addresses.resolveCurrentLocation,
     createAddress: addresses.createAddress,
     setDefaultAddress: addresses.setDefaultAddress,
     loadAddresses: addresses.loadAddresses,

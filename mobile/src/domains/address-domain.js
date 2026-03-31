@@ -1,13 +1,57 @@
 import { useCallback, useEffect, useState } from 'react';
+import * as Location from 'expo-location';
 
 import { STORAGE_KEYS, readStoredValue, writeStoredValue } from '../lib/storage';
 import { normalizeAddress, normalizeErrorMessage } from './grab-basket-utils';
+
+function firstNonEmpty(...values) {
+  return values
+    .map((value) => String(value || '').trim())
+    .find(Boolean) || '';
+}
+
+function buildCurrentLocationAddress({ lat, lng, place = null } = {}) {
+  const line1 = firstNonEmpty(
+    [place?.name, place?.street].filter(Boolean).join(' ').trim(),
+    place?.street,
+    place?.district,
+    place?.subregion,
+    place?.city,
+    place?.region
+  );
+
+  const line2 = firstNonEmpty(
+    [place?.district, place?.subregion].filter(Boolean).join(', '),
+    place?.region,
+    place?.country
+  );
+
+  const city = firstNonEmpty(place?.city, place?.subregion, place?.district, place?.region);
+  const pincode = firstNonEmpty(place?.postalCode);
+
+  return {
+    id: null,
+    label: 'Current location',
+    line1: line1 || 'Using your live location',
+    line2,
+    city,
+    pincode,
+    lat,
+    lng,
+    is_default: false,
+    is_ephemeral: true,
+    source: 'device-location',
+  };
+}
 
 export function useAddressDomain({ isCustomerApp, appVariantName, sessionReady, isAuthenticated, authorizedRequest }) {
   const [addresses, setAddresses] = useState([]);
   const [addressesLoading, setAddressesLoading] = useState(false);
   const [addressesError, setAddressesError] = useState('');
   const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [currentLocationAddress, setCurrentLocationAddress] = useState(null);
+  const [currentLocationLoading, setCurrentLocationLoading] = useState(false);
+  const [hasAttemptedCurrentLocation, setHasAttemptedCurrentLocation] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,10 +129,81 @@ export function useAddressDomain({ isCustomerApp, appVariantName, sessionReady, 
     setSelectedAddressId(next ? String(next.id) : '');
   }, [addresses, selectedAddressId]);
 
-  const defaultAddress = addresses.find((item) => String(item.id) === String(selectedAddressId)) ||
+  const defaultAddress =
+    addresses.find((item) => String(item.id) === String(selectedAddressId)) ||
     addresses.find((item) => item.is_default) ||
     addresses[0] ||
     null;
+
+  const resolveCurrentLocation = useCallback(
+    async ({ force = false } = {}) => {
+      if (!isCustomerApp) {
+        setCurrentLocationAddress(null);
+        setHasAttemptedCurrentLocation(true);
+        return null;
+      }
+
+      if (currentLocationLoading && !force) {
+        return currentLocationAddress;
+      }
+
+      try {
+        setCurrentLocationLoading(true);
+
+        const existingPermission = await Location.getForegroundPermissionsAsync();
+        let status = existingPermission?.status || 'undetermined';
+
+        if (status !== 'granted') {
+          const requestedPermission = await Location.requestForegroundPermissionsAsync();
+          status = requestedPermission?.status || status;
+        }
+
+        if (status !== 'granted') {
+          setCurrentLocationAddress(null);
+          return null;
+        }
+
+        const position = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+
+        const lat = Number(position?.coords?.latitude);
+        const lng = Number(position?.coords?.longitude);
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          setCurrentLocationAddress(null);
+          return null;
+        }
+
+        let place = null;
+        try {
+          const places = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+          place = Array.isArray(places) ? places[0] || null : null;
+        } catch {
+          place = null;
+        }
+
+        const nextAddress = buildCurrentLocationAddress({ lat, lng, place });
+        setCurrentLocationAddress(nextAddress);
+        return nextAddress;
+      } catch {
+        setCurrentLocationAddress(null);
+        return null;
+      } finally {
+        setCurrentLocationLoading(false);
+        setHasAttemptedCurrentLocation(true);
+      }
+    },
+    [currentLocationAddress, currentLocationLoading, isCustomerApp]
+  );
+
+  useEffect(() => {
+    if (!isCustomerApp) return;
+    if (defaultAddress) return;
+    if (hasAttemptedCurrentLocation) return;
+
+    resolveCurrentLocation().catch(() => {});
+  }, [defaultAddress, hasAttemptedCurrentLocation, isCustomerApp, resolveCurrentLocation]);
 
   const createAddress = useCallback(
     async (payload) => {
@@ -188,8 +303,13 @@ export function useAddressDomain({ isCustomerApp, appVariantName, sessionReady, 
     selectedAddressId,
     setSelectedAddressId,
     defaultAddress,
+    activeAddress: defaultAddress || currentLocationAddress || null,
+    currentLocationAddress,
+    currentLocationLoading,
+    hasAttemptedCurrentLocation,
     createAddress,
     setDefaultAddress,
     loadAddresses,
+    resolveCurrentLocation,
   };
 }
