@@ -9,18 +9,18 @@ import { BrandPalette, createShadow } from '@/constants/theme';
 const SERVICE_TAB_COPY = {
   food: {
     index: { label: 'Food', icon: 'fast-food-outline' },
-    explore: { label: '99 Store', icon: 'storefront-outline' },
+    explore: { label: 'Store', icon: 'storefront-outline' },
     reorder: { label: 'Reorder', icon: 'repeat-outline' },
     account: { label: 'Account', icon: 'person-outline' },
   },
   warehouse: {
-    index: { label: 'Instamart', icon: 'basket-outline' },
+    index: { label: 'Warehouse', icon: 'basket-outline' },
     explore: { label: 'Categories', icon: 'grid-outline' },
     reorder: { label: 'Reorder', icon: 'repeat-outline' },
     account: { label: 'Account', icon: 'person-outline' },
   },
   eatout: {
-    index: { label: 'Dineout', icon: 'restaurant-outline' },
+    index: { label: 'Eatout', icon: 'restaurant-outline' },
     explore: { label: 'My Corner', icon: 'sparkles-outline' },
     reorder: { label: 'New & Hot', icon: 'flame-outline' },
     account: { label: 'Account', icon: 'person-outline' },

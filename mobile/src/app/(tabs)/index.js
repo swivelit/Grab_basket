@@ -23,9 +23,8 @@ const BRAND_LOGO = require('../../../assets/images/consumer-native-icon.png');
 
 const SERVICE_TABS = [
   { key: 'food', label: 'Food', icon: 'fast-food-outline' },
-  { key: 'warehouse', label: 'Instamart', icon: 'basket-outline' },
-  { key: 'eatout', label: 'Dineout', icon: 'restaurant-outline' },
-  { key: 'scenes', label: 'Scenes', icon: 'sparkles-outline' },
+  { key: 'warehouse', label: 'Warehouse', icon: 'basket-outline' },
+  { key: 'eatout', label: 'Eatout', icon: 'restaurant-outline' },
 ];
 
 const SERVICE_COPY = {
@@ -92,27 +91,6 @@ const SERVICE_COPY = {
       { key: 'dine-3', title: 'Cafes & quick bites', value: 'Easy plans', caption: 'After work' },
     ],
   },
-  scenes: {
-    heroTitle: 'Experiences deserve the same clean product language as food and grocery.',
-    heroSubtitle: 'Use scenes for curated events, plans, workshops and premium local discovery.',
-    searchPlaceholder: 'Search experiences, events & plans',
-    headline: 'ONE APP FOR FOOD, GROCERY, DINING AND MORE',
-    subheadline: 'Bring curated experiences, weekend escapes and event-led discovery into GrabBasket.',
-    cta: 'Explore',
-    etaFallback: 'Today',
-    categoryTiles: [
-      { key: 'music', label: 'Music', icon: 'musical-notes-outline' },
-      { key: 'comedy', label: 'Comedy', icon: 'mic-outline' },
-      { key: 'workshops', label: 'Workshops', icon: 'color-palette-outline' },
-      { key: 'weekend', label: 'Weekend', icon: 'calendar-outline' },
-    ],
-    chips: ['Today', 'Weekend', 'Music', 'Comedy', 'Workshops'],
-    stripCards: [
-      { key: 'scene-1', title: 'Acoustic rooftop night', value: 'Music', caption: 'Panampilly Nagar' },
-      { key: 'scene-2', title: 'Comedy club Friday', value: 'Comedy', caption: 'Kakkanad' },
-      { key: 'scene-3', title: 'Clay & coffee workshop', value: 'Workshop', caption: 'Kadavanthra' },
-    ],
-  },
 };
 
 function money(value) {
@@ -157,7 +135,6 @@ function getVendorEta(vendor, service) {
 
   if (service === 'warehouse') return eta > 0 ? `${eta} mins` : '7 mins';
   if (service === 'eatout') return eta > 0 ? `Table in ${Math.max(10, eta)} mins` : 'Book now';
-  if (service === 'scenes') return 'Instant confirmation';
   if (eta > 0) return eta <= 15 ? `${eta} mins` : `${Math.max(10, eta - 5)}-${eta} mins`;
   return '23 mins';
 }
@@ -180,10 +157,6 @@ function getVendorMeta(vendor, service) {
     return vendor?.description || 'Tables, offers and premium dining';
   }
 
-  if (service === 'scenes') {
-    return vendor?.description || vendor?.address || 'Curated experiences and bookings';
-  }
-
   return vendor?.cuisine_tags || vendor?.description || vendor?.address || 'Fast delivery and trusted quality';
 }
 
@@ -191,23 +164,25 @@ function getVendorOffer(vendor, service) {
   if (vendor?.open_now === false) return 'Closed now';
   if (service === 'warehouse') return 'Free delivery above ₹199';
   if (service === 'eatout') return 'Flat 50% off on dining bills';
-  if (service === 'scenes') return 'Trending near you';
   return Number(vendor?.total_ratings || 0) > 100 ? 'Top rated around you' : 'Free delivery on first order';
 }
 
+function getLocationTitle(defaultAddress) {
+  return defaultAddress?.city || 'Select location';
+}
+
 function getAddressLine(defaultAddress) {
-  const line = [defaultAddress?.line1, defaultAddress?.city].filter(Boolean).join(', ');
-  return line || 'Vidya Nagar Rd, Panampally Nagar, Kochi';
+  const line = [defaultAddress?.line1, defaultAddress?.line2].filter(Boolean).join(', ');
+  return line || 'Add your delivery address';
 }
 
 function getServiceTitle(service) {
-  if (service === 'warehouse') return 'Instamart';
-  if (service === 'eatout') return 'Dineout';
-  if (service === 'scenes') return 'Scenes';
+  if (service === 'warehouse') return 'Warehouse';
+  if (service === 'eatout') return 'Eatout';
   return 'Food';
 }
 
-function HeaderBlock({ activeService, copy, etaText, addressLine, onOpenAccount }) {
+function HeaderBlock({ activeService, etaText, locationTitle, addressLine, onOpenAccount }) {
   return (
     <View style={styles.headerBlock}>
       <View style={{ flex: 1, paddingRight: 12 }}>
@@ -215,7 +190,7 @@ function HeaderBlock({ activeService, copy, etaText, addressLine, onOpenAccount 
         <View style={styles.locationRow}>
           <Ionicons name={activeService === 'warehouse' ? 'time-outline' : 'navigate'} size={15} color="#FFFFFF" />
           <Text numberOfLines={1} style={styles.locationTitle}>
-            Kochi
+            {locationTitle}
           </Text>
           <Ionicons name="chevron-down" size={14} color="#FFFFFF" />
         </View>
@@ -516,8 +491,8 @@ export default function HomeScreen() {
         <View style={styles.heroShell}>
           <HeaderBlock
             activeService={activeService}
-            copy={copy}
             etaText={heroEta}
+            locationTitle={getLocationTitle(defaultAddress)}
             addressLine={getAddressLine(defaultAddress)}
             onOpenAccount={() => router.push('/(tabs)/account')}
           />
@@ -544,7 +519,10 @@ export default function HomeScreen() {
             ))}
           </View>
 
-          <SectionHeader title={activeService === 'warehouse' ? 'Most shopped near you' : activeService === 'eatout' ? 'Dining moments' : activeService === 'scenes' ? 'Curated experiences' : 'Best offers for you'} actionLabel="See all" />
+          <SectionHeader
+            title={activeService === 'warehouse' ? 'Most shopped near you' : activeService === 'eatout' ? 'Dining moments' : 'Best offers for you'}
+            actionLabel="See all"
+          />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promoRail}>
             {copy.stripCards.map((item) => (
               <PromoTile key={item.key} item={item} />
@@ -585,7 +563,10 @@ export default function HomeScreen() {
             </>
           ) : null}
 
-          <SectionHeader title={activeService === 'warehouse' ? 'Popular stores nearby' : activeService === 'eatout' ? 'Top dining picks' : activeService === 'scenes' ? 'Featured partners' : 'Restaurants to explore'} actionLabel="See all" />
+          <SectionHeader
+            title={activeService === 'warehouse' ? 'Popular stores nearby' : activeService === 'eatout' ? 'Top dining picks' : 'Restaurants to explore'}
+            actionLabel="See all"
+          />
 
           {vendorsLoading && !primaryStores.length ? (
             <EmptyState title="Loading stores" subtitle="We are preparing a cleaner storefront for your next release." />
@@ -758,114 +739,117 @@ const styles = StyleSheet.create({
     backgroundColor: BrandPalette.primary,
     padding: 20,
     overflow: 'hidden',
+    ...createShadow(0.18, 18, 0),
   },
   heroBadgeRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 18,
   },
   heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   heroBadgeLogo: {
-    width: 18,
-    height: 18,
+    width: 22,
+    height: 22,
   },
   heroBadgeText: {
-    fontSize: 11,
-    lineHeight: 13,
-    fontWeight: '900',
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: '800',
     color: BrandPalette.white,
   },
   heroEyebrow: {
     fontSize: 14,
     lineHeight: 18,
     fontWeight: '900',
-    color: 'rgba(255,255,255,0.86)',
+    color: 'rgba(255,255,255,0.85)',
+    marginBottom: 10,
   },
   heroTitle: {
-    marginTop: 10,
-    fontSize: 28,
-    lineHeight: 33,
+    fontSize: 30,
+    lineHeight: 36,
     fontWeight: '900',
     color: BrandPalette.white,
   },
   heroSubtitle: {
-    marginTop: 10,
-    fontSize: 14,
-    lineHeight: 20,
-    color: 'rgba(255,255,255,0.86)',
+    marginTop: 16,
+    fontSize: 15,
+    lineHeight: 21,
+    color: 'rgba(255,255,255,0.84)',
+    maxWidth: '92%',
   },
   heroFooter: {
-    marginTop: 18,
+    marginTop: 22,
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 12,
   },
   heroPrimaryButton: {
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 14,
+    minWidth: 132,
+    borderRadius: 18,
     backgroundColor: BrandPalette.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 15,
   },
   heroPrimaryButtonText: {
-    color: BrandPalette.primary,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 16,
     fontWeight: '900',
+    color: BrandPalette.primary,
     textTransform: 'uppercase',
   },
   heroMetricCard: {
     flex: 1,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    justifyContent: 'center',
   },
   heroMetricLabel: {
-    fontSize: 11,
-    lineHeight: 13,
-    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    lineHeight: 14,
+    color: 'rgba(255,255,255,0.8)',
   },
   heroMetricValue: {
-    marginTop: 3,
+    marginTop: 6,
     fontSize: 15,
-    lineHeight: 19,
-    fontWeight: '800',
+    lineHeight: 20,
+    fontWeight: '900',
     color: BrandPalette.white,
   },
   bodySurface: {
-    marginTop: -6,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    backgroundColor: BrandPalette.backgroundAlt,
+    marginTop: 16,
+    borderTopLeftRadius: 34,
+    borderTopRightRadius: 34,
+    backgroundColor: BrandPalette.page,
     paddingHorizontal: 16,
     paddingTop: 22,
+    paddingBottom: 24,
+    minHeight: 620,
   },
   sectionHeader: {
-    marginTop: 8,
-    marginBottom: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    marginBottom: 14,
   },
   sectionTitle: {
-    flex: 1,
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 22,
     fontWeight: '900',
-    color: BrandPalette.text,
+    color: BrandPalette.ink,
   },
   sectionAction: {
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '800',
     color: BrandPalette.primary,
   },
@@ -873,183 +857,179 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    marginBottom: 24,
   },
   categoryTile: {
-    width: '47.5%',
-    borderRadius: 22,
+    width: '47%',
+    borderRadius: 24,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
     backgroundColor: BrandPalette.white,
-    paddingHorizontal: 14,
-    paddingVertical: 16,
     borderWidth: 1,
-    borderColor: BrandPalette.line,
-    ...createShadow(0.06, 10, 3),
+    borderColor: '#F2E5DB',
+    ...createShadow(0.05, 12, 0),
   },
   categoryIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: BrandPalette.primarySoft,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   categoryTileLabel: {
-    fontSize: 15,
-    lineHeight: 19,
+    fontSize: 16,
+    lineHeight: 20,
     fontWeight: '800',
-    color: BrandPalette.text,
+    color: BrandPalette.ink,
   },
   promoRail: {
-    paddingRight: 8,
     gap: 12,
+    paddingRight: 12,
+    marginBottom: 24,
   },
   promoTile: {
-    width: 180,
-    borderRadius: 24,
+    width: 182,
+    borderRadius: 22,
     padding: 18,
     backgroundColor: BrandPalette.white,
     borderWidth: 1,
-    borderColor: BrandPalette.line,
-    ...createShadow(0.06, 10, 3),
+    borderColor: '#F1E6DE',
   },
   promoTileTitle: {
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 16,
-    fontWeight: '800',
-    color: BrandPalette.textMuted,
-    textTransform: 'uppercase',
+    color: BrandPalette.subtle,
   },
   promoTileValue: {
-    marginTop: 12,
-    fontSize: 24,
-    lineHeight: 28,
+    marginTop: 10,
+    fontSize: 18,
+    lineHeight: 22,
     fontWeight: '900',
-    color: BrandPalette.primary,
+    color: BrandPalette.ink,
   },
   promoTileCaption: {
     marginTop: 8,
     fontSize: 13,
     lineHeight: 17,
-    color: BrandPalette.textMuted,
+    color: BrandPalette.subtle,
   },
   dealRail: {
-    paddingRight: 8,
     gap: 12,
+    paddingRight: 12,
+    marginBottom: 26,
   },
   dealCard: {
-    width: 170,
-    borderRadius: 22,
+    width: 160,
+    borderRadius: 24,
+    padding: 16,
     backgroundColor: BrandPalette.white,
     borderWidth: 1,
-    borderColor: BrandPalette.line,
-    padding: 14,
+    borderColor: '#F1E6DE',
   },
   dealVisual: {
-    width: '100%',
-    height: 92,
-    borderRadius: 18,
-    backgroundColor: BrandPalette.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  dealBrand: {
-    fontSize: 12,
-    lineHeight: 14,
-    fontWeight: '700',
-    color: BrandPalette.textMuted,
-  },
-  dealName: {
-    marginTop: 6,
-    fontSize: 15,
-    lineHeight: 19,
-    fontWeight: '800',
-    color: BrandPalette.text,
-    minHeight: 38,
-  },
-  dealFooter: {
-    marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  dealPrice: {
-    fontSize: 16,
-    lineHeight: 19,
-    fontWeight: '900',
-    color: BrandPalette.text,
-  },
-  addMiniButton: {
-    minWidth: 64,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: BrandPalette.primary,
-  },
-  addMiniButtonText: {
-    fontSize: 12,
-    lineHeight: 14,
-    fontWeight: '900',
-    color: BrandPalette.white,
-  },
-  recentStoreCard: {
-    width: 132,
-  },
-  recentStoreInner: {
-    borderRadius: 20,
-    padding: 14,
-    backgroundColor: BrandPalette.white,
-    borderWidth: 1,
-    borderColor: BrandPalette.line,
-    alignItems: 'center',
-  },
-  recentStoreIcon: {
     width: 54,
     height: 54,
     borderRadius: 27,
     backgroundColor: BrandPalette.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 14,
+  },
+  dealBrand: {
+    fontSize: 12,
+    lineHeight: 14,
+    color: BrandPalette.subtle,
+    marginBottom: 8,
+  },
+  dealName: {
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '800',
+    color: BrandPalette.ink,
+    minHeight: 38,
+  },
+  dealFooter: {
+    marginTop: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dealPrice: {
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '900',
+    color: BrandPalette.ink,
+  },
+  addMiniButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: BrandPalette.primary,
+  },
+  addMiniButtonText: {
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: '900',
+    color: BrandPalette.primary,
+  },
+  recentStoreCard: {
+    width: 122,
+  },
+  recentStoreInner: {
+    borderRadius: 22,
+    padding: 16,
+    backgroundColor: BrandPalette.white,
+    borderWidth: 1,
+    borderColor: '#F1E6DE',
+    alignItems: 'flex-start',
+  },
+  recentStoreIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: BrandPalette.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   recentStoreIconText: {
-    fontSize: 18,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 18,
     fontWeight: '900',
     color: BrandPalette.primary,
   },
   recentStoreName: {
     fontSize: 14,
-    lineHeight: 17,
+    lineHeight: 18,
     fontWeight: '800',
-    color: BrandPalette.text,
-    textAlign: 'center',
+    color: BrandPalette.ink,
+    width: '100%',
   },
   recentStoreMeta: {
-    marginTop: 4,
+    marginTop: 6,
     fontSize: 12,
-    lineHeight: 14,
-    color: BrandPalette.textMuted,
-    textAlign: 'center',
+    lineHeight: 15,
+    color: BrandPalette.subtle,
+    width: '100%',
   },
   storeList: {
-    gap: 14,
+    gap: 16,
   },
   storeCard: {
-    borderRadius: 24,
+    borderRadius: 28,
     overflow: 'hidden',
     backgroundColor: BrandPalette.white,
     borderWidth: 1,
-    borderColor: BrandPalette.line,
-    ...createShadow(0.06, 10, 3),
+    borderColor: '#F1E5DC',
+    ...createShadow(0.06, 14, 0),
   },
   storeVisualWrap: {
+    height: 164,
+    backgroundColor: '#F4E8DE',
     position: 'relative',
-    height: 172,
-    backgroundColor: BrandPalette.surfaceMuted,
   },
   storeImage: {
     width: '100%',
@@ -1059,38 +1039,38 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: BrandPalette.surfaceMuted,
+    backgroundColor: BrandPalette.primarySoft,
   },
   storeImageFallbackText: {
-    fontSize: 34,
-    lineHeight: 38,
+    fontSize: 32,
+    lineHeight: 36,
     fontWeight: '900',
     color: BrandPalette.primary,
   },
   favoriteButton: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    right: 14,
+    top: 14,
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.95)',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.92)',
   },
   offerBadge: {
     position: 'absolute',
-    left: 12,
-    bottom: 12,
+    left: 14,
+    bottom: 14,
     borderRadius: 999,
-    backgroundColor: BrandPalette.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    backgroundColor: 'rgba(11,13,10,0.72)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   offerBadgeText: {
-    fontSize: 11,
-    lineHeight: 13,
-    fontWeight: '900',
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: '800',
     color: BrandPalette.white,
   },
   storeBody: {
@@ -1103,23 +1083,23 @@ const styles = StyleSheet.create({
   },
   storeName: {
     flex: 1,
-    fontSize: 19,
-    lineHeight: 23,
+    fontSize: 18,
+    lineHeight: 22,
     fontWeight: '900',
-    color: BrandPalette.text,
+    color: BrandPalette.ink,
   },
   ratingPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     borderRadius: 999,
-    backgroundColor: '#15803D',
-    paddingHorizontal: 8,
+    backgroundColor: BrandPalette.success,
+    paddingHorizontal: 10,
     paddingVertical: 6,
   },
   ratingPillText: {
-    fontSize: 11,
-    lineHeight: 13,
+    fontSize: 12,
+    lineHeight: 14,
     fontWeight: '900',
     color: BrandPalette.white,
   },
@@ -1127,67 +1107,63 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 14,
     lineHeight: 19,
-    color: BrandPalette.textMuted,
+    color: BrandPalette.subtle,
   },
   storeFooter: {
-    marginTop: 12,
+    marginTop: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
   storeEta: {
     fontSize: 13,
     lineHeight: 16,
     fontWeight: '800',
-    color: BrandPalette.text,
+    color: BrandPalette.ink,
   },
   storeDot: {
-    fontSize: 12,
-    lineHeight: 14,
-    fontWeight: '900',
+    marginHorizontal: 8,
     color: BrandPalette.subtle,
   },
   storeFee: {
     flex: 1,
     fontSize: 13,
     lineHeight: 16,
-    color: BrandPalette.textMuted,
+    color: BrandPalette.subtle,
   },
   emptyCard: {
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: BrandPalette.line,
+    borderRadius: 24,
+    padding: 24,
     backgroundColor: BrandPalette.white,
-    padding: 20,
+    borderWidth: 1,
+    borderColor: '#F1E5DC',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   emptyTitle: {
     fontSize: 16,
     lineHeight: 20,
-    fontWeight: '800',
-    color: BrandPalette.text,
+    fontWeight: '900',
+    color: BrandPalette.ink,
   },
   emptySubtitle: {
     fontSize: 13,
     lineHeight: 18,
-    color: BrandPalette.textMuted,
+    color: BrandPalette.subtle,
     textAlign: 'center',
   },
   cartBanner: {
     position: 'absolute',
     left: 16,
     right: 16,
-    bottom: 16,
-    borderRadius: 20,
+    bottom: 18,
+    borderRadius: 22,
+    backgroundColor: BrandPalette.ink,
     paddingHorizontal: 18,
     paddingVertical: 16,
-    backgroundColor: BrandPalette.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 14,
-    ...createShadow(0.12, 18, 8),
+    ...createShadow(0.2, 16, 0),
   },
   cartBannerTitle: {
     fontSize: 15,
@@ -1199,7 +1175,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 13,
     lineHeight: 16,
-    color: 'rgba(255,255,255,0.84)',
+    color: 'rgba(255,255,255,0.72)',
   },
   cartBannerAction: {
     flexDirection: 'row',
@@ -1208,7 +1184,7 @@ const styles = StyleSheet.create({
   },
   cartBannerActionText: {
     fontSize: 14,
-    lineHeight: 17,
+    lineHeight: 18,
     fontWeight: '900',
     color: BrandPalette.white,
   },
