@@ -2,10 +2,20 @@
 
 set -e
 
-echo "🚀 Starting Grab Basket Android Dev Environment..."
+echo "🚀 Starting Grab Basket (Clean Dev Launch)..."
 
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 MOBILE_DIR="$PROJECT_ROOT/mobile"
+
+# ---- 0. CLEAN BUILD ----
+echo "🧹 Cleaning previous build artifacts..."
+
+rm -rf "$MOBILE_DIR/android"
+rm -rf "$MOBILE_DIR/.expo" "$MOBILE_DIR/.expo-shared"
+rm -rf "$MOBILE_DIR/node_modules/.cache"
+rm -rf "$PROJECT_ROOT/dist"
+
+echo "✅ Clean complete"
 
 # ---- 1. Start emulator if not running ----
 echo "📱 Checking emulator..."
@@ -39,7 +49,12 @@ fi
 echo "🔁 Setting up port forwarding..."
 adb reverse tcp:8081 tcp:8081 || true
 
-# ---- 3. Start Metro in NEW TERMINAL ----
+# ---- 3. Install dependencies (safe after clean) ----
+echo "📦 Installing dependencies..."
+cd "$MOBILE_DIR"
+npm install
+
+# ---- 4. Start Metro in NEW TERMINAL ----
 echo "📦 Starting Metro in new terminal..."
 
 osascript <<EOF
@@ -49,13 +64,12 @@ tell application "Terminal"
 end tell
 EOF
 
-# Give Metro time to start
-sleep 5
+# Give Metro time to spin up
+sleep 6
 
-# ---- 4. Install & launch app ----
-echo "📲 Installing app on emulator..."
+# ---- 5. Build & launch app ----
+echo "📲 Building & installing app..."
 
-cd "$MOBILE_DIR"
 npx expo run:android
 
 echo "✅ App launched successfully!"

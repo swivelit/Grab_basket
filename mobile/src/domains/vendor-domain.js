@@ -18,6 +18,7 @@ const VENDORS_CACHE_TIME_MS = 20 * 60 * 1000;
 const HOME_DEALS_STALE_TIME_MS = 2 * 60 * 1000;
 const HOME_DEALS_CACHE_TIME_MS = 20 * 60 * 1000;
 const SEARCH_DEBOUNCE_MS = 220;
+const EMPTY_LIST = Object.freeze([]);
 
 function parseStoredArray(rawValue) {
   if (!rawValue) return [];
@@ -104,35 +105,40 @@ export function useVendorDomain({ activeService, activeShortcut, homeSearch, def
 
   const addressCacheKey = useMemo(() => buildAddressCacheKey(defaultAddress), [defaultAddress]);
 
+  const fetchVendors = useCallback(async () => {
+    const data = await requestJson(
+      buildVendorQuery({
+        search: debouncedSearch,
+        service: activeService,
+        address: defaultAddress,
+      })
+    );
+
+    const parsed = Array.isArray(data) ? data : [];
+    return sortVendors(parsed);
+  }, [activeService, debouncedSearch, defaultAddress]);
+
   const vendorsQuery = useCachedQuery({
     queryKey: ['vendors', activeService || 'food', debouncedSearch || '', addressCacheKey],
     staleTime: VENDORS_STALE_TIME_MS,
     cacheTime: VENDORS_CACHE_TIME_MS,
     keepPreviousData: true,
-    initialData: [],
-    fetcher: useCallback(async () => {
-      const data = await requestJson(
-        buildVendorQuery({
-          search: debouncedSearch,
-          service: activeService,
-          address: defaultAddress,
-        })
-      );
-
-      const parsed = Array.isArray(data) ? data : [];
-      return sortVendors(parsed);
-    }, [activeService, debouncedSearch, defaultAddress]),
+    initialData: EMPTY_LIST,
+    fetcher: fetchVendors,
   });
 
   const vendors = useMemo(
     () => (Array.isArray(vendorsQuery.data) ? vendorsQuery.data : []),
     [vendorsQuery.data]
   );
+
   const rawVendorsError = vendorsQuery.error
     ? normalizeErrorMessage(vendorsQuery.error, 'Could not load stores.')
     : '';
+
   const vendorsError =
     rawVendorsError && rawVendorsError !== hiddenVendorErrorMessage ? rawVendorsError : '';
+
   const vendorsLoading = vendorsQuery.isLoading;
 
   useEffect(() => {
@@ -142,10 +148,26 @@ export function useVendorDomain({ activeService, activeShortcut, homeSearch, def
   }, [hiddenVendorErrorMessage, rawVendorsError]);
 
   const topVendors = useMemo(() => vendors.slice(0, 4), [vendors]);
+
   const topVendorIds = useMemo(
     () => topVendors.map((vendor) => Number(vendor?.id || 0)),
     [topVendors]
   );
+
+  const fetchHomeDeals = useCallback(async () => {
+    const groups = await Promise.all(
+      topVendors.map(async (vendor) => {
+        try {
+          const data = await requestJson(`/vendors/${vendor.id}/products?limit=12`);
+          return { vendor, products: Array.isArray(data) ? data : [] };
+        } catch {
+          return { vendor, products: [] };
+        }
+      })
+    );
+
+    return createDealsFromGroups(groups);
+  }, [topVendors]);
 
   const homeDealsQuery = useCachedQuery({
     queryKey: ['vendors', 'home-deals', activeService || 'food', topVendorIds],
@@ -153,27 +175,15 @@ export function useVendorDomain({ activeService, activeShortcut, homeSearch, def
     staleTime: HOME_DEALS_STALE_TIME_MS,
     cacheTime: HOME_DEALS_CACHE_TIME_MS,
     keepPreviousData: true,
-    initialData: [],
-    fetcher: useCallback(async () => {
-      const groups = await Promise.all(
-        topVendors.map(async (vendor) => {
-          try {
-            const data = await requestJson(`/vendors/${vendor.id}/products?limit=12`);
-            return { vendor, products: Array.isArray(data) ? data : [] };
-          } catch {
-            return { vendor, products: [] };
-          }
-        })
-      );
-
-      return createDealsFromGroups(groups);
-    }, [topVendors]),
+    initialData: EMPTY_LIST,
+    fetcher: fetchHomeDeals,
   });
 
   const homeDeals = useMemo(
     () => (Array.isArray(homeDealsQuery.data) ? homeDealsQuery.data : []),
     [homeDealsQuery.data]
   );
+
   const homeDealsLoading = topVendorIds.length > 0 ? homeDealsQuery.isLoading : false;
 
   const rememberSearch = useCallback((term) => {

@@ -2,37 +2,23 @@ import React, { useEffect } from 'react';
 import { Redirect } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 
-import { getInitialShellHref } from '../constants/app-shell';
-
-type ShellHref = '/(tabs)' | '/(delivery)/(tabs)' | '/(partner)/(tabs)';
-
 export default function IndexScreen() {
   useEffect(() => {
-    let cancelled = false;
-
-    const hideSplash = async () => {
+    const hide = async () => {
       try {
         await SplashScreen.hideAsync();
       } catch {
-        // Best effort only.
+        // ignore
       }
     };
 
-    hideSplash();
-
-    const fallbackTimer = setTimeout(() => {
-      if (!cancelled) {
-        hideSplash();
-      }
-    }, 1200);
+    hide();
+    const timer = setTimeout(hide, 1000);
 
     return () => {
-      cancelled = true;
-      clearTimeout(fallbackTimer);
+      clearTimeout(timer);
     };
   }, []);
 
-  const href = getInitialShellHref() as ShellHref;
-
-  return <Redirect href={href} />;
+  return <Redirect href="/(tabs)" />;
 }

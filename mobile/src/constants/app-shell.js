@@ -46,17 +46,17 @@ export function getEmbeddedAppVariant() {
 
 export function getEmbeddedInitialShellHref() {
   const href = String(BUILD_CONFIG?.initialHref || '').trim();
-  return href || APP_SHELLS.consumer.href;
+  return href || '/(tabs)';
 }
 
 export function getAppVariant() {
-  return getEmbeddedAppVariant();
+  return 'consumer';
 }
 
-export function getAppShellConfig(variant = getAppVariant()) {
-  return APP_SHELLS[normalizeAppVariant(variant)] || APP_SHELLS.consumer;
+export function getAppShellConfig() {
+  return APP_SHELLS.consumer;
 }
 
 export function getInitialShellHref() {
-  return getEmbeddedInitialShellHref();
+  return '/(tabs)';
 }
