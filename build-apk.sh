@@ -430,12 +430,17 @@ APP_VARIANTS=()
 for raw_variant in "${RAW_APP_VARIANTS[@]}"; do
   variant="$(normalize_variant "$raw_variant")" || fail "Unknown app variant: $raw_variant"
 
+  if [[ "$variant" != "consumer" ]]; then
+    warn "Skipping $variant build. build-apk.sh is temporarily locked to the consumer app until the multi-APK shell issue is fully resolved."
+    continue
+  fi
+
   if ! array_contains "$variant" "${APP_VARIANTS[@]:-}"; then
     APP_VARIANTS+=("$variant")
   fi
 done
 
-[[ "${#APP_VARIANTS[@]}" -gt 0 ]] || fail "No valid app variants were provided."
+[[ "${#APP_VARIANTS[@]}" -gt 0 ]] || fail "No valid consumer app variant was provided. Use APP_VARIANTS=consumer or run ./build-apk.sh."
 
 info "Using mobile app at: $MOBILE_DIR"
 info "Effective build environment"
@@ -517,9 +522,6 @@ echo "  ./build-apk.sh"
 echo "  BUILD_TYPE=debug ./build-apk.sh"
 echo "  BUILD_TYPE=release ./build-apk.sh"
 echo "  APP_VARIANTS=consumer ./build-apk.sh"
-echo "  APP_VARIANTS=delivery ./build-apk.sh"
-echo "  APP_VARIANTS=partner ./build-apk.sh"
-echo "  APP_VARIANTS=consumer,delivery,partner ./build-apk.sh"
 echo "  API_BASE_URL=https://your-api-domain.com ./build-apk.sh"
 
 echo ""
