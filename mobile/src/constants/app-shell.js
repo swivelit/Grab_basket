@@ -27,10 +27,7 @@ export const APP_SHELLS = {
 export function normalizeAppVariant(value = '', fallback = 'consumer') {
   const normalized = String(value || '').trim().toLowerCase();
 
-  if (!normalized) {
-    return fallback;
-  }
-
+  if (!normalized) return fallback;
   if (normalized === 'customer' || normalized === 'user') return 'consumer';
   if (normalized === 'seller' || normalized === 'merchant' || normalized === 'vendor') return 'partner';
   if (normalized === 'delivery' || normalized === 'partner_delivery' || normalized === 'rider') {
@@ -50,13 +47,13 @@ export function getEmbeddedInitialShellHref() {
 }
 
 export function getAppVariant() {
-  return 'consumer';
+  return getEmbeddedAppVariant();
 }
 
-export function getAppShellConfig() {
-  return APP_SHELLS.consumer;
+export function getAppShellConfig(variant = getAppVariant()) {
+  return APP_SHELLS[normalizeAppVariant(variant)] || APP_SHELLS.consumer;
 }
 
 export function getInitialShellHref() {
-  return '/(tabs)';
+  return getEmbeddedInitialShellHref();
 }

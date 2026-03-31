@@ -3,6 +3,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 
 import { GrabBasketProvider } from '../../App';
+import { getAppVariant } from '../constants/app-shell';
+
+const APP_VARIANT = getAppVariant();
 
 class StartupErrorBoundary extends React.Component<
   React.PropsWithChildren,
@@ -20,7 +23,7 @@ class StartupErrorBoundary extends React.Component<
   }
 
   componentDidCatch() {
-    // Keep this intentionally quiet for now while we stabilize startup.
+    // intentionally quiet while stabilizing startup
   }
 
   render() {
@@ -29,7 +32,7 @@ class StartupErrorBoundary extends React.Component<
         <View style={styles.errorBoundaryScreen}>
           <Text style={styles.errorBoundaryTitle}>Grab Basket failed to start</Text>
           <Text style={styles.errorBoundaryBody}>
-            Please rebuild the app after applying the startup fix.
+            Restart after rebuilding the app.
           </Text>
           <Text style={styles.errorBoundaryDetails}>{this.state.errorMessage}</Text>
         </View>
@@ -46,7 +49,15 @@ function RootLayout() {
       <GrabBasketProvider>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
+          {APP_VARIANT === 'delivery' ? (
+            <Stack.Screen name="(delivery)" options={{ headerShown: false }} />
+          ) : APP_VARIANT === 'partner' ? (
+            <Stack.Screen name="(partner)" options={{ headerShown: false }} />
+          ) : (
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          )}
+
           <Stack.Screen name="store/[vendorId]" options={{ headerShown: false }} />
           <Stack.Screen name="cart" options={{ headerShown: false }} />
         </Stack>
