@@ -11,14 +11,14 @@ export const APP_SHELLS = {
   delivery: {
     key: 'delivery',
     appName: 'Grab Basket Delivery App',
-    href: '/(delivery)/(tabs)',
+    href: '/delivery/(tabs)',
     role: 'PARTNER',
     description: 'Delivery partner app shell',
   },
   partner: {
     key: 'partner',
     appName: 'Grab Basket Partner App',
-    href: '/(partner)/(tabs)',
+    href: '/partner/(tabs)',
     role: 'SELLER',
     description: 'Seller app shell',
   },
