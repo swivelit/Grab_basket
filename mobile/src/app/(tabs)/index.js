@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Image } from 'expo-image';
 import {
+  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -250,6 +251,7 @@ function SearchBar({ value, onChangeText, onSubmit, placeholder }) {
           placeholderTextColor={BrandPalette.subtle}
           style={styles.searchInput}
           returnKeyType="search"
+          textAlignVertical="center"
         />
         <Ionicons name="mic-outline" size={20} color={BrandPalette.primary} />
       </View>
@@ -717,9 +719,13 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
+    height: '100%',
     fontSize: 17,
-    lineHeight: 21,
+    lineHeight: Platform.OS === 'android' ? 20 : 21,
     color: BrandPalette.text,
+    paddingVertical: 0,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   searchAction: {
     width: 48,

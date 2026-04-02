@@ -58,7 +58,13 @@ function TabIcon({ focused, color, icon, label, badge }) {
           </View>
         ) : null}
       </View>
-      <Text style={[styles.tabLabel, { color }, focused && styles.tabLabelActive]}>{label}</Text>
+      <Text
+        numberOfLines={2}
+        adjustsFontSizeToFit
+        minimumFontScale={0.85}
+        style={[styles.tabLabel, { color }, focused && styles.tabLabelActive]}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -93,9 +99,9 @@ export default function TabsLayout() {
         tabBarActiveTintColor: BrandPalette.primary,
         tabBarInactiveTintColor: '#A08F83',
         tabBarStyle: {
-          height: 82,
+          height: 90,
           paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 12,
+          paddingBottom: Platform.OS === 'ios' ? 20 : 14,
           backgroundColor: BrandPalette.tabBar,
           borderTopColor: BrandPalette.line,
           borderTopWidth: 1,
@@ -107,6 +113,7 @@ export default function TabsLayout() {
         },
         tabBarItemStyle: {
           paddingVertical: 0,
+          paddingHorizontal: 2,
         },
       }}>
       <Tabs.Screen name="index" options={makeOptions('index')} />
@@ -119,9 +126,13 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   tabItem: {
+    flex: 1,
+    width: '100%',
+    minHeight: 58,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
+    paddingHorizontal: 2,
   },
   iconWrap: {
     width: 38,
@@ -135,9 +146,13 @@ const styles = StyleSheet.create({
     backgroundColor: BrandPalette.primarySoft,
   },
   tabLabel: {
-    fontSize: 11,
-    lineHeight: 13,
+    width: '100%',
+    maxWidth: 72,
+    fontSize: 10,
+    lineHeight: 12,
     fontWeight: '700',
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   tabLabelActive: {
     fontWeight: '800',
