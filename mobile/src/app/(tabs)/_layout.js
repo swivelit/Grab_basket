@@ -52,7 +52,7 @@ function TabIcon({ focused, color, icon, label, badge }) {
         <Ionicons name={icon} size={20} color={color} />
         {badge ? (
           <View style={styles.badge}>
-            <Text numberOfLines={1} style={styles.badgeText}>
+            <Text allowFontScaling={false} numberOfLines={1} style={styles.badgeText}>
               {badge}
             </Text>
           </View>
@@ -60,9 +60,10 @@ function TabIcon({ focused, color, icon, label, badge }) {
       </View>
 
       <Text
+        allowFontScaling={false}
         numberOfLines={2}
         adjustsFontSizeToFit
-        minimumFontScale={0.75}
+        minimumFontScale={0.85}
         style={[styles.tabLabel, { color }, focused && styles.tabLabelActive]}>
         {label}
       </Text>
@@ -100,9 +101,9 @@ export default function TabsLayout() {
         tabBarActiveTintColor: BrandPalette.primary,
         tabBarInactiveTintColor: '#A08F83',
         tabBarStyle: {
-          height: 98,
-          paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 12,
+          height: Platform.OS === 'ios' ? 92 : 88,
+          paddingTop: 6,
+          paddingBottom: Platform.OS === 'ios' ? 20 : 10,
           backgroundColor: BrandPalette.tabBar,
           borderTopColor: BrandPalette.line,
           borderTopWidth: 1,
@@ -127,30 +128,30 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   tabItem: {
+    flex: 1,
     width: '100%',
-    minHeight: 66,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 2,
+    justifyContent: 'flex-start',
     paddingTop: 2,
+    paddingHorizontal: 2,
   },
   iconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   iconWrapActive: {
     backgroundColor: BrandPalette.primarySoft,
   },
   tabLabel: {
     width: '100%',
-    maxWidth: 78,
-    minHeight: 28,
-    fontSize: 9,
+    maxWidth: 82,
+    minHeight: 24,
+    fontSize: 10,
     lineHeight: 12,
     fontWeight: '700',
     textAlign: 'center',
@@ -178,5 +179,6 @@ const styles = StyleSheet.create({
     fontSize: 8,
     lineHeight: 10,
     fontWeight: '900',
+    includeFontPadding: false,
   },
 });
