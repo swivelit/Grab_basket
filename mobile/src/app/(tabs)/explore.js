@@ -90,7 +90,7 @@ function getBadge(service) {
 }
 
 function getScreenTitle(service) {
-  if (service === 'warehouse') return 'Instamart categories';
+  if (service === 'warehouse') return 'Market categories';
   if (service === 'eatout') return 'Dineout discover';
   if (service === 'scenes') return 'Scenes discover';
   return 'Food explore';
@@ -255,9 +255,6 @@ export default function ExploreScreen() {
         <View style={styles.topBlock}>
           <Text style={styles.eyebrow}>{getBadge(activeService)}</Text>
           <Text style={styles.title}>{getScreenTitle(activeService)}</Text>
-          <Text style={styles.subtitle}>
-            Swiggy-inspired structure with GrabBasket branding, cleaner hierarchy and more shoppable modules.
-          </Text>
 
           <View style={styles.searchBar}>
             <Ionicons name="search-outline" size={20} color={BrandPalette.subtle} />
