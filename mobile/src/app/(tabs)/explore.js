@@ -90,7 +90,7 @@ function getBadge(service) {
 }
 
 function getScreenTitle(service) {
-  if (service === 'warehouse') return 'Market categories';
+  if (service === 'warehouse') return 'Warehouse categories';
   if (service === 'eatout') return 'Dineout discover';
   if (service === 'scenes') return 'Scenes discover';
   return 'Food explore';

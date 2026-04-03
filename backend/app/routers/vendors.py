@@ -28,7 +28,7 @@ SERVICE_ALIASES = {
 }
 SERVICE_MATCHERS: dict[str, tuple[re.Pattern[str], ...]] = {
     "warehouse": (
-        re.compile(r"\b(instamart|grocery|groceries|mart|basket|essentials?|daily|fruit|vegetable|veggies|greens|dairy|milk|bread|eggs?|snacks?|beverages?|beauty|personal care|pharmacy)\b", re.I),
+        re.compile(r"\b(grocery|groceries|mart|basket|essentials?|daily|fruit|vegetable|veggies|greens|dairy|milk|bread|eggs?|snacks?|beverages?|beauty|personal care|pharmacy)\b", re.I),
     ),
     "eatout": (
         re.compile(r"\b(dineout|dine\s?in|dining out|table|reserve|reservation|buffet|brunch|rooftop|fine dining|bill offer|book a table)\b", re.I),
