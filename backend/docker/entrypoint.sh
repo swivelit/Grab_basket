@@ -24,42 +24,92 @@ def to_psycopg_dsn(url: str) -> str:
     return value
 
 
+def has_table(cur, table_name: str) -> bool:
+    cur.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = %s
+        )
+        """,
+        (table_name,),
+    )
+    return bool(cur.fetchone()[0])
+
+
+def has_column(cur, table_name: str, column_name: str) -> bool:
+    cur.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = %s AND column_name = %s
+        )
+        """,
+        (table_name, column_name),
+    )
+    return bool(cur.fetchone()[0])
+
+
 dsn = to_psycopg_dsn(settings.DATABASE_URL)
 
 try:
     with psycopg.connect(dsn) as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM information_schema.tables
-                    WHERE table_schema = 'public' AND table_name = 'alembic_version'
-                )
-                """
+            has_alembic_version = has_table(cur, "alembic_version")
+            has_existing_app_tables = any(
+                has_table(cur, table_name)
+                for table_name in ("users", "vendors", "products", "orders")
             )
-            has_alembic_version = bool(cur.fetchone()[0])
 
-            cur.execute(
-                """
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM information_schema.tables
-                    WHERE table_schema = 'public' AND table_name IN (
-                        'users',
-                        'vendors',
-                        'products',
-                        'orders'
-                    )
+            needs_reconcile = False
+            if has_existing_app_tables:
+                auth_tables = ("auth_challenges", "auth_risk_events", "user_blocklist")
+                missing_auth_tables = [name for name in auth_tables if not has_table(cur, name)]
+
+                vendor_columns_to_check = (
+                    "slug",
+                    "logo_image_url",
+                    "cover_image_url",
+                    "banner_image_url",
+                    "cuisine_tags",
+                    "price_bucket",
+                    "support_phone",
+                    "support_email",
+                    "gstin",
+                    "lat",
+                    "lng",
+                    "delivery_radius_km",
+                    "min_order_amount",
+                    "packaging_fee",
+                    "estimated_delivery_time_min",
+                    "avg_prep_time_min",
+                    "avg_rating",
+                    "total_ratings",
+                    "is_accepting_orders",
+                    "is_busy",
+                    "accepts_cod",
+                    "open_time",
+                    "close_time",
+                    "created_at",
+                    "updated_at",
                 )
-                """
-            )
-            has_existing_app_tables = bool(cur.fetchone()[0])
+
+                missing_vendor_columns = []
+                if has_table(cur, "vendors"):
+                    for column_name in vendor_columns_to_check:
+                        if not has_column(cur, "vendors", column_name):
+                            missing_vendor_columns.append(column_name)
+
+                needs_reconcile = bool(missing_auth_tables or missing_vendor_columns)
 
     if has_alembic_version:
         print("upgrade")
+    elif has_existing_app_tables and needs_reconcile:
+        print("stamp_reconcile")
     elif has_existing_app_tables:
-        print("stamp")
+        print("stamp_head")
     else:
         print("upgrade")
 except Exception as exc:
@@ -68,8 +118,12 @@ except Exception as exc:
 PY
 )"
 
-if [ "$ACTION" = "stamp" ]; then
-  echo "Existing GrabBasket schema detected without alembic_version; stamping database to head."
+if [ "$ACTION" = "stamp_reconcile" ]; then
+  echo "Legacy GrabBasket schema detected without alembic_version; stamping to 20260328_0003 and running reconcile migrations."
+  alembic stamp 20260328_0003
+  alembic upgrade head
+elif [ "$ACTION" = "stamp_head" ]; then
+  echo "Existing GrabBasket schema already matches reconciled migrations; stamping database to head."
   alembic stamp head
 else
   alembic upgrade head
