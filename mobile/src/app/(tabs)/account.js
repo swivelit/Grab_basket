@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -141,16 +141,36 @@ export default function AccountScreen() {
   });
   const [addressSaving, setAddressSaving] = useState(false);
   const [localNotice, setLocalNotice] = useState('');
+  const hasHydratedAccountDataRef = useRef(false);
+  const loadAddressesRef = useRef(loadAddresses);
+  const loadOrdersRef = useRef(loadOrders);
+
+  useEffect(() => {
+    loadAddressesRef.current = loadAddresses;
+  }, [loadAddresses]);
+
+  useEffect(() => {
+    loadOrdersRef.current = loadOrders;
+  }, [loadOrders]);
 
   useEffect(() => {
     if (authEmail) setLoginIdentifier(authEmail);
   }, [authEmail]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-    loadAddresses().catch(() => {});
-    loadOrders({ silent: true }).catch(() => {});
-  }, [isAuthenticated, loadAddresses, loadOrders]);
+    if (!sessionReady) return;
+
+    if (!isAuthenticated) {
+      hasHydratedAccountDataRef.current = false;
+      return;
+    }
+
+    if (hasHydratedAccountDataRef.current) return;
+
+    hasHydratedAccountDataRef.current = true;
+    loadAddressesRef.current?.().catch(() => {});
+    loadOrdersRef.current?.({ silent: true }).catch(() => {});
+  }, [isAuthenticated, sessionReady]);
 
   const versionText = useMemo(() => {
     const version = Application.nativeApplicationVersion || '1.0.0';
