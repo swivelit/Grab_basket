@@ -662,7 +662,7 @@ export function ReorderScreen() {
   const router = useRouter();
   const tabBarHeight = useBottomTabBarHeight();
   const {
-    pastOrders,
+    orderHistory,
     recentVendors,
     vendors,
     ordersLoading,
@@ -678,7 +678,7 @@ export function ReorderScreen() {
   const [reviewTagsByOrder, setReviewTagsByOrder] = useState({});
   const [submittedReviews, setSubmittedReviews] = useState({});
 
-  const visibleOrders = useMemo(() => (pastOrders || []).slice(0, MAX_ORDERS), [pastOrders]);
+  const visibleOrders = useMemo(() => (orderHistory || []).slice(0, MAX_ORDERS), [orderHistory]);
   const vendorLookup = useMemo(
     () => buildVendorLookup([...(Array.isArray(recentVendors) ? recentVendors : []), ...(Array.isArray(vendors) ? vendors : [])]),
     [recentVendors, vendors]
