@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, time
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 
 ALLOWED_REGISTER_ROLES = {"CUSTOMER", "SELLER", "PARTNER", "ADMIN"}
@@ -16,12 +16,42 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+def normalize_phone_value(value: Any, *, allow_blank: bool = False) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        if allow_blank:
+            return ""
+        raise ValueError("phone is required")
+
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if not digits:
+        if allow_blank:
+            return ""
+        raise ValueError("phone is required")
+
+    if len(digits) == 10:
+        digits = f"91{digits}"
+    elif len(digits) == 11 and digits.startswith("0"):
+        digits = f"91{digits[-10:]}"
+
+    if len(digits) < 10 or len(digits) > 15:
+        raise ValueError("phone must contain 10 to 15 digits")
+
+    return f"+{digits}"
+
+
 # ---------- Auth ----------
 class RegisterIn(BaseModel):
     email: EmailStr
+    phone: str = Field(min_length=10, max_length=24)
     password: str = Field(min_length=6, max_length=72)
     role: str  # CUSTOMER / SELLER / PARTNER / ADMIN
     device_id: str = Field(default="", max_length=255)
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def normalize_phone(cls, value: Any) -> str:
+        return normalize_phone_value(value)
 
     @field_validator("role", mode="before")
     @classmethod
@@ -33,9 +63,22 @@ class RegisterIn(BaseModel):
 
 
 class LoginIn(BaseModel):
-    email: EmailStr
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = Field(default=None, max_length=24)
     password: str = Field(min_length=6, max_length=72)
     device_id: str = Field(default="", max_length=255)
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def normalize_phone(cls, value: Any) -> Optional[str]:
+        normalized = normalize_phone_value(value, allow_blank=True)
+        return normalized or None
+
+    @model_validator(mode="after")
+    def validate_identifier(self):
+        if self.email or self.phone:
+            return self
+        raise ValueError("email or phone is required")
 
 
 class Token(BaseModel):
@@ -657,7 +700,6 @@ class CouponApplyOut(BaseModel):
     discount_amount: float
     final_amount: float
     message: str
-
 
 # ---------- Loyalty ----------
 class LoyaltyMembershipOut(ORMModel):

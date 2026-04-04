@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..auth import (
@@ -61,18 +62,28 @@ def register(data: RegisterIn, request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Invalid role")
 
     email = data.email.lower().strip()
+    phone = data.phone.strip()
     ip = _request_client_ip(request)
     ua = _request_user_agent(request)
     ensure_not_blocked(db, email=email, device_id=data.device_id)
     check_rate_limit("signup", f"{email}:{ip}", max_attempts=10, window_seconds=300)
 
-    existing = db.query(User).filter(User.email == email).first()
+    existing = db.query(User).filter(or_(User.email == email, User.phone == phone)).first()
     if existing:
-        record_risk_event(db, email=email, event_type="SIGNUP", reason="duplicate_email", ip_address=ip, user_agent=ua)
+        reason = "duplicate_phone" if existing.phone == phone else "duplicate_email"
+        record_risk_event(db, email=email, event_type="SIGNUP", reason=reason, ip_address=ip, user_agent=ua)
         db.commit()
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(
+            status_code=400,
+            detail="Phone number already registered" if existing.phone == phone else "Email already registered",
+        )
 
-    user = User(email=email, password_hash=hash_password(data.password), role=role)
+    user = User(
+        email=email,
+        phone=phone,
+        password_hash=hash_password(data.password),
+        role=role,
+    )
     db.add(user)
     db.flush()
 
@@ -92,17 +103,25 @@ def register(data: RegisterIn, request: Request, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 def login(data: LoginIn, request: Request, db: Session = Depends(get_db)):
-    email = data.email.lower().strip()
+    email = data.email.lower().strip() if data.email else ""
+    phone = data.phone.strip() if data.phone else ""
+    identifier = email or phone
     ip = _request_client_ip(request)
     ua = _request_user_agent(request)
     ensure_not_blocked(db, email=email, device_id=data.device_id)
-    check_rate_limit("login", f"{email}:{ip}", max_attempts=12, window_seconds=300)
+    check_rate_limit("login", f"{identifier}:{ip}", max_attempts=12, window_seconds=300)
 
-    user = db.query(User).filter(User.email == email).first()
+    user_query = db.query(User)
+    if email:
+        user_query = user_query.filter(User.email == email)
+    else:
+        user_query = user_query.filter(User.phone == phone)
+
+    user = user_query.first()
     if not user or not verify_password(data.password, user.password_hash):
         record_risk_event(
             db,
-            email=email,
+            email=(email or getattr(user, "email", "")),
             event_type="LOGIN",
             reason="invalid_credentials",
             ip_address=ip,

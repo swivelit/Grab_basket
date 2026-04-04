@@ -127,7 +127,9 @@ export default function AccountScreen() {
   } = useGrabBasket();
 
   const [authMode, setAuthMode] = useState('login');
-  const [email, setEmail] = useState(authEmail || '');
+  const [loginIdentifier, setLoginIdentifier] = useState(authEmail || '');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('password');
   const [addressForm, setAddressForm] = useState({
     label: 'Home',
@@ -141,7 +143,7 @@ export default function AccountScreen() {
   const [localNotice, setLocalNotice] = useState('');
 
   useEffect(() => {
-    if (authEmail) setEmail(authEmail);
+    if (authEmail) setLoginIdentifier(authEmail);
   }, [authEmail]);
 
   useEffect(() => {
@@ -161,15 +163,28 @@ export default function AccountScreen() {
   const orderCount = Array.isArray(pastOrders) ? pastOrders.length : 0;
 
   const handleAuth = async () => {
-    if (!email.trim() || !password.trim()) return;
+    if (authMode === 'login') {
+      if (!loginIdentifier.trim() || !password.trim()) {
+        setLocalNotice('Enter your email or phone number and password.');
+        return;
+      }
 
-    const ok =
-      authMode === 'login'
-        ? await login({ email, password })
-        : await register({ email, password });
+      const ok = await login({ identifier: loginIdentifier, password });
+      if (ok) {
+        setLocalNotice('You are now signed in.');
+      }
+      return;
+    }
 
+    if (!email.trim() || !phone.trim() || !password.trim()) {
+      setLocalNotice('Enter your email, phone number and password.');
+      return;
+    }
+
+    const ok = await register({ email, phone, password });
     if (ok) {
-      setLocalNotice(authMode === 'login' ? 'You are now signed in.' : 'Your account is ready.');
+      setLoginIdentifier(phone.trim() || email.trim());
+      setLocalNotice('Your account is ready.');
     }
   };
 
@@ -260,8 +275,25 @@ export default function AccountScreen() {
               {inlineErrors.auth ? <InlineErrorCard title="Authentication issue" message={inlineErrors.auth} /> : null}
               {localNotice ? <InlineNoticeCard title="Ready" message={localNotice} onDismiss={() => setLocalNotice('')} /> : null}
 
-              <Field value={email} onChangeText={setEmail} placeholder="Email address" keyboardType="email-address" />
-              <Field value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
+              {authMode === 'login' ? (
+                <>
+                  <Field
+                    value={loginIdentifier}
+                    onChangeText={setLoginIdentifier}
+                    placeholder="Email or phone number"
+                    keyboardType="default"
+                  />
+                  <Field value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
+                  <Text style={styles.authHintText}>Use your email address or mobile number to sign in.</Text>
+                </>
+              ) : (
+                <>
+                  <Field value={email} onChangeText={setEmail} placeholder="Email address" keyboardType="email-address" />
+                  <Field value={phone} onChangeText={setPhone} placeholder="Phone number" keyboardType="phone-pad" />
+                  <Field value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
+                  <Text style={styles.authHintText}>Sign up now collects both email and mobile number.</Text>
+                </>
+              )}
 
               <TouchableOpacity activeOpacity={0.95} style={styles.primaryButton} onPress={handleAuth} disabled={authLoading}>
                 {authLoading ? (
@@ -292,9 +324,9 @@ export default function AccountScreen() {
                   <Text style={styles.avatarText}>{initials(authEmail || profile?.email || 'GB')}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.profileTitle}>{profile?.full_name || authEmail || 'GrabBasket member'}</Text>
+                  <Text style={styles.profileTitle}>{profile?.full_name || profile?.phone || profile?.email || authEmail || 'GrabBasket member'}</Text>
                   <Text style={styles.profileSubtitle}>{memberSince !== '—' ? `Member since ${memberSince}` : 'Production-ready account shell'}</Text>
-                  <Text style={styles.profileMeta}>{activeAddressLabel}</Text>
+                  <Text style={styles.profileMeta}>{profile?.phone || profile?.email || activeAddressLabel}</Text>
                 </View>
               </View>
 
@@ -491,6 +523,13 @@ const styles = StyleSheet.create({
   },
   authToggleTextActive: {
     color: BrandPalette.white,
+  },
+  authHintText: {
+    marginTop: -2,
+    marginBottom: 12,
+    fontSize: 12,
+    lineHeight: 17,
+    color: BrandPalette.textMuted,
   },
   input: {
     height: 52,

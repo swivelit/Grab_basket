@@ -18,6 +18,46 @@ import {
   normalizeUserRole,
 } from './grab-basket-utils';
 
+function normalizePhoneValue(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  let digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+
+  if (digits.length === 10) {
+    digits = `91${digits}`;
+  } else if (digits.length === 11 && digits.startsWith('0')) {
+    digits = `91${digits.slice(-10)}`;
+  }
+
+  if (digits.length < 10 || digits.length > 15) {
+    return '';
+  }
+
+  return `+${digits}`;
+}
+
+function resolveLoginIdentifiers({ identifier = '', email = '', phone = '' } = {}) {
+  const normalizedIdentifier = String(identifier || '').trim();
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const normalizedPhone = normalizePhoneValue(phone);
+
+  if (normalizedEmail || normalizedPhone) {
+    return { email: normalizedEmail, phone: normalizedPhone };
+  }
+
+  if (!normalizedIdentifier) {
+    return { email: '', phone: '' };
+  }
+
+  if (normalizedIdentifier.includes('@')) {
+    return { email: normalizedIdentifier.toLowerCase(), phone: '' };
+  }
+
+  return { email: '', phone: normalizePhoneValue(normalizedIdentifier) };
+}
+
 export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole }) {
   const [sessionReady, setSessionReady] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
@@ -318,20 +358,28 @@ export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole 
   }, [authorizedRequest]);
 
   const login = useCallback(
-    async ({ email, password }) => {
+    async ({ identifier, email, phone, password }) => {
       setAuthLoading(true);
       setAuthError('');
 
       try {
+        const resolved = resolveLoginIdentifiers({ identifier, email, phone });
+
+        if (!resolved.email && !resolved.phone) {
+          throw new Error('Enter a valid email or phone number.');
+        }
+
         const payload = {
-          email: String(email || '').trim().toLowerCase(),
           password: String(password || ''),
           device_id: deviceIdRef.current || (await readOrCreateDeviceId().catch(() => '')) || '',
         };
 
+        if (resolved.email) payload.email = resolved.email;
+        if (resolved.phone) payload.phone = resolved.phone;
+
         const data = await apiPost('/auth/login', payload);
         const nextSession = buildSessionFromAuthResponse(data, {
-          email: payload.email,
+          email: resolved.email || resolved.phone,
           fallbackRole: appPrimaryRole,
         });
 
@@ -363,13 +411,25 @@ export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole 
   );
 
   const register = useCallback(
-    async ({ email, password }) => {
+    async ({ email, phone, password }) => {
       setAuthLoading(true);
       setAuthError('');
 
       try {
+        const normalizedEmail = String(email || '').trim().toLowerCase();
+        const normalizedPhone = normalizePhoneValue(phone);
+
+        if (!normalizedEmail) {
+          throw new Error('Enter your email address.');
+        }
+
+        if (!normalizedPhone) {
+          throw new Error('Enter a valid phone number.');
+        }
+
         const payload = {
-          email: String(email || '').trim().toLowerCase(),
+          email: normalizedEmail,
+          phone: normalizedPhone,
           password: String(password || ''),
           role: appPrimaryRole,
           device_id: deviceIdRef.current || (await readOrCreateDeviceId().catch(() => '')) || '',
@@ -377,7 +437,7 @@ export function useAuthDomain({ appVariantName, appAllowedRoles, appPrimaryRole 
 
         const data = await apiPost('/auth/register', payload);
         const nextSession = buildSessionFromAuthResponse(data, {
-          email: payload.email,
+          email: payload.email || payload.phone,
           fallbackRole: appPrimaryRole,
         });
 
