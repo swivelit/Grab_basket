@@ -65,8 +65,31 @@ try:
 
             needs_reconcile = False
             if has_existing_app_tables:
-                auth_tables = ("auth_challenges", "auth_risk_events", "user_blocklist")
-                missing_auth_tables = [name for name in auth_tables if not has_table(cur, name)]
+                auth_tables_to_check = (
+                    "auth_challenges",
+                    "auth_risk_events",
+                    "user_blocklist",
+                    "refresh_tokens",
+                    "fcm_tokens",
+                )
+                missing_auth_tables = [
+                    table_name for table_name in auth_tables_to_check if not has_table(cur, table_name)
+                ]
+
+                user_columns_to_check = (
+                    "full_name",
+                    "phone",
+                    "avatar_url",
+                    "is_active",
+                    "is_partner_available",
+                    "created_at",
+                    "updated_at",
+                )
+                missing_user_columns = []
+                if has_table(cur, "users"):
+                    for column_name in user_columns_to_check:
+                        if not has_column(cur, "users", column_name):
+                            missing_user_columns.append(column_name)
 
                 vendor_columns_to_check = (
                     "slug",
@@ -95,14 +118,15 @@ try:
                     "created_at",
                     "updated_at",
                 )
-
                 missing_vendor_columns = []
                 if has_table(cur, "vendors"):
                     for column_name in vendor_columns_to_check:
                         if not has_column(cur, "vendors", column_name):
                             missing_vendor_columns.append(column_name)
 
-                needs_reconcile = bool(missing_auth_tables or missing_vendor_columns)
+                needs_reconcile = bool(
+                    missing_auth_tables or missing_user_columns or missing_vendor_columns
+                )
 
     if has_alembic_version:
         print("upgrade")
