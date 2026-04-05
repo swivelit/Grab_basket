@@ -404,7 +404,7 @@ export default function AccountScreen() {
   const handleShortcutPress = async (key) => {
     if (key === 'saved_addresses') {
       await loadAddresses().catch(() => {});
-      setLocalNotice(addressCount ? `${addressCount} saved address${addressCount > 1 ? 'es are' : ' is'} available.` : 'No saved addresses yet.');
+      router.push('/saved-addresses');
       return;
     }
 
