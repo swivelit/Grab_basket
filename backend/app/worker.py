@@ -126,6 +126,56 @@ def _handle_refund_retry(db: Session, payload: dict) -> None:
     rc.status = "COMPLETED"
 
 
+def _handle_refund_settlement(db: Session, payload: dict) -> None:
+    order_id = int(payload.get("order_id", 0) or 0)
+    if order_id <= 0:
+        raise RetryableJobError("missing order_id")
+
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise RetryableJobError("order not found")
+
+    refund_case_id = int(payload.get("refund_case_id", 0) or 0)
+    refund_case = None
+    if refund_case_id > 0:
+        refund_case = db.query(RefundCase).filter(RefundCase.id == refund_case_id).first()
+        if not refund_case:
+            raise RetryableJobError("refund case not found")
+    else:
+        refund_case = (
+            db.query(RefundCase)
+            .filter(RefundCase.order_id == order.id)
+            .order_by(RefundCase.id.desc())
+            .first()
+        )
+
+    refund_status = str(order.refund_status or "").upper()
+    if refund_status == "COMPLETED":
+        if refund_case and str(refund_case.status or "").upper() != "COMPLETED":
+            refund_case.status = "COMPLETED"
+            refund_case.next_retry_at = None
+        return
+
+    if refund_status not in {"REQUESTED", "PENDING", "PROCESSING", "INITIATED", "RETRYING"}:
+        raise RuntimeError(f"order refund is not eligible for completion (status={refund_status or 'NONE'})")
+
+    if not order.refund_ref:
+        order.refund_ref = str(payload.get("refund_ref") or f"RFND-{order.id}-{int(utc_now().timestamp())}")
+    order.refund_status = "COMPLETED"
+
+    if refund_case:
+        refund_case.status = "COMPLETED"
+        refund_case.next_retry_at = None
+
+    _record_event(
+        db,
+        order.id,
+        "REFUND_COMPLETED",
+        "Refund credited back to the original payment source",
+        metadata={"refund_ref": order.refund_ref},
+    )
+
+
 def _handle_reconciliation_import(db: Session, payload: dict) -> None:
     raw_csv = str(payload.get("csv_data") or "").strip()
     file_uri = str(payload.get("file_uri") or "")
@@ -196,6 +246,9 @@ def _run_handler(db: Session, job: AsyncJob) -> None:
         return
     if jt == "refund_retry":
         _handle_refund_retry(db, payload)
+        return
+    if jt == "refund_settlement":
+        _handle_refund_settlement(db, payload)
         return
     if jt == "payment_reconciliation_import":
         _handle_reconciliation_import(db, payload)

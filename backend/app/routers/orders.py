@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session, joinedload
@@ -17,11 +19,14 @@ from ..models import (
     CustomerAddress,
     PartnerLocation,
     FcmToken,
+    AsyncJob,
+    RefundCase,
 )
 from ..schemas import OrderCreateIn, OrderOut, OrderTrackingOut
 from ..utils.geo import haversine_km
 from ..utils.inventory import release_inventory_for_order
 from ..notifications import build_order_notification_data, send_push
+from ..time import coerce_utc, utc_now
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -30,6 +35,111 @@ ACTIVE_PARTNER_ORDER_STATUSES = {"ASSIGNED_TO_PARTNER", "READY_FOR_PICKUP", "PIC
 ONLINE_PAYMENT_METHODS = {"UPI", "CARD"}
 TERMINAL_ORDER_STATUSES = {"DELIVERED"}
 NON_CANCELLABLE_ORDER_STATUSES = {"PICKED_UP", "DELIVERED"}
+
+REFUND_SETTLEMENT_DELAY_SECONDS = 7 * 24 * 60 * 60
+REFUND_PENDING_STATUSES = {"REQUESTED", "PENDING", "PROCESSING", "INITIATED", "RETRYING"}
+REFUND_COMPLETED_STATUSES = {"COMPLETED", "SUCCESS", "PROCESSED", "CREDITED", "REFUNDED"}
+
+
+def _append_order_event(
+    db: Session,
+    order: Order,
+    status: str,
+    note: str = "",
+    actor_user_id: int | None = None,
+    metadata: dict | None = None,
+) -> None:
+    db.add(
+        OrderEvent(
+            order_id=order.id,
+            status=status,
+            note=note,
+            actor_user_id=actor_user_id,
+            metadata_json=json.dumps(metadata or {}),
+        )
+    )
+
+
+def _build_refund_reference(order_id: int) -> str:
+    return f"RFND-{order_id}-{int(utc_now().timestamp())}"
+
+
+def _refund_started_at(order: Order) -> datetime | None:
+    return coerce_utc(order.cancelled_at) or coerce_utc(order.updated_at) or coerce_utc(order.created_at)
+
+
+def _is_refund_completion_due(order: Order, *, now: datetime | None = None) -> bool:
+    refund_status = str(order.refund_status or "").upper()
+    if refund_status in REFUND_COMPLETED_STATUSES or refund_status not in REFUND_PENDING_STATUSES:
+        return False
+
+    started_at = _refund_started_at(order)
+    if started_at is None:
+        return False
+
+    current_time = coerce_utc(now) or utc_now()
+    return current_time >= started_at + timedelta(seconds=REFUND_SETTLEMENT_DELAY_SECONDS)
+
+
+def _mark_refund_completed(
+    db: Session,
+    order: Order,
+    *,
+    actor_user_id: int | None = None,
+    note: str = "Refund credited back to the original payment source",
+) -> bool:
+    refund_status = str(order.refund_status or "").upper()
+    if refund_status in REFUND_COMPLETED_STATUSES:
+        if not order.refund_ref:
+            order.refund_ref = _build_refund_reference(order.id)
+        return False
+
+    if refund_status not in REFUND_PENDING_STATUSES:
+        return False
+
+    if not order.refund_ref:
+        order.refund_ref = _build_refund_reference(order.id)
+    order.refund_status = "COMPLETED"
+
+    refund_case = (
+        db.query(RefundCase)
+        .filter(RefundCase.order_id == order.id)
+        .order_by(RefundCase.id.desc())
+        .first()
+    )
+    if refund_case and str(refund_case.status or "").upper() != "COMPLETED":
+        refund_case.status = "COMPLETED"
+        refund_case.next_retry_at = None
+
+    _append_order_event(
+        db,
+        order,
+        "REFUND_COMPLETED",
+        note,
+        actor_user_id=actor_user_id,
+        metadata={"refund_ref": order.refund_ref},
+    )
+    return True
+
+
+def _sync_due_refunds(db: Session, orders: list[Order]) -> None:
+    if not orders:
+        return
+
+    now = utc_now()
+    changed = False
+    for order in orders:
+        if _is_refund_completion_due(order, now=now):
+            changed = _mark_refund_completed(
+                db,
+                order,
+                note="Refund auto-completed after settlement window elapsed",
+            ) or changed
+
+    if changed:
+        db.commit()
+        for order in orders:
+            db.refresh(order)
 
 
 def add_event(db: Session, order: Order, status: str, note: str = "", actor_user_id: int | None = None) -> None:
@@ -320,16 +430,21 @@ def create_order(
 
 @router.get("/me", response_model=list[OrderOut])
 def my_orders(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    orders: list[Order]
     if user.role == "CUSTOMER":
-        return db.query(Order).filter(Order.customer_id == user.id).order_by(Order.id.desc()).all()
-    if user.role == "SELLER":
+        orders = db.query(Order).filter(Order.customer_id == user.id).order_by(Order.id.desc()).all()
+    elif user.role == "SELLER":
         v = db.query(Vendor).filter(Vendor.seller_id == user.id).first()
-        return [] if not v else db.query(Order).filter(Order.vendor_id == v.id).order_by(Order.id.desc()).all()
-    if user.role == "PARTNER":
-        return db.query(Order).filter(Order.partner_id == user.id).order_by(Order.id.desc()).all()
-    if user.role == "ADMIN":
-        return db.query(Order).order_by(Order.id.desc()).limit(200).all()
-    return []
+        orders = [] if not v else db.query(Order).filter(Order.vendor_id == v.id).order_by(Order.id.desc()).all()
+    elif user.role == "PARTNER":
+        orders = db.query(Order).filter(Order.partner_id == user.id).order_by(Order.id.desc()).all()
+    elif user.role == "ADMIN":
+        orders = db.query(Order).order_by(Order.id.desc()).limit(200).all()
+    else:
+        orders = []
+
+    _sync_due_refunds(db, orders)
+    return orders
 
 
 @router.get("/{order_id}", response_model=OrderOut)
@@ -347,6 +462,7 @@ def get_order(order_id: int, db: Session = Depends(get_db), user: User = Depends
         if not v or order.vendor_id != v.id:
             raise HTTPException(status_code=403, detail="Forbidden")
 
+    _sync_due_refunds(db, [order])
     return order
 
 
@@ -377,7 +493,48 @@ def cancel_order(order_id: int, reason: str = "", db: Session = Depends(get_db),
     )
 
     if str(order.payment_status or "").upper() == "PAID" and str(order.refund_status or "").upper() == "NOT_APPLICABLE":
+        refund_ref = _build_refund_reference(order.id)
+        refund_eta = utc_now() + timedelta(seconds=REFUND_SETTLEMENT_DELAY_SECONDS)
+
         order.refund_status = "PENDING"
+        order.refund_ref = refund_ref
+
+        refund_case = RefundCase(
+            order_id=order.id,
+            payment_ref=order.payment_ref or "",
+            amount=round(float(order.total_amount or 0), 2),
+            reason=order.cancellation_reason,
+            status="REQUESTED",
+            next_retry_at=refund_eta,
+            requested_by_user_id=user.id,
+        )
+        db.add(refund_case)
+        db.flush()
+
+        db.add(
+            AsyncJob(
+                queue_name="payments",
+                job_type="refund_settlement",
+                payload_json=json.dumps(
+                    {
+                        "order_id": order.id,
+                        "refund_case_id": refund_case.id,
+                        "refund_ref": refund_ref,
+                    }
+                ),
+                run_after=refund_eta,
+                max_attempts=3,
+            )
+        )
+
+        _append_order_event(
+            db,
+            order,
+            "REFUND_INITIATED",
+            "Refund initiated and queued for settlement",
+            actor_user_id=user.id,
+            metadata={"refund_ref": refund_ref, "expected_completion_at": refund_eta.isoformat()},
+        )
 
     add_event(db, order, "CANCELLED_BY_CUSTOMER", order.cancellation_reason, actor_user_id=user.id)
     if partner_id:
@@ -443,4 +600,5 @@ def tracking(order_id: int, db: Session = Depends(get_db), user: User = Depends(
                 "created_at": loc.created_at,
             }
 
+    _sync_due_refunds(db, [order])
     return {"order": order, "partner_latest_location": latest_loc}
