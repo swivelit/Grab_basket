@@ -90,6 +90,42 @@ function formatOrderDateTime(value) {
   });
 }
 
+function normalizeRefundStatus(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function normalizePaymentStatus(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function getRefundState(order) {
+  const refundStatus = normalizeRefundStatus(order?.refund_status);
+  const paymentStatus = normalizePaymentStatus(order?.payment_status);
+  const orderStatus = String(order?.status || order?.status_label || '').trim().toUpperCase();
+
+  if (['COMPLETED', 'SUCCESS', 'PROCESSED', 'CREDITED', 'REFUNDED'].includes(refundStatus)) {
+    return 'completed';
+  }
+
+  if (['PENDING', 'PROCESSING', 'REQUESTED', 'INITIATED', 'RETRYING'].includes(refundStatus)) {
+    return 'active';
+  }
+
+  if (refundStatus && refundStatus !== 'NOT_APPLICABLE' && refundStatus !== 'FAILED') {
+    return 'active';
+  }
+
+  if (orderStatus.includes('CANCELLED') && paymentStatus === 'PAID') {
+    return 'active';
+  }
+
+  return 'none';
+}
+
+function hasRefundForOrder(order) {
+  return getRefundState(order) !== 'none';
+}
+
 function initials(value = '') {
   return String(value || '')
     .split(/[\s@._-]+/)
@@ -127,23 +163,32 @@ function getProfileMeta(profile, authEmail) {
 }
 
 function getOrderStatusTone(order) {
+  const refundState = getRefundState(order);
   const status = String(order?.status_label || order?.status || order?.payment_status || '')
     .trim()
     .toLowerCase();
+
+  if (refundState === 'completed') {
+    return {
+      label: 'Refund completed',
+      color: BrandPalette.success,
+      backgroundColor: BrandPalette.successSoft,
+    };
+  }
+
+  if (refundState === 'active') {
+    return {
+      label: 'Refund in progress',
+      color: BrandPalette.warning,
+      backgroundColor: BrandPalette.warningSoft,
+    };
+  }
 
   if (/deliver|complete|paid|success/.test(status)) {
     return {
       label: order?.status_label || 'Delivered',
       color: BrandPalette.success,
       backgroundColor: BrandPalette.successSoft,
-    };
-  }
-
-  if (/refund/.test(status)) {
-    return {
-      label: order?.status_label || 'Refund in progress',
-      color: BrandPalette.warning,
-      backgroundColor: BrandPalette.warningSoft,
     };
   }
 
@@ -240,7 +285,7 @@ function SegmentButton({ label, active, onPress }) {
 
 function PastOrderCard({ order, onPressPrimary, onPressCard }) {
   const statusTone = getOrderStatusTone(order);
-  const hasRefund = /refund/.test(String(order?.status_label || order?.status || '').toLowerCase());
+  const hasRefund = hasRefundForOrder(order);
   const imageUri = String(order?.vendor_image_url || '').trim();
   const primaryLabel = hasRefund ? 'Refund Details' : 'Reorder';
 
@@ -354,13 +399,6 @@ export default function AccountScreen() {
   const profileMeta = useMemo(() => getProfileMeta(profile, authEmail), [profile, authEmail]);
 
   const addressCount = Array.isArray(addresses) ? addresses.length : 0;
-  const refundCount = useMemo(
-    () =>
-      (Array.isArray(orderHistory) ? orderHistory : []).filter((order) =>
-        /refund/.test(String(order?.status_label || order?.status || '').toLowerCase())
-      ).length,
-    [orderHistory]
-  );
 
   const filteredOrders = useMemo(() => {
     const orders = Array.isArray(orderHistory) ? orderHistory : [];
@@ -409,7 +447,7 @@ export default function AccountScreen() {
     }
 
     if (key === 'refunds') {
-      setLocalNotice(refundCount ? `${refundCount} refund update${refundCount > 1 ? 's are' : ' is'} available in your order history.` : 'No refund updates at the moment.');
+      router.push('/refunds');
       return;
     }
 
@@ -636,8 +674,8 @@ export default function AccountScreen() {
                       order={order}
                       onPressCard={() => router.push('/(tabs)/reorder')}
                       onPressPrimary={() => {
-                        if (/refund/.test(String(order?.status_label || order?.status || '').toLowerCase())) {
-                          setLocalNotice(`Refund details for order #${order.id} can be opened next.`);
+                        if (hasRefundForOrder(order)) {
+                          router.push('/refunds');
                           return;
                         }
 
