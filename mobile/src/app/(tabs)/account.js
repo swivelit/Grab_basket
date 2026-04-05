@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -18,14 +19,8 @@ import { useRouter } from 'expo-router';
 import { BrandPalette, createShadow } from '@/constants/theme';
 import InlineErrorCard from '../../components/inline-error-card';
 import InlineNoticeCard from '../../components/inline-notice-card';
+import { mapLegacyService } from '@/domains/grab-basket-utils';
 import { useGrabBasket } from '../../../App';
-
-const QUICK_ACTIONS = [
-  { key: 'orders', label: 'Your orders', icon: 'receipt-outline' },
-  { key: 'addresses', label: 'Saved addresses', icon: 'location-outline' },
-  { key: 'offers', label: 'Offers', icon: 'pricetag-outline' },
-  { key: 'help', label: 'Help & support', icon: 'help-circle-outline' },
-];
 
 const GUEST_LINKS = [
   { key: 'offers', label: 'Offers', icon: 'pricetag-outline' },
@@ -33,8 +28,44 @@ const GUEST_LINKS = [
   { key: 'privacy', label: 'Privacy & terms', icon: 'shield-checkmark-outline' },
 ];
 
-const KOCHI_LAT = '9.9672';
-const KOCHI_LNG = '76.2911';
+const ACCOUNT_SHORTCUTS = [
+  {
+    key: 'saved_addresses',
+    label: 'Saved Address',
+    icon: 'location-outline',
+    subtitle: 'Manage delivery places',
+  },
+  {
+    key: 'payment_modes',
+    label: 'Payment Modes',
+    icon: 'card-outline',
+    subtitle: 'Cards, UPI and more',
+  },
+  {
+    key: 'refunds',
+    label: 'My Refunds',
+    icon: 'refresh-circle-outline',
+    subtitle: 'Refunds and updates',
+  },
+  {
+    key: 'wallet',
+    label: 'My Wallet',
+    icon: 'wallet-outline',
+    subtitle: 'Wallet balance & credits',
+  },
+];
+
+const ACCOUNT_LINKS = [
+  { key: 'offers', label: 'Offers', icon: 'pricetag-outline' },
+  { key: 'help', label: 'Help & support', icon: 'help-circle-outline' },
+  { key: 'wishlist', label: 'My Wishlist', icon: 'bookmark-outline' },
+  { key: 'favourites', label: 'Favourites', icon: 'heart-outline' },
+  { key: 'statements', label: 'Account Statements', icon: 'document-text-outline' },
+  { key: 'corporate_rewards', label: 'Corporate Rewards', icon: 'briefcase-outline' },
+  { key: 'student_rewards', label: 'Student Rewards', icon: 'school-outline' },
+  { key: 'partner_rewards', label: 'Partner Rewards', icon: 'ribbon-outline' },
+  { key: 'contact_pref', label: 'Allow stores to contact you', icon: 'chatbubbles-outline' },
+];
 
 function money(value) {
   return `₹${Number(value || 0).toFixed(0)}`;
@@ -47,9 +78,16 @@ function formatDate(value) {
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function mapOrderStatus(order) {
-  const raw = String(order?.status || order?.payment_status || 'Placed');
-  return raw.replace(/_/g, ' ');
+function formatOrderDateTime(value) {
+  if (!value) return 'Recently';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Recently';
+  return date.toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function initials(value = '') {
@@ -60,6 +98,83 @@ function initials(value = '') {
     .join('')
     .slice(0, 2)
     .toUpperCase();
+}
+
+function getProfileTitle(profile, authEmail) {
+  const name = String(profile?.full_name || '').trim();
+  if (name) return name;
+
+  const phone = String(profile?.phone || '').trim();
+  if (phone) return phone;
+
+  const email = String(profile?.email || authEmail || '').trim();
+  if (!email) return 'GrabBasket Member';
+
+  const localPart = email.split('@')[0];
+  if (!localPart) return email;
+
+  return localPart
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function getProfileMeta(profile, authEmail) {
+  const values = [profile?.phone, profile?.email, authEmail]
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+
+  return [...new Set(values)];
+}
+
+function getOrderStatusTone(order) {
+  const status = String(order?.status_label || order?.status || order?.payment_status || '')
+    .trim()
+    .toLowerCase();
+
+  if (/deliver|complete|paid|success/.test(status)) {
+    return {
+      label: order?.status_label || 'Delivered',
+      color: BrandPalette.success,
+      backgroundColor: BrandPalette.successSoft,
+    };
+  }
+
+  if (/refund/.test(status)) {
+    return {
+      label: order?.status_label || 'Refund in progress',
+      color: BrandPalette.warning,
+      backgroundColor: BrandPalette.warningSoft,
+    };
+  }
+
+  if (/cancel|fail/.test(status)) {
+    return {
+      label: order?.status_label || 'Cancelled',
+      color: BrandPalette.danger,
+      backgroundColor: BrandPalette.dangerSoft,
+    };
+  }
+
+  return {
+    label: order?.status_label || 'Processing',
+    color: BrandPalette.warning,
+    backgroundColor: BrandPalette.warningSoft,
+  };
+}
+
+function getOrderItemsLabel(order) {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const names = items
+    .map((item) => String(item?.name || item?.product_name || '').trim())
+    .filter(Boolean);
+
+  if (names.length >= 2) return `${names[0]} +${names.length - 1} more`;
+  if (names.length === 1) return names[0];
+
+  const totalItems = Number(order?.item_count || items.length || 0);
+  if (totalItems > 0) return `${totalItems} item${totalItems > 1 ? 's' : ''}`;
+
+  return 'Order details available in history';
 }
 
 function Field({ value, onChangeText, placeholder, secureTextEntry = false, keyboardType = 'default' }) {
@@ -91,12 +206,79 @@ function RowCard({ label, icon, onPress }) {
   );
 }
 
-function StatPill({ label, value }) {
+function ActionTile({ label, subtitle, icon, onPress }) {
   return (
-    <View style={styles.statPill}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    <TouchableOpacity activeOpacity={0.94} style={styles.actionTile} onPress={onPress}>
+      <View style={styles.actionTileIconWrap}>
+        <Ionicons name={icon} size={22} color={BrandPalette.text} />
+      </View>
+      <Text style={styles.actionTileLabel}>{label}</Text>
+      <Text style={styles.actionTileSubtitle}>{subtitle}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function AccountLinkRow({ label, icon, onPress, isLast = false }) {
+  return (
+    <TouchableOpacity activeOpacity={0.94} style={[styles.accountLinkRow, !isLast && styles.accountLinkRowBorder]} onPress={onPress}>
+      <View style={styles.accountLinkLeft}>
+        <Ionicons name={icon} size={21} color={BrandPalette.text} />
+        <Text style={styles.accountLinkLabel}>{label}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={BrandPalette.subtle} />
+    </TouchableOpacity>
+  );
+}
+
+function SegmentButton({ label, active, onPress }) {
+  return (
+    <TouchableOpacity activeOpacity={0.94} style={[styles.segmentButton, active && styles.segmentButtonActive]} onPress={onPress}>
+      <Text style={[styles.segmentButtonText, active && styles.segmentButtonTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function PastOrderCard({ order, onPressPrimary, onPressCard }) {
+  const statusTone = getOrderStatusTone(order);
+  const hasRefund = /refund/.test(String(order?.status_label || order?.status || '').toLowerCase());
+  const imageUri = String(order?.vendor_image_url || '').trim();
+  const primaryLabel = hasRefund ? 'Refund Details' : 'Reorder';
+
+  return (
+    <TouchableOpacity activeOpacity={0.94} style={styles.orderCard} onPress={onPressCard}>
+      <View style={styles.orderHeader}>
+        <View style={styles.orderIdentityRow}>
+          {imageUri ? (
+            <Image source={{ uri: imageUri }} style={styles.orderImage} />
+          ) : (
+            <View style={styles.orderImageFallback}>
+              <Text style={styles.orderImageFallbackText}>{initials(order?.vendor_name || 'GB')}</Text>
+            </View>
+          )}
+
+          <View style={styles.orderTitleWrap}>
+            <Text numberOfLines={1} style={styles.orderVendorName}>
+              {order?.vendor_name || 'Store'}
+            </Text>
+            <Text numberOfLines={1} style={styles.orderItemsLabel}>
+              {getOrderItemsLabel(order)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={[styles.orderStatusPill, { backgroundColor: statusTone.backgroundColor }]}>
+          <Text style={[styles.orderStatusText, { color: statusTone.color }]}>{statusTone.label}</Text>
+        </View>
+      </View>
+
+      <TouchableOpacity activeOpacity={0.94} style={styles.orderPrimaryButton} onPress={onPressPrimary}>
+        <Text style={styles.orderPrimaryButtonText}>{primaryLabel}</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.orderFooterText}>
+        Ordered: {formatOrderDateTime(order?.created_at || order?.updated_at)} • Bill Total: {money(order?.total_amount || 0)}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -115,11 +297,8 @@ export default function AccountScreen() {
     profile,
     deviceId,
     addresses,
-    addressesLoading,
-    createAddress,
-    setDefaultAddress,
     defaultAddress,
-    pastOrders,
+    orderHistory,
     loadOrders,
     ordersLoading,
     loadAddresses,
@@ -131,16 +310,8 @@ export default function AccountScreen() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('password');
-  const [addressForm, setAddressForm] = useState({
-    label: 'Home',
-    line1: '',
-    city: 'Kochi',
-    pincode: '',
-    lat: KOCHI_LAT,
-    lng: KOCHI_LNG,
-  });
-  const [addressSaving, setAddressSaving] = useState(false);
   const [localNotice, setLocalNotice] = useState('');
+  const [accountPastOrderTab, setAccountPastOrderTab] = useState('food');
   const hasHydratedAccountDataRef = useRef(false);
   const loadAddressesRef = useRef(loadAddresses);
   const loadOrdersRef = useRef(loadOrders);
@@ -179,8 +350,30 @@ export default function AccountScreen() {
   }, []);
 
   const memberSince = useMemo(() => formatDate(profile?.created_at), [profile?.created_at]);
-  const activeAddressLabel = defaultAddress?.label || defaultAddress?.line1 || 'No default address';
-  const orderCount = Array.isArray(pastOrders) ? pastOrders.length : 0;
+  const profileTitle = useMemo(() => getProfileTitle(profile, authEmail), [profile, authEmail]);
+  const profileMeta = useMemo(() => getProfileMeta(profile, authEmail), [profile, authEmail]);
+
+  const addressCount = Array.isArray(addresses) ? addresses.length : 0;
+  const refundCount = useMemo(
+    () =>
+      (Array.isArray(orderHistory) ? orderHistory : []).filter((order) =>
+        /refund/.test(String(order?.status_label || order?.status || '').toLowerCase())
+      ).length,
+    [orderHistory]
+  );
+
+  const filteredOrders = useMemo(() => {
+    const orders = Array.isArray(orderHistory) ? orderHistory : [];
+    return orders.filter((order) => mapLegacyService(order?.service) === accountPastOrderTab);
+  }, [accountPastOrderTab, orderHistory]);
+
+  const highlightedAddress = useMemo(() => {
+    if (defaultAddress?.label || defaultAddress?.line1) {
+      return [defaultAddress?.label, defaultAddress?.line1].filter(Boolean).join(' · ');
+    }
+
+    return addressCount ? `${addressCount} saved addresses` : 'No saved addresses yet';
+  }, [addressCount, defaultAddress]);
 
   const handleAuth = async () => {
     if (authMode === 'login') {
@@ -208,46 +401,72 @@ export default function AccountScreen() {
     }
   };
 
-  const handleAddAddress = async () => {
-    setAddressSaving(true);
-    const next = await createAddress({
-      ...addressForm,
-      lat: Number(addressForm.lat),
-      lng: Number(addressForm.lng),
-      is_default: addresses.length === 0,
-    });
-    setAddressSaving(false);
+  const handleShortcutPress = async (key) => {
+    if (key === 'saved_addresses') {
+      await loadAddresses().catch(() => {});
+      setLocalNotice(addressCount ? `${addressCount} saved address${addressCount > 1 ? 'es are' : ' is'} available.` : 'No saved addresses yet.');
+      return;
+    }
 
-    if (next) {
-      setAddressForm({
-        label: 'Home',
-        line1: '',
-        city: 'Kochi',
-        pincode: '',
-        lat: KOCHI_LAT,
-        lng: KOCHI_LNG,
-      });
-      setLocalNotice('Address saved successfully.');
+    if (key === 'refunds') {
+      setLocalNotice(refundCount ? `${refundCount} refund update${refundCount > 1 ? 's are' : ' is'} available in your order history.` : 'No refund updates at the moment.');
+      return;
+    }
+
+    if (key === 'payment_modes') {
+      setLocalNotice('Payment Modes is ready for UPI, cards and wallet integration.');
+      return;
+    }
+
+    if (key === 'wallet') {
+      setLocalNotice('My Wallet is ready for balance, credits and cashback integration.');
     }
   };
 
-  const handleQuickAction = (key) => {
-    if (key === 'orders') {
-      router.push('/(tabs)/reorder');
+  const handleLinkPress = (key) => {
+    if (key === 'offers') {
+      setLocalNotice('Offers can be connected to the promotions flow next.');
       return;
     }
 
-    if (key === 'addresses') {
-      loadAddresses().catch(() => {});
-      setLocalNotice('Addresses refreshed.');
+    if (key === 'help') {
+      setLocalNotice('Help & support can be connected to support tickets or chat next.');
       return;
     }
 
-    setLocalNotice(
-      key === 'offers'
-        ? 'Offers section is ready for the next production sprint.'
-        : 'Support workflows can be wired next.'
-    );
+    if (key === 'wishlist') {
+      setLocalNotice('My Wishlist is ready for saved products and stores.');
+      return;
+    }
+
+    if (key === 'favourites') {
+      setLocalNotice('Favourites can show your saved stores and frequent picks.');
+      return;
+    }
+
+    if (key === 'statements') {
+      setLocalNotice('Account Statements can list invoices, payments and credits.');
+      return;
+    }
+
+    if (key === 'corporate_rewards') {
+      setLocalNotice('Corporate Rewards is ready for business perks and credits.');
+      return;
+    }
+
+    if (key === 'student_rewards') {
+      setLocalNotice('Student Rewards is ready for student-only offers.');
+      return;
+    }
+
+    if (key === 'partner_rewards') {
+      setLocalNotice('Partner Rewards is ready for brand and merchant collaborations.');
+      return;
+    }
+
+    if (key === 'contact_pref') {
+      setLocalNotice('Allow stores to contact you can be connected to communication preferences.');
+    }
   };
 
   if (!sessionReady) {
@@ -323,9 +542,7 @@ export default function AccountScreen() {
                 )}
               </TouchableOpacity>
 
-              <Text style={styles.legalText}>
-                By tapping in, you agree to our terms of service and privacy policy.
-              </Text>
+              <Text style={styles.legalText}>By tapping in, you agree to our terms of service and privacy policy.</Text>
 
               <View style={styles.guestLinkGroup}>
                 {GUEST_LINKS.map((item) => (
@@ -338,114 +555,111 @@ export default function AccountScreen() {
           </>
         ) : (
           <View style={styles.pageBody}>
-            <View style={styles.profileCard}>
-              <View style={styles.profileTopRow}>
+            <View style={styles.accountHeroCard}>
+              <View style={styles.accountHeroTopRow}>
                 <View style={styles.avatarWrap}>
-                  <Text style={styles.avatarText}>{initials(authEmail || profile?.email || 'GB')}</Text>
+                  <Text style={styles.avatarText}>{initials(profileTitle || authEmail || 'GB')}</Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.profileTitle}>{profile?.full_name || profile?.phone || profile?.email || authEmail || 'GrabBasket member'}</Text>
-                  <Text style={styles.profileSubtitle}>{memberSince !== '—' ? `Member since ${memberSince}` : 'Production-ready account shell'}</Text>
-                  <Text style={styles.profileMeta}>{profile?.phone || profile?.email || activeAddressLabel}</Text>
-                </View>
+
+                <TouchableOpacity activeOpacity={0.94} style={styles.helpChip} onPress={() => handleLinkPress('help')}>
+                  <Text style={styles.helpChipText}>Help</Text>
+                </TouchableOpacity>
               </View>
 
-              <View style={styles.statsRow}>
-                <StatPill label="Orders" value={String(orderCount)} />
-                <StatPill label="Addresses" value={String(addresses.length || 0)} />
-                <StatPill label="Saved" value={defaultAddress ? '1' : '0'} />
+              <Text style={styles.profileTitle}>{profileTitle}</Text>
+              {profileMeta.map((item) => (
+                <Text key={item} style={styles.profileMetaLine}>
+                  {item}
+                </Text>
+              ))}
+
+              <View style={styles.memberRow}>
+                <Ionicons name="sparkles-outline" size={14} color={BrandPalette.primary} />
+                <Text style={styles.memberRowText}>{memberSince !== '—' ? `Member since ${memberSince}` : 'GrabBasket member'}</Text>
               </View>
+            </View>
+
+            <View style={styles.accountSummaryCard}>
+              <View style={styles.accountSummaryRow}>
+                <View style={styles.accountSummaryItem}>
+                  <Text style={styles.accountSummaryValue}>{Array.isArray(orderHistory) ? orderHistory.length : 0}</Text>
+                  <Text style={styles.accountSummaryLabel}>Orders</Text>
+                </View>
+                <View style={styles.accountSummaryDivider} />
+                <View style={styles.accountSummaryItem}>
+                  <Text style={styles.accountSummaryValue}>{addressCount}</Text>
+                  <Text style={styles.accountSummaryLabel}>Saved addresses</Text>
+                </View>
+              </View>
+              <Text style={styles.accountSummaryFootnote}>{highlightedAddress}</Text>
             </View>
 
             {localNotice ? <InlineNoticeCard title="Updated" message={localNotice} onDismiss={() => setLocalNotice('')} /> : null}
             {inlineErrors.orders ? <InlineErrorCard title="Orders issue" message={inlineErrors.orders} /> : null}
             {inlineErrors.addresses ? <InlineErrorCard title="Address issue" message={inlineErrors.addresses} /> : null}
 
+            <View style={styles.actionGrid}>
+              {ACCOUNT_SHORTCUTS.map((item) => (
+                <ActionTile key={item.key} label={item.label} subtitle={item.subtitle} icon={item.icon} onPress={() => handleShortcutPress(item.key)} />
+              ))}
+            </View>
+
+            <View style={styles.linksCard}>
+              {ACCOUNT_LINKS.map((item, index) => (
+                <AccountLinkRow
+                  key={item.key}
+                  label={item.label}
+                  icon={item.icon}
+                  onPress={() => handleLinkPress(item.key)}
+                  isLast={index === ACCOUNT_LINKS.length - 1}
+                />
+              ))}
+            </View>
+
             <View style={styles.sectionBlock}>
-              <Text style={styles.sectionTitle}>Quick actions</Text>
-              <View style={styles.quickActionList}>
-                {QUICK_ACTIONS.map((item) => (
-                  <RowCard key={item.key} label={item.label} icon={item.icon} onPress={() => handleQuickAction(item.key)} />
-                ))}
+              <Text style={styles.sectionTitle}>Past orders</Text>
+
+              <View style={styles.segmentWrap}>
+                <SegmentButton label="Food" active={accountPastOrderTab === 'food'} onPress={() => setAccountPastOrderTab('food')} />
+                <SegmentButton label="Warehouse" active={accountPastOrderTab === 'warehouse'} onPress={() => setAccountPastOrderTab('warehouse')} />
               </View>
-            </View>
 
-            <View style={styles.sectionBlock}>
-              <Text style={styles.sectionTitle}>Add a saved address</Text>
-              <View style={styles.cardSurface}>
-                <Field value={addressForm.label} onChangeText={(value) => setAddressForm((current) => ({ ...current, label: value }))} placeholder="Label" />
-                <Field value={addressForm.line1} onChangeText={(value) => setAddressForm((current) => ({ ...current, line1: value }))} placeholder="Address line" />
-                <View style={styles.inlineFields}>
-                  <View style={{ flex: 1 }}>
-                    <Field value={addressForm.city} onChangeText={(value) => setAddressForm((current) => ({ ...current, city: value }))} placeholder="City" />
-                  </View>
-                  <View style={{ width: 120 }}>
-                    <Field value={addressForm.pincode} onChangeText={(value) => setAddressForm((current) => ({ ...current, pincode: value }))} placeholder="Pincode" keyboardType="number-pad" />
-                  </View>
-                </View>
-
-                <TouchableOpacity activeOpacity={0.95} style={styles.primaryButton} onPress={handleAddAddress} disabled={addressSaving}>
-                  {addressSaving ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Text style={styles.primaryButtonText}>Save address</Text>}
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.sectionBlock}>
-              <Text style={styles.sectionTitle}>Saved addresses</Text>
-              {addressesLoading ? (
-                <View style={styles.cardSurface}><ActivityIndicator color={BrandPalette.primary} /></View>
-              ) : addresses.length ? (
-                <View style={styles.addressList}>
-                  {addresses.slice(0, 4).map((address) => {
-                    const isDefault = String(address?.id) === String(defaultAddress?.id);
-                    return (
-                      <TouchableOpacity
-                        key={address.id}
-                        activeOpacity={0.94}
-                        style={[styles.addressCard, isDefault && styles.addressCardActive]}
-                        onPress={() => setDefaultAddress(address.id)}>
-                        <View style={styles.addressHeader}>
-                          <Text style={styles.addressLabel}>{address.label || 'Saved address'}</Text>
-                          {isDefault ? <Text style={styles.addressBadge}>Default</Text> : null}
-                        </View>
-                        <Text style={styles.addressLine}>{address.line1}</Text>
-                        <Text style={styles.addressMeta}>{[address.city, address.pincode].filter(Boolean).join(' · ')}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ) : (
-                <View style={styles.cardSurface}><Text style={styles.helperText}>No saved addresses yet.</Text></View>
-              )}
-            </View>
-
-            <View style={styles.sectionBlock}>
-              <Text style={styles.sectionTitle}>Recent orders</Text>
               {ordersLoading ? (
-                <View style={styles.cardSurface}><ActivityIndicator color={BrandPalette.primary} /></View>
-              ) : pastOrders.length ? (
+                <View style={styles.cardSurface}>
+                  <ActivityIndicator color={BrandPalette.primary} />
+                </View>
+              ) : filteredOrders.length ? (
                 <View style={styles.orderList}>
-                  {pastOrders.slice(0, 5).map((order) => (
-                    <TouchableOpacity key={order.id} activeOpacity={0.94} style={styles.orderCard} onPress={() => router.push('/(tabs)/reorder')}>
-                      <View style={styles.orderCardTop}>
-                        <Text style={styles.orderCardTitle}>Order #{order.id}</Text>
-                        <Text style={styles.orderCardAmount}>{money(order?.total_amount || 0)}</Text>
-                      </View>
-                      <Text style={styles.orderCardStatus}>{mapOrderStatus(order)}</Text>
-                      <Text style={styles.orderCardMeta}>{formatDate(order?.created_at)}</Text>
-                    </TouchableOpacity>
+                  {filteredOrders.slice(0, 4).map((order) => (
+                    <PastOrderCard
+                      key={order.id}
+                      order={order}
+                      onPressCard={() => router.push('/(tabs)/reorder')}
+                      onPressPrimary={() => {
+                        if (/refund/.test(String(order?.status_label || order?.status || '').toLowerCase())) {
+                          setLocalNotice(`Refund details for order #${order.id} can be opened next.`);
+                          return;
+                        }
+
+                        router.push('/(tabs)/reorder');
+                      }}
+                    />
                   ))}
                 </View>
               ) : (
-                <View style={styles.cardSurface}><Text style={styles.helperText}>Your order history will appear here.</Text></View>
+                <View style={styles.cardSurface}>
+                  <Text style={styles.helperText}>
+                    {accountPastOrderTab === 'warehouse'
+                      ? 'Your warehouse order history will appear here.'
+                      : 'Your food order history will appear here.'}
+                  </Text>
+                </View>
               )}
             </View>
 
-            <View style={styles.sectionBlock}>
-              <Text style={styles.sectionTitle}>Device</Text>
-              <View style={styles.cardSurface}>
-                <Text style={styles.helperText}>Device ID: {deviceId || 'Unavailable'}</Text>
-              </View>
+            <View style={styles.footerMetaCard}>
+              <Text style={styles.footerMetaText}>Device ID: {deviceId || 'Unavailable'}</Text>
+              <Text style={styles.footerMetaSubtext}>{versionText}</Text>
             </View>
 
             <TouchableOpacity
@@ -467,7 +681,7 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: BrandPalette.page,
+    backgroundColor: BrandPalette.white,
   },
   loadingState: {
     flex: 1,
@@ -630,198 +844,346 @@ const styles = StyleSheet.create({
   },
   pageBody: {
     paddingHorizontal: 16,
-    paddingTop: 10,
+    paddingTop: 12,
     gap: 16,
+    backgroundColor: '#FAFAFA',
   },
-  profileCard: {
+  accountHeroCard: {
     borderRadius: 28,
     backgroundColor: BrandPalette.white,
-    borderWidth: 1,
-    borderColor: BrandPalette.line,
     padding: 18,
-    ...createShadow(0.08, 14, 6),
+    borderWidth: 1,
+    borderColor: '#ECECEC',
+    ...createShadow(0.06, 10, 4),
   },
-  profileTopRow: {
+  accountHeroTopRow: {
     flexDirection: 'row',
-    gap: 14,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  helpChip: {
+    minHeight: 38,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    backgroundColor: '#FFF1E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpChipText: {
+    fontSize: 15,
+    lineHeight: 18,
+    fontWeight: '900',
+    color: '#E66A00',
   },
   avatarWrap: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: BrandPalette.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    fontSize: 22,
-    lineHeight: 24,
+    fontSize: 24,
+    lineHeight: 28,
     fontWeight: '900',
     color: BrandPalette.primary,
   },
   profileTitle: {
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 26,
+    lineHeight: 30,
     fontWeight: '900',
-    color: BrandPalette.text,
+    color: '#1C2240',
   },
-  profileSubtitle: {
-    marginTop: 6,
+  profileMetaLine: {
+    marginTop: 4,
+    fontSize: 16,
+    lineHeight: 20,
+    color: '#666A78',
+  },
+  memberRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  memberRowText: {
     fontSize: 13,
     lineHeight: 17,
     color: BrandPalette.textMuted,
-  },
-  profileMeta: {
-    marginTop: 4,
-    fontSize: 13,
-    lineHeight: 17,
-    color: BrandPalette.inkSoft,
     fontWeight: '700',
   },
-  statsRow: {
-    marginTop: 18,
-    flexDirection: 'row',
-    gap: 10,
-  },
-  statPill: {
-    flex: 1,
-    borderRadius: 18,
-    backgroundColor: BrandPalette.backgroundAlt,
+  accountSummaryCard: {
+    borderRadius: 24,
+    backgroundColor: BrandPalette.white,
     borderWidth: 1,
-    borderColor: BrandPalette.line,
+    borderColor: '#ECECEC',
+    paddingHorizontal: 16,
     paddingVertical: 14,
+    ...createShadow(0.04, 8, 3),
+  },
+  accountSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  accountSummaryItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  accountSummaryDivider: {
+    width: 1,
+    height: 38,
+    backgroundColor: '#ECECEC',
+  },
+  accountSummaryValue: {
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: '900',
+    color: BrandPalette.text,
+  },
+  accountSummaryLabel: {
+    fontSize: 13,
+    lineHeight: 16,
+    color: BrandPalette.textMuted,
+  },
+  accountSummaryFootnote: {
+    marginTop: 12,
+    fontSize: 13,
+    lineHeight: 17,
+    color: BrandPalette.textMuted,
+    textAlign: 'center',
+  },
+  actionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  actionTile: {
+    width: '48.2%',
+    borderRadius: 22,
+    backgroundColor: BrandPalette.white,
+    borderWidth: 1,
+    borderColor: '#ECECEC',
+    padding: 16,
+    minHeight: 126,
+    ...createShadow(0.04, 8, 3),
+  },
+  actionTileIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F7F7F7',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statValue: {
-    fontSize: 19,
+  actionTileLabel: {
+    marginTop: 16,
+    fontSize: 17,
+    lineHeight: 20,
+    fontWeight: '800',
+    color: BrandPalette.text,
+  },
+  actionTileSubtitle: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 16,
+    color: BrandPalette.textMuted,
+  },
+  linksCard: {
+    borderRadius: 26,
+    backgroundColor: BrandPalette.white,
+    borderWidth: 1,
+    borderColor: '#ECECEC',
+    paddingHorizontal: 16,
+    ...createShadow(0.04, 8, 3),
+  },
+  accountLinkRow: {
+    minHeight: 62,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  accountLinkRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  accountLinkLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingRight: 12,
+  },
+  accountLinkLabel: {
+    flex: 1,
+    fontSize: 16,
+    lineHeight: 20,
+    color: '#5D606D',
+    fontWeight: '600',
+  },
+  sectionBlock: {
+    gap: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
     lineHeight: 22,
     fontWeight: '900',
     color: BrandPalette.text,
   },
-  statLabel: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 14,
-    color: BrandPalette.textMuted,
+  segmentWrap: {
+    flexDirection: 'row',
+    backgroundColor: '#EEEEF4',
+    borderRadius: 22,
+    padding: 4,
   },
-  sectionBlock: {
-    gap: 10,
+  segmentButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  sectionTitle: {
-    fontSize: 20,
-    lineHeight: 24,
-    fontWeight: '900',
-    color: BrandPalette.text,
+  segmentButtonActive: {
+    backgroundColor: BrandPalette.text,
   },
-  quickActionList: {
-    gap: 10,
+  segmentButtonText: {
+    fontSize: 15,
+    lineHeight: 18,
+    fontWeight: '800',
+    color: '#4F5360',
+  },
+  segmentButtonTextActive: {
+    color: BrandPalette.white,
   },
   cardSurface: {
     borderRadius: 22,
     backgroundColor: BrandPalette.white,
     borderWidth: 1,
-    borderColor: BrandPalette.line,
+    borderColor: '#ECECEC',
     padding: 16,
-    gap: 12,
-  },
-  inlineFields: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  addressList: {
-    gap: 10,
-  },
-  addressCard: {
-    borderRadius: 18,
-    backgroundColor: BrandPalette.white,
-    borderWidth: 1,
-    borderColor: BrandPalette.line,
-    padding: 14,
-  },
-  addressCardActive: {
-    borderColor: BrandPalette.primary,
-    backgroundColor: '#FFF5F5',
-  },
-  addressHeader: {
-    flexDirection: 'row',
+    minHeight: 76,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  addressLabel: {
-    fontSize: 15,
-    lineHeight: 18,
-    fontWeight: '900',
-    color: BrandPalette.text,
-  },
-  addressBadge: {
-    fontSize: 11,
-    lineHeight: 13,
-    fontWeight: '900',
-    color: BrandPalette.primary,
-    textTransform: 'uppercase',
-  },
-  addressLine: {
-    marginTop: 8,
-    fontSize: 14,
-    lineHeight: 18,
-    color: BrandPalette.text,
-  },
-  addressMeta: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 15,
-    color: BrandPalette.textMuted,
+    justifyContent: 'center',
   },
   orderList: {
-    gap: 10,
+    gap: 12,
   },
   orderCard: {
-    borderRadius: 18,
+    borderRadius: 24,
     backgroundColor: BrandPalette.white,
     borderWidth: 1,
-    borderColor: BrandPalette.line,
+    borderColor: '#ECECEC',
     padding: 14,
+    ...createShadow(0.04, 8, 3),
   },
-  orderCardTop: {
+  orderHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
   },
-  orderCardTitle: {
-    fontSize: 15,
-    lineHeight: 18,
-    fontWeight: '900',
-    color: BrandPalette.text,
+  orderIdentityRow: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 12,
   },
-  orderCardAmount: {
-    fontSize: 14,
-    lineHeight: 17,
+  orderImage: {
+    width: 58,
+    height: 58,
+    borderRadius: 14,
+    backgroundColor: '#F4F4F4',
+  },
+  orderImageFallback: {
+    width: 58,
+    height: 58,
+    borderRadius: 14,
+    backgroundColor: BrandPalette.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orderImageFallbackText: {
+    fontSize: 18,
+    lineHeight: 22,
     fontWeight: '900',
     color: BrandPalette.primary,
   },
-  orderCardStatus: {
-    marginTop: 8,
+  orderTitleWrap: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  orderVendorName: {
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '900',
+    color: BrandPalette.text,
+  },
+  orderItemsLabel: {
+    marginTop: 4,
+    fontSize: 14,
+    lineHeight: 18,
+    color: '#7B7F8B',
+  },
+  orderStatusPill: {
+    alignSelf: 'flex-start',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  orderStatusText: {
     fontSize: 13,
     lineHeight: 16,
-    color: BrandPalette.inkSoft,
-    fontWeight: '700',
+    fontWeight: '900',
+    textTransform: 'capitalize',
   },
-  orderCardMeta: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 15,
-    color: BrandPalette.textMuted,
+  orderPrimaryButton: {
+    marginTop: 16,
+    minHeight: 50,
+    borderRadius: 16,
+    backgroundColor: '#FFF1E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orderPrimaryButtonText: {
+    fontSize: 15,
+    lineHeight: 18,
+    fontWeight: '900',
+    color: '#E66A00',
+  },
+  orderFooterText: {
+    marginTop: 14,
+    fontSize: 13,
+    lineHeight: 17,
+    color: '#7B7F8B',
   },
   helperText: {
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 18,
     color: BrandPalette.textMuted,
+    textAlign: 'center',
+  },
+  footerMetaCard: {
+    borderRadius: 20,
+    backgroundColor: BrandPalette.white,
+    borderWidth: 1,
+    borderColor: '#ECECEC',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 4,
+  },
+  footerMetaText: {
+    fontSize: 13,
+    lineHeight: 17,
+    color: BrandPalette.textMuted,
+  },
+  footerMetaSubtext: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: BrandPalette.subtle,
   },
   logoutButton: {
-    marginTop: 4,
+    marginTop: 2,
     marginBottom: 12,
   },
 });
