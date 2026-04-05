@@ -22,7 +22,7 @@ const SERVICE_TAB_COPY = {
   eatout: {
     index: { label: 'Eatout', icon: 'restaurant-outline' },
     explore: { label: 'My Corner', icon: 'sparkles-outline' },
-    reorder: { label: 'New & Hot', icon: 'flame-outline' },
+    reorder: { label: 'Reorder', icon: 'repeat-outline' },
     account: { label: 'Account', icon: 'person-outline' },
   },
   scenes: {
