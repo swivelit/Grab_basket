@@ -581,7 +581,6 @@ export function ReorderScreen() {
           ) : (
             <EmptyState
               title="No reorder suggestions yet"
-              subtitle="Once customers place a few orders, this tab can show a much cleaner reorder flow like Swiggy — simple search, filter chips, and quick add buttons."
               buttonLabel="Browse stores"
               onPress={() => router.replace('/')}
             />

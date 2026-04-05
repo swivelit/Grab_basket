@@ -30,7 +30,7 @@ const SERVICE_TABS = [
 
 const SERVICE_COPY = {
   food: {
-    heroTitle: 'Cravings, offers and fast delivery — all in one clean flow.',
+    heroTitle: 'Cravings, offers and fast delivery.',
     heroSubtitle: 'Build the GrabBasket experience like a polished consumer app, not an internal dashboard.',
     searchPlaceholder: "Search for 'Cake'",
     headline: 'CRAVEATHON',
@@ -87,7 +87,7 @@ const SERVICE_COPY = {
     ],
     chips: ['Offers', 'Family-friendly', 'Cafes', 'Quick bites', 'Freebies'],
     stripCards: [
-      { key: 'dine-1', title: 'Flat 50% off', value: 'Top tables', caption: 'Across Kochi' },
+      { key: 'dine-1', title: 'Flat 50% off', value: 'Top tables'},
       { key: 'dine-2', title: 'Family-friendly spots', value: 'Weekend picks', caption: 'Larger groups' },
       { key: 'dine-3', title: 'Cafes & quick bites', value: 'Easy plans', caption: 'After work' },
     ],
@@ -291,10 +291,6 @@ function HeroCard({ copy, activeService }) {
         <TouchableOpacity activeOpacity={0.94} style={styles.heroPrimaryButton}>
           <Text style={styles.heroPrimaryButtonText}>{copy.cta}</Text>
         </TouchableOpacity>
-        <View style={styles.heroMetricCard}>
-          <Text style={styles.heroMetricLabel}>Built for</Text>
-          <Text style={styles.heroMetricValue}>Clean checkout</Text>
-        </View>
       </View>
     </View>
   );
