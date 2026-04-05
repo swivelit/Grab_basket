@@ -44,6 +44,26 @@ function buildCurrentLocationAddress({ lat, lng, place = null } = {}) {
   };
 }
 
+function buildAddressPayload(payload = {}) {
+  return {
+    label: String(payload?.label || 'Home').trim() || 'Home',
+    line1: String(payload?.line1 || '').trim(),
+    line2: String(payload?.line2 || '').trim(),
+    city: String(payload?.city || '').trim(),
+    pincode: String(payload?.pincode || '').trim(),
+    lat: Number(payload?.lat),
+    lng: Number(payload?.lng),
+    is_default: Boolean(payload?.is_default),
+  };
+}
+
+function validateAddressPayload(body) {
+  if (!body.line1) throw new Error('Address line 1 is required.');
+  if (!Number.isFinite(body.lat) || !Number.isFinite(body.lng)) {
+    throw new Error('Latitude and longitude are required.');
+  }
+}
+
 export function useAddressDomain({ isCustomerApp, appVariantName, sessionReady, isAuthenticated, authorizedRequest }) {
   const [addresses, setAddresses] = useState([]);
   const [addressesLoading, setAddressesLoading] = useState(false);
@@ -219,21 +239,8 @@ export function useAddressDomain({ isCustomerApp, appVariantName, sessionReady, 
 
       try {
         setAddressesLoading(true);
-        const body = {
-          label: String(payload?.label || 'Home').trim() || 'Home',
-          line1: String(payload?.line1 || '').trim(),
-          line2: String(payload?.line2 || '').trim(),
-          city: String(payload?.city || '').trim(),
-          pincode: String(payload?.pincode || '').trim(),
-          lat: Number(payload?.lat),
-          lng: Number(payload?.lng),
-          is_default: Boolean(payload?.is_default),
-        };
-
-        if (!body.line1) throw new Error('Address line 1 is required.');
-        if (!Number.isFinite(body.lat) || !Number.isFinite(body.lng)) {
-          throw new Error('Latitude and longitude are required.');
-        }
+        const body = buildAddressPayload(payload);
+        validateAddressPayload(body);
 
         const data = await authorizedRequest('/me/addresses', {
           method: 'POST',
@@ -260,6 +267,102 @@ export function useAddressDomain({ isCustomerApp, appVariantName, sessionReady, 
       }
     },
     [appVariantName, authorizedRequest, isAuthenticated, isCustomerApp]
+  );
+
+  const updateAddress = useCallback(
+    async (addressId, payload) => {
+      if (!isCustomerApp) {
+        setAddressesError(`${appVariantName} does not support customer delivery addresses.`);
+        return null;
+      }
+
+      if (!isAuthenticated) {
+        setAddressesError(`Sign in to ${appVariantName} before updating a delivery address.`);
+        return null;
+      }
+
+      try {
+        setAddressesLoading(true);
+        const body = buildAddressPayload(payload);
+        validateAddressPayload(body);
+
+        const data = await authorizedRequest(`/me/addresses/${addressId}`, {
+          method: 'PUT',
+          body,
+        });
+
+        const next = normalizeAddress(data);
+        if (!next) return null;
+
+        setAddresses((current) =>
+          current.map((item) => {
+            if (String(item.id) === String(addressId)) return next;
+            if (next.is_default) return { ...item, is_default: false };
+            return item;
+          })
+        );
+
+        if (next.is_default || String(selectedAddressId) === String(addressId)) {
+          setSelectedAddressId(String(next.id));
+        }
+
+        setAddressesError('');
+        return next;
+      } catch (error) {
+        setAddressesError(normalizeErrorMessage(error, 'Could not update address.'));
+        return null;
+      } finally {
+        setAddressesLoading(false);
+      }
+    },
+    [appVariantName, authorizedRequest, isAuthenticated, isCustomerApp, selectedAddressId]
+  );
+
+  const deleteAddress = useCallback(
+    async (addressId) => {
+      if (!isCustomerApp) {
+        setAddressesError(`${appVariantName} does not support customer delivery addresses.`);
+        return false;
+      }
+
+      if (!isAuthenticated) {
+        return false;
+      }
+
+      try {
+        setAddressesLoading(true);
+        await authorizedRequest(`/me/addresses/${addressId}`, {
+          method: 'DELETE',
+        });
+
+        setAddresses((current) => {
+          const remaining = current.filter((item) => String(item.id) !== String(addressId));
+          if (remaining.length && !remaining.some((item) => item.is_default)) {
+            return remaining.map((item, index) => ({
+              ...item,
+              is_default: index === 0,
+            }));
+          }
+          return remaining;
+        });
+
+        setSelectedAddressId((currentSelectedId) => {
+          if (String(currentSelectedId) !== String(addressId)) return currentSelectedId;
+          const remaining = addresses.filter((item) => String(item.id) !== String(addressId));
+          const next = remaining.find((item) => item.is_default) || remaining[0] || null;
+          return next ? String(next.id) : '';
+        });
+
+        setAddressesError('');
+        return true;
+      } catch (error) {
+        setAddressesError(normalizeErrorMessage(error, 'Could not delete address.'));
+        return false;
+      } finally {
+        setAddressesLoading(false);
+      }
+    },
+    [addresses, appVariantName, authorizedRequest, isAuthenticated, isCustomerApp]
   );
 
   const setDefaultAddress = useCallback(
@@ -308,6 +411,8 @@ export function useAddressDomain({ isCustomerApp, appVariantName, sessionReady, 
     currentLocationLoading,
     hasAttemptedCurrentLocation,
     createAddress,
+    updateAddress,
+    deleteAddress,
     setDefaultAddress,
     loadAddresses,
     resolveCurrentLocation,

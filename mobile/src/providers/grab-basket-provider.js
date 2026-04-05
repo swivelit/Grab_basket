@@ -245,6 +245,8 @@ export function GrabBasketProvider({ children }) {
     currentLocationLoading: addresses.currentLocationLoading,
     resolveCurrentLocation: addresses.resolveCurrentLocation,
     createAddress: addresses.createAddress,
+    updateAddress: addresses.updateAddress,
+    deleteAddress: addresses.deleteAddress,
     setDefaultAddress: addresses.setDefaultAddress,
     loadAddresses: addresses.loadAddresses,
 

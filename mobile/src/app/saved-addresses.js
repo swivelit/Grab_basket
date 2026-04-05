@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -65,6 +66,13 @@ function buildShareMessage(address, phoneNumber) {
   return lines.join('\n');
 }
 
+function stopCardPress(handler) {
+  return (event) => {
+    event?.stopPropagation?.();
+    handler?.();
+  };
+}
+
 function EmptyState({ onPressAdd }) {
   return (
     <View style={styles.emptyWrap}>
@@ -95,7 +103,16 @@ function SearchBar({ value, onChangeText }) {
   );
 }
 
-function AddressCard({ address, phoneNumber, isSelected, onPress, onPressEdit, onPressDelete, onPressShare }) {
+function AddressCard({
+  address,
+  phoneNumber,
+  isSelected,
+  onPress,
+  onPressEdit,
+  onPressDelete,
+  onPressShare,
+  deleteBusy = false,
+}) {
   const lines = formatAddressLines(address);
 
   return (
@@ -124,13 +141,15 @@ function AddressCard({ address, phoneNumber, isSelected, onPress, onPressEdit, o
           {phoneNumber ? <Text style={styles.addressPhone}>Phone number: {phoneNumber}</Text> : null}
 
           <View style={styles.actionRow}>
-            <TouchableOpacity activeOpacity={0.85} onPress={onPressEdit}>
+            <TouchableOpacity activeOpacity={0.85} onPress={stopCardPress(onPressEdit)}>
               <Text style={styles.actionText}>EDIT</Text>
             </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.85} onPress={onPressDelete}>
-              <Text style={styles.actionText}>DELETE</Text>
+            <TouchableOpacity activeOpacity={0.85} disabled={deleteBusy} onPress={stopCardPress(onPressDelete)}>
+              <Text style={[styles.actionText, deleteBusy && styles.actionTextDisabled]}>
+                {deleteBusy ? 'DELETING...' : 'DELETE'}
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.85} onPress={onPressShare}>
+            <TouchableOpacity activeOpacity={0.85} onPress={stopCardPress(onPressShare)}>
               <Text style={styles.actionText}>SHARE</Text>
             </TouchableOpacity>
           </View>
@@ -152,6 +171,8 @@ export default function SavedAddressesScreen() {
     currentLocationLoading,
     loadAddresses,
     createAddress,
+    updateAddress,
+    deleteAddress,
     setDefaultAddress,
     resolveCurrentLocation,
   } = useGrabBasket();
@@ -160,7 +181,9 @@ export default function SavedAddressesScreen() {
   const [notice, setNotice] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
+  const [deletingAddressId, setDeletingAddressId] = useState('');
   const [prefillingLocation, setPrefillingLocation] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState('');
   const [selectedLabel, setSelectedLabel] = useState('Home');
   const [customLabel, setCustomLabel] = useState('');
   const [line1, setLine1] = useState('');
@@ -179,6 +202,8 @@ export default function SavedAddressesScreen() {
     () => firstNonEmpty(profile?.phone, profile?.email),
     [profile?.email, profile?.phone]
   );
+
+  const isEditing = Boolean(editingAddressId);
 
   const filteredAddresses = useMemo(() => {
     const query = String(searchQuery || '').trim().toLowerCase();
@@ -199,6 +224,7 @@ export default function SavedAddressesScreen() {
   }, [addresses, searchQuery]);
 
   const resetForm = () => {
+    setEditingAddressId('');
     setSelectedLabel('Home');
     setCustomLabel('');
     setLine1('');
@@ -209,8 +235,31 @@ export default function SavedAddressesScreen() {
     setDraftCoords({ lat: null, lng: null });
   };
 
+  const hydrateFormFromAddress = (address) => {
+    const normalizedLabel = firstNonEmpty(address?.label, 'Home');
+    const isKnownLabel = ADDRESS_LABEL_OPTIONS.slice(0, 2).includes(normalizedLabel);
+
+    setEditingAddressId(String(address?.id || ''));
+    setSelectedLabel(isKnownLabel ? normalizedLabel : 'Other');
+    setCustomLabel(isKnownLabel ? '' : normalizedLabel);
+    setLine1(firstNonEmpty(address?.line1));
+    setLine2(firstNonEmpty(address?.line2));
+    setCity(firstNonEmpty(address?.city));
+    setPincode(firstNonEmpty(address?.pincode));
+    setSaveAsDefault(Boolean(address?.is_default));
+    setDraftCoords({
+      lat: Number.isFinite(Number(address?.lat)) ? Number(address.lat) : null,
+      lng: Number.isFinite(Number(address?.lng)) ? Number(address.lng) : null,
+    });
+  };
+
   const openAddAddressModal = () => {
     resetForm();
+    setModalVisible(true);
+  };
+
+  const openEditAddressModal = (address) => {
+    hydrateFormFromAddress(address);
     setModalVisible(true);
   };
 
@@ -273,7 +322,7 @@ export default function SavedAddressesScreen() {
         lng = Number(match.longitude);
       }
 
-      const created = await createAddress({
+      const payload = {
         label: resolvedLabel,
         line1,
         line2,
@@ -282,16 +331,20 @@ export default function SavedAddressesScreen() {
         lat,
         lng,
         is_default: saveAsDefault,
-      });
+      };
 
-      if (!created) return;
+      const result = isEditing
+        ? await updateAddress(editingAddressId, payload)
+        : await createAddress(payload);
 
-      setNotice(`${resolvedLabel} address added successfully.`);
+      if (!result) return;
+
+      await loadAddresses({ silent: true }).catch(() => {});
+      setNotice(`${resolvedLabel} address ${isEditing ? 'updated' : 'added'} successfully.`);
       setModalVisible(false);
       resetForm();
-      loadAddresses({ silent: true }).catch(() => {});
     } catch {
-      setNotice('Could not save the address right now.');
+      setNotice(`Could not ${isEditing ? 'update' : 'save'} the address right now.`);
     } finally {
       setSavingAddress(false);
     }
@@ -307,6 +360,37 @@ export default function SavedAddressesScreen() {
     }
   };
 
+  const handleDelete = (address) => {
+    if (!address?.id) return;
+
+    Alert.alert(
+      'Delete address?',
+      `Remove ${address?.label || 'this address'} from your saved addresses?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeletingAddressId(String(address.id));
+              const ok = await deleteAddress(address.id);
+              if (!ok) return;
+
+              await loadAddresses({ silent: true }).catch(() => {});
+              setNotice(`${address.label || 'Address'} deleted successfully.`);
+            } finally {
+              setDeletingAddressId('');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleShare = async (address) => {
     try {
       await Share.share({
@@ -315,10 +399,6 @@ export default function SavedAddressesScreen() {
     } catch {
       setNotice('Could not open the share sheet.');
     }
-  };
-
-  const handleUnavailableAction = (actionLabel) => {
-    setNotice(`${actionLabel} can be connected once the address update/delete API is added.`);
   };
 
   if (!isAuthenticated) {
@@ -378,9 +458,10 @@ export default function SavedAddressesScreen() {
                   address={address}
                   phoneNumber={phoneNumber}
                   isSelected={String(defaultAddress?.id) === String(address?.id)}
+                  deleteBusy={String(deletingAddressId) === String(address?.id)}
                   onPress={() => handleAddressPress(address)}
-                  onPressEdit={() => handleUnavailableAction('Edit')}
-                  onPressDelete={() => handleUnavailableAction('Delete')}
+                  onPressEdit={() => openEditAddressModal(address)}
+                  onPressDelete={() => handleDelete(address)}
                   onPressShare={() => handleShare(address)}
                 />
                 {index < filteredAddresses.length - 1 ? <View style={styles.itemDivider} /> : null}
@@ -412,7 +493,7 @@ export default function SavedAddressesScreen() {
               <View style={styles.modalHandle} />
 
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add new address</Text>
+                <Text style={styles.modalTitle}>{isEditing ? 'Edit address' : 'Add new address'}</Text>
                 <TouchableOpacity activeOpacity={0.85} onPress={closeAddAddressModal}>
                   <Ionicons name="close" size={24} color={BrandPalette.text} />
                 </TouchableOpacity>
@@ -515,7 +596,11 @@ export default function SavedAddressesScreen() {
                   style={[styles.saveButton, savingAddress && styles.saveButtonDisabled]}
                   disabled={savingAddress}
                   onPress={handleSaveAddress}>
-                  {savingAddress ? <ActivityIndicator size="small" color={BrandPalette.white} /> : <Text style={styles.saveButtonText}>SAVE ADDRESS</Text>}
+                  {savingAddress ? (
+                    <ActivityIndicator size="small" color={BrandPalette.white} />
+                  ) : (
+                    <Text style={styles.saveButtonText}>{isEditing ? 'UPDATE ADDRESS' : 'SAVE ADDRESS'}</Text>
+                  )}
                 </TouchableOpacity>
               </ScrollView>
             </View>
@@ -647,6 +732,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     letterSpacing: 0.3,
+  },
+  actionTextDisabled: {
+    opacity: 0.55,
   },
   itemDivider: {
     height: 1,
