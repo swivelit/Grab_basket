@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 
 import { GrabBasketProvider } from '../../App';
 import { getAppVariant } from '../constants/app-shell';
+import PushNotificationBootstrap from '../components/push-notification-bootstrap';
 
 const APP_VARIANT = getAppVariant();
 
@@ -47,13 +48,14 @@ function RootLayout() {
   return (
     <StartupErrorBoundary>
       <GrabBasketProvider>
+        <PushNotificationBootstrap />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
 
           {APP_VARIANT === 'delivery' ? (
-            <Stack.Screen name="(delivery)" options={{ headerShown: false }} />
+            <Stack.Screen name="delivery" options={{ headerShown: false }} />
           ) : APP_VARIANT === 'partner' ? (
-            <Stack.Screen name="(partner)" options={{ headerShown: false }} />
+            <Stack.Screen name="partner" options={{ headerShown: false }} />
           ) : (
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           )}

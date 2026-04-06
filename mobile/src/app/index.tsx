@@ -4,7 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 
 import { getInitialShellHref } from '../constants/app-shell';
 
-type ShellHref = '/(tabs)' | '/(delivery)/(tabs)' | '/(partner)/(tabs)';
+type ShellHref = '/(tabs)' | '/delivery/(tabs)' | '/partner/(tabs)';
 
 export default function IndexScreen() {
   useEffect(() => {

@@ -1,72 +1,95 @@
 import React from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+
 import { AppShellThemes, createShadow } from '@/constants/theme';
 
-function TabItem({ focused, color, icon, label, focusedSurface, focusedBorder, iconSurface }) {
+function TabBarIcon({ focused, color, icon, iconSize, iconWrapSize }) {
   return (
     <View
       style={[
-        styles.tabItem,
-        focused && {
-          backgroundColor: focusedSurface,
-          borderColor: focusedBorder,
+        styles.iconWrap,
+        {
+          width: iconWrapSize,
+          height: iconWrapSize,
+          borderRadius: iconWrapSize / 2,
         },
+        focused && styles.iconWrapActive,
       ]}>
-      <View
-        style={[
-          styles.iconBubble,
-          {
-            backgroundColor: focused ? iconSurface : 'transparent',
-          },
-        ]}>
-        <Ionicons name={icon} size={19} color={color} />
-      </View>
-      <Text numberOfLines={1} style={[styles.tabLabel, { color }, focused && styles.tabLabelFocused]}>
-        {label}
-      </Text>
+      <Ionicons name={icon} size={iconSize} color={color} />
     </View>
   );
 }
 
+function TabBarLabel({ label, color, fontSize }) {
+  return (
+    <Text
+      allowFontScaling={false}
+      maxFontSizeMultiplier={1}
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={0.75}
+      style={[
+        styles.tabLabel,
+        {
+          color,
+          fontSize,
+          lineHeight: fontSize + 2,
+        },
+      ]}>
+      {label}
+    </Text>
+  );
+}
+
 export default function AppShellTabs({ shell = 'delivery', screens = [] }) {
+  const { width } = useWindowDimensions();
   const theme = AppShellThemes[shell] || AppShellThemes.delivery;
+
+  const compactPhone = width <= 360;
+  const veryCompactPhone = width <= 340;
+
+  const iconSize = veryCompactPhone ? 18 : 20;
+  const iconWrapSize = veryCompactPhone ? 34 : compactPhone ? 36 : 38;
+  const labelFontSize = veryCompactPhone ? 9 : compactPhone ? 10 : 11;
+  const tabBarHeight = Platform.OS === 'ios' ? (compactPhone ? 86 : 90) : compactPhone ? 72 : 76;
+  const bottomPadding = Platform.OS === 'ios' ? 18 : compactPhone ? 8 : 10;
+  const topPadding = compactPhone ? 6 : 8;
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         lazy: true,
+        sceneStyle: { backgroundColor: theme.page },
         tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: theme.activeTint,
         tabBarInactiveTintColor: theme.inactiveTint,
-        sceneStyle: {
-          backgroundColor: theme.page,
-        },
+        tabBarShowLabel: true,
         tabBarStyle: {
-          height: 94,
-          paddingTop: 10,
-          paddingBottom: 14,
-          paddingHorizontal: 16,
-          borderTopLeftRadius: 28,
-          borderTopRightRadius: 28,
+          height: tabBarHeight,
+          paddingTop: topPadding,
+          paddingBottom: bottomPadding,
           backgroundColor: theme.barBackground,
-          borderTopWidth: 1,
           borderTopColor: theme.barBorder,
+          borderTopWidth: 1,
           ...Platform.select({
-            ios: {
-              shadowColor: theme.shadowColor,
-              ...createShadow(0.1, 18, -6),
-            },
-            android: {
-              elevation: 16,
-            },
+            ios: createShadow(0.08, 12, -6),
+            android: { elevation: 14 },
             default: {},
           }),
         },
         tabBarItemStyle: {
+          justifyContent: 'center',
+          alignItems: 'center',
           paddingHorizontal: 2,
+        },
+        tabBarIconStyle: {
+          marginBottom: 3,
+        },
+        tabBarLabelStyle: {
+          marginTop: 0,
         },
       }}>
       {screens.map((screen) => (
@@ -74,18 +97,18 @@ export default function AppShellTabs({ shell = 'delivery', screens = [] }) {
           key={screen.name}
           name={screen.name}
           options={{
-            title: screen.label,
             headerShown: false,
-            tabBarLabel: () => null,
+            title: screen.label,
+            tabBarLabel: ({ color }) => (
+              <TabBarLabel label={screen.label} color={color} fontSize={labelFontSize} />
+            ),
             tabBarIcon: ({ focused, color }) => (
-              <TabItem
+              <TabBarIcon
                 focused={focused}
                 color={color}
                 icon={screen.icon}
-                label={screen.label}
-                focusedSurface={theme.focusedSurface}
-                focusedBorder={theme.focusedBorder}
-                iconSurface={theme.iconSurface}
+                iconSize={iconSize}
+                iconWrapSize={iconWrapSize}
               />
             ),
           }}
@@ -96,30 +119,20 @@ export default function AppShellTabs({ shell = 'delivery', screens = [] }) {
 }
 
 const styles = StyleSheet.create({
-  tabItem: {
-    minWidth: 78,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+  iconWrap: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    backgroundColor: 'transparent',
+    position: 'relative',
   },
-  iconBubble: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+  iconWrapActive: {
+    backgroundColor: 'rgba(217, 44, 58, 0.10)',
   },
   tabLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  tabLabelFocused: {
-    fontWeight: '900',
+    width: '100%',
+    textAlign: 'center',
+    fontWeight: '700',
+    includeFontPadding: false,
+    paddingHorizontal: 2,
   },
 });

@@ -23,7 +23,6 @@ import InlineNoticeCard from './inline-notice-card';
 import { getErrorMessage, requestJson } from '../lib/api-client';
 
 const COLORS = {
-  ...BrandPalette,
   page: BrandPalette.page,
   surface: BrandPalette.surface,
   surfaceAlt: BrandPalette.surfaceAlt,
@@ -31,14 +30,14 @@ const COLORS = {
   border: BrandPalette.border,
   text: BrandPalette.text,
   muted: BrandPalette.textMuted,
-  subtle: BrandPalette.subtle,
+  subtle: BrandPalette.textSubtle,
   brand: BrandPalette.primary,
   brandSoft: BrandPalette.primarySoft,
   success: BrandPalette.success,
   successSoft: BrandPalette.successSoft,
   warning: BrandPalette.warning,
   warningSoft: BrandPalette.warningSoft,
-  info: '#8E4430',
+  info: BrandPalette.info,
   infoSoft: BrandPalette.infoSoft,
   danger: BrandPalette.danger,
   dangerSoft: BrandPalette.dangerSoft,

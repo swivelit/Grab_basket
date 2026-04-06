@@ -30,8 +30,8 @@ REQUEST_TIMEOUT_SECONDS = 10
 DEFAULT_CHANNEL_ID = "orders-updates"
 APP_ROUTE_BY_TARGET = {
     "consumer": "/(tabs)/account",
-    "delivery": "/(delivery)/(tabs)/orders",
-    "partner": "/(partner)/(tabs)/orders",
+    "delivery": "/delivery/(tabs)/orders",
+    "partner": "/partner/(tabs)/orders",
 }
 
 

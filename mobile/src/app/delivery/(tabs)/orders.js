@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  DeviceEventEmitter,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -13,7 +14,9 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BrandPalette, createShadow } from '@/constants/theme';
 
 import { useGrabBasket } from '../../../../App';
 import InlineErrorCard from '../../../components/inline-error-card';
@@ -25,25 +28,25 @@ import { FEATURE_FLAGS } from '../../../constants/feature-flags';
 import { ANALYTICS_EVENTS, ANALYTICS_TAXONOMY_VERSION } from '../../../constants/analytics-taxonomy';
 
 const COLORS = {
-  page: '#FFF9F3',
-  surface: '#FFFFFF',
-  surfaceAlt: '#FFF6EC',
-  line: '#F3E0CD',
-  border: '#F0D9C3',
-  text: '#2F241C',
-  muted: '#7A6758',
-  subtle: '#A18B79',
-  brand: '#D97651',
-  brandSoft: '#FFF0E7',
-  success: '#1F8F5F',
-  successSoft: '#EAF8F0',
-  warning: '#C57B12',
-  warningSoft: '#FFF6DE',
-  info: '#2C69C9',
-  infoSoft: '#EBF2FF',
-  danger: '#D45454',
-  dangerSoft: '#FDECEC',
-  black: '#241A14',
+  page: BrandPalette.page,
+  surface: BrandPalette.surface,
+  surfaceAlt: BrandPalette.surfaceAlt,
+  line: BrandPalette.line,
+  border: BrandPalette.border,
+  text: BrandPalette.text,
+  muted: BrandPalette.textMuted,
+  subtle: BrandPalette.textSubtle,
+  brand: BrandPalette.primary,
+  brandSoft: BrandPalette.primarySoft,
+  success: BrandPalette.success,
+  successSoft: BrandPalette.successSoft,
+  warning: BrandPalette.warning,
+  warningSoft: BrandPalette.warningSoft,
+  info: BrandPalette.info,
+  infoSoft: BrandPalette.infoSoft,
+  danger: BrandPalette.danger,
+  dangerSoft: BrandPalette.dangerSoft,
+  black: BrandPalette.ink,
 };
 
 const ACTIVE_STATUSES = ['ASSIGNED_TO_PARTNER', 'READY_FOR_PICKUP', 'PICKED_UP'];
@@ -646,6 +649,8 @@ function QuerySummaryCard({ totalMatches, search, filterLabel, sortLabel, onRese
 export default function DeliveryOrdersScreen() {
   const { authToken, sessionReady, isAuthenticated, logout, appVariantName } = useGrabBasket();
   const tabBarHeight = useBottomTabBarHeight();
+  const params = useLocalSearchParams();
+  const highlightOrderId = String(params?.highlightOrderId || params?.orderId || '').trim();
 
   const [orders, setOrders] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -699,6 +704,40 @@ export default function DeliveryOrdersScreen() {
     if (!sessionReady || !isAuthenticated || !authToken) return;
     loadData({ silent: false }).catch(() => {});
   }, [authToken, isAuthenticated, loadData, sessionReady]);
+
+  useEffect(() => {
+    if (!highlightOrderId) return;
+    setSearch(highlightOrderId);
+    setFilterKey('all');
+    setSortBy('latest');
+    setFiltersOpen(true);
+  }, [highlightOrderId]);
+
+  useEffect(() => {
+    const syncSub = DeviceEventEmitter.addListener('grab_basket:orders_sync_requested', (payload) => {
+      const targetVariant = String(payload?.app_variant || '').trim().toLowerCase();
+      if (targetVariant && targetVariant !== 'delivery') return;
+      loadData({ silent: true }).catch(() => {});
+    });
+
+    const openSub = DeviceEventEmitter.addListener('grab_basket:push_order_open_requested', (payload) => {
+      const targetVariant = String(payload?.app_variant || '').trim().toLowerCase();
+      const nextOrderId = String(payload?.order_id || '').trim();
+      if (targetVariant && targetVariant !== 'delivery') return;
+      if (!nextOrderId) return;
+      setSearch(nextOrderId);
+      setFilterKey('all');
+      setSortBy('latest');
+      setFiltersOpen(true);
+      showNotice('Live update', `Showing order #${nextOrderId} from the latest notification.`, 'success');
+      loadData({ silent: true }).catch(() => {});
+    });
+
+    return () => {
+      syncSub.remove();
+      openSub.remove();
+    };
+  }, [loadData, showNotice]);
 
   const refresh = useCallback(() => loadData({ silent: false }), [loadData]);
 

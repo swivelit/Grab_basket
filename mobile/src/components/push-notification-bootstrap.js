@@ -22,14 +22,14 @@ const KNOWN_APP_ROUTES = new Set([
   '/(tabs)/explore',
   '/(tabs)/reorder',
   '/(tabs)/account',
-  '/(delivery)/(tabs)/index',
-  '/(delivery)/(tabs)/orders',
-  '/(delivery)/(tabs)/earnings',
-  '/(delivery)/(tabs)/account',
-  '/(partner)/(tabs)/index',
-  '/(partner)/(tabs)/orders',
-  '/(partner)/(tabs)/catalog',
-  '/(partner)/(tabs)/account',
+  '/delivery/(tabs)/index',
+  '/delivery/(tabs)/orders',
+  '/delivery/(tabs)/earnings',
+  '/delivery/(tabs)/account',
+  '/partner/(tabs)/index',
+  '/partner/(tabs)/orders',
+  '/partner/(tabs)/catalog',
+  '/partner/(tabs)/account',
   '/cart',
   '/explore',
 ]);
@@ -77,8 +77,8 @@ function getExpoProjectId() {
 }
 
 function getOrdersRoute(variant = APP_VARIANT) {
-  if (variant === 'delivery') return '/(delivery)/(tabs)/orders';
-  if (variant === 'partner') return '/(partner)/(tabs)/orders';
+  if (variant === 'delivery') return '/delivery/(tabs)/orders';
+  if (variant === 'partner') return '/partner/(tabs)/orders';
   return '/(tabs)/account';
 }
 

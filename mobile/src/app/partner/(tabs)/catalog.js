@@ -15,30 +15,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { BrandPalette, createShadow } from '@/constants/theme';
 
 import { useGrabBasket } from '../../../../App';
 import { getErrorMessage, requestJson } from '../../../lib/api-client';
 
 const COLORS = {
-  page: '#FFF9F3',
-  surface: '#FFFFFF',
-  surfaceAlt: '#FFF6EC',
-  line: '#F3E0CD',
-  border: '#F0D9C3',
-  text: '#2F241C',
-  muted: '#7A6758',
-  subtle: '#A18B79',
-  brand: '#D97651',
-  brandSoft: '#FFF0E7',
-  success: '#1F8F5F',
-  successSoft: '#EAF8F0',
-  warning: '#C57B12',
-  warningSoft: '#FFF6DE',
-  info: '#2C69C9',
-  infoSoft: '#EBF2FF',
-  danger: '#D45454',
-  dangerSoft: '#FDECEC',
-  black: '#241A14',
+  page: BrandPalette.page,
+  surface: BrandPalette.surface,
+  surfaceAlt: BrandPalette.surfaceAlt,
+  line: BrandPalette.line,
+  border: BrandPalette.border,
+  text: BrandPalette.text,
+  muted: BrandPalette.textMuted,
+  subtle: BrandPalette.textSubtle,
+  brand: BrandPalette.primary,
+  brandSoft: BrandPalette.primarySoft,
+  success: BrandPalette.success,
+  successSoft: BrandPalette.successSoft,
+  warning: BrandPalette.warning,
+  warningSoft: BrandPalette.warningSoft,
+  info: BrandPalette.info,
+  infoSoft: BrandPalette.infoSoft,
+  danger: BrandPalette.danger,
+  dangerSoft: BrandPalette.dangerSoft,
+  black: BrandPalette.ink,
 };
 
 const CACHE_KEY = '@grab_basket/partner_catalog_query_cache_v1';
