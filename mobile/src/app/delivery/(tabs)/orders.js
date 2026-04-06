@@ -47,6 +47,7 @@ const COLORS = {
   danger: BrandPalette.danger,
   dangerSoft: BrandPalette.dangerSoft,
   black: BrandPalette.ink,
+  white: BrandPalette.white,
 };
 
 const ACTIVE_STATUSES = ['ASSIGNED_TO_PARTNER', 'READY_FOR_PICKUP', 'PICKED_UP'];
@@ -431,12 +432,12 @@ function MetaLine({ icon, label }) {
 function PrimaryButton({ label, icon, onPress, disabled = false, tone = 'brand' }) {
   const palette =
     tone === 'success'
-      ? { bg: COLORS.success, text: '#FFFFFF', border: COLORS.success }
+      ? { bg: COLORS.success, text: COLORS.white, border: COLORS.success }
       : tone === 'danger'
-        ? { bg: '#FFFFFF', text: COLORS.danger, border: '#F3C6C6' }
+        ? { bg: COLORS.white, text: COLORS.danger, border: COLORS.dangerSoft }
         : tone === 'muted'
-          ? { bg: '#FFFFFF', text: COLORS.text, border: COLORS.border }
-          : { bg: COLORS.brand, text: '#FFFFFF', border: COLORS.brand };
+          ? { bg: COLORS.white, text: COLORS.text, border: COLORS.border }
+          : { bg: COLORS.brand, text: COLORS.white, border: COLORS.brand };
 
   return (
     <TouchableOpacity
@@ -445,10 +446,10 @@ function PrimaryButton({ label, icon, onPress, disabled = false, tone = 'brand' 
       onPress={onPress}
       style={[
         styles.primaryButton,
-        { backgroundColor: disabled ? '#E8DED5' : palette.bg, borderColor: disabled ? '#E8DED5' : palette.border },
+        { backgroundColor: disabled ? COLORS.border : palette.bg, borderColor: disabled ? COLORS.border : palette.border },
       ]}>
-      {icon ? <Ionicons name={icon} size={16} color={disabled ? '#907E70' : palette.text} /> : null}
-      <Text style={[styles.primaryButtonText, { color: disabled ? '#907E70' : palette.text }]}>{label}</Text>
+      {icon ? <Ionicons name={icon} size={16} color={disabled ? COLORS.subtle : palette.text} /> : null}
+      <Text style={[styles.primaryButtonText, { color: disabled ? COLORS.subtle : palette.text }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -560,7 +561,7 @@ function QuerySearchBar({ value, onChangeText, onClear, onToggleFilters, filters
         activeOpacity={0.9}
         onPress={onToggleFilters}
         style={[styles.queryFilterButton, filtersOpen && styles.queryFilterButtonActive]}>
-        <Ionicons name="options-outline" size={18} color={filtersOpen ? '#FFFFFF' : COLORS.brand} />
+        <Ionicons name="options-outline" size={18} color={filtersOpen ? COLORS.white : COLORS.brand} />
         {filterCount > 0 ? (
           <View style={styles.queryFilterBadge}>
             <Text style={styles.queryFilterBadgeText}>{filterCount}</Text>
@@ -594,7 +595,7 @@ function QueryMetaBanner({ isFetching, isFromCache, updatedAt }) {
 function QueryChip({ label, icon, active, onPress }) {
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={[styles.queryChip, active && styles.queryChipActive]}>
-      <Ionicons name={icon} size={15} color={active ? '#FFFFFF' : COLORS.muted} />
+      <Ionicons name={icon} size={15} color={active ? COLORS.white : COLORS.muted} />
       <Text style={[styles.queryChipText, active && styles.queryChipTextActive]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -1084,7 +1085,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
-  queryFilterBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  queryFilterBadgeText: { color: COLORS.white, fontSize: 10, fontWeight: '800' },
   queryMetaBanner: {
     marginTop: 12,
     minHeight: 42,
@@ -1106,7 +1107,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.line,
-    backgroundColor: '#FFFDFC',
+    backgroundColor: COLORS.surface,
     padding: 12,
   },
   queryPanelTitle: { fontSize: 12, fontWeight: '800', color: COLORS.text, marginBottom: 10 },
@@ -1124,7 +1125,7 @@ const styles = StyleSheet.create({
   },
   queryChipActive: { backgroundColor: COLORS.brand, borderColor: COLORS.brand },
   queryChipText: { fontSize: 12, fontWeight: '800', color: COLORS.text },
-  queryChipTextActive: { color: '#FFFFFF' },
+  queryChipTextActive: { color: COLORS.white },
   querySortChip: {
     minHeight: 34,
     paddingHorizontal: 12,
@@ -1136,7 +1137,7 @@ const styles = StyleSheet.create({
   },
   querySortChipActive: { backgroundColor: COLORS.info, borderColor: COLORS.info },
   querySortChipText: { fontSize: 12, fontWeight: '800', color: COLORS.text },
-  querySortChipTextActive: { color: '#FFFFFF' },
+  querySortChipTextActive: { color: COLORS.white },
   querySummaryCard: {
     marginTop: 12,
     borderRadius: 16,

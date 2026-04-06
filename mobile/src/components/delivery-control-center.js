@@ -54,6 +54,7 @@ const COLORS = {
   danger: BrandPalette.danger,
   dangerSoft: BrandPalette.dangerSoft,
   black: BrandPalette.ink,
+  white: BrandPalette.white,
 };
 
 function normalizeText(value = '') {
@@ -254,10 +255,10 @@ function SectionCard({ title, subtitle, right, children }) {
 function PrimaryButton({ label, icon, tone = 'brand', disabled = false, onPress }) {
   const palette =
     tone === 'success'
-      ? { background: COLORS.success, text: '#FFFFFF', border: COLORS.success }
+      ? { background: COLORS.success, text: COLORS.white, border: COLORS.success }
       : tone === 'muted'
-        ? { background: '#FFFFFF', text: COLORS.text, border: COLORS.border }
-        : { background: COLORS.brand, text: '#FFFFFF', border: COLORS.brand };
+        ? { background: COLORS.white, text: COLORS.text, border: COLORS.border }
+        : { background: COLORS.brand, text: COLORS.white, border: COLORS.brand };
 
   return (
     <TouchableOpacity
@@ -266,13 +267,13 @@ function PrimaryButton({ label, icon, tone = 'brand', disabled = false, onPress 
       style={[
         styles.primaryButton,
         {
-          backgroundColor: disabled ? '#E8DED5' : palette.background,
-          borderColor: disabled ? '#E8DED5' : palette.border,
+          backgroundColor: disabled ? COLORS.border : palette.background,
+          borderColor: disabled ? COLORS.border : palette.border,
         },
       ]}
       onPress={onPress}>
-      {icon ? <Ionicons name={icon} size={16} color={disabled ? '#907E70' : palette.text} /> : null}
-      <Text style={[styles.primaryButtonText, { color: disabled ? '#907E70' : palette.text }]}>
+      {icon ? <Ionicons name={icon} size={16} color={disabled ? COLORS.subtle : palette.text} /> : null}
+      <Text style={[styles.primaryButtonText, { color: disabled ? COLORS.subtle : palette.text }]}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -1006,8 +1007,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   chipActive: {
-    backgroundColor: '#FFF0EA',
-    borderColor: '#F2C7BB',
+    backgroundColor: COLORS.brandSoft,
+    borderColor: COLORS.border,
   },
   chipText: {
     color: COLORS.muted,
@@ -1038,8 +1039,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   orderRowActive: {
-    backgroundColor: '#FFF1EA',
-    borderColor: '#F0C4B4',
+    backgroundColor: COLORS.brandSoft,
+    borderColor: COLORS.border,
   },
   orderRowTop: {
     flexDirection: 'row',

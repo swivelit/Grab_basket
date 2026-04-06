@@ -40,6 +40,7 @@ const COLORS = {
   danger: BrandPalette.danger,
   dangerSoft: BrandPalette.dangerSoft,
   black: BrandPalette.ink,
+  white: BrandPalette.white,
 };
 
 const CACHE_KEY = '@grab_basket/partner_catalog_query_cache_v1';
@@ -436,10 +437,10 @@ function SectionCard({ title, subtitle, children }) {
 function PrimaryButton({ label, icon, onPress, disabled = false, tone = 'brand' }) {
   const palette =
     tone === 'danger'
-      ? { bg: '#FFFFFF', text: COLORS.danger, border: '#F3C6C6' }
+      ? { bg: COLORS.white, text: COLORS.danger, border: COLORS.dangerSoft }
       : tone === 'muted'
-        ? { bg: '#FFFFFF', text: COLORS.text, border: COLORS.border }
-        : { bg: COLORS.brand, text: '#FFFFFF', border: COLORS.brand };
+        ? { bg: COLORS.white, text: COLORS.text, border: COLORS.border }
+        : { bg: COLORS.brand, text: COLORS.white, border: COLORS.brand };
 
   return (
     <TouchableOpacity
@@ -448,10 +449,10 @@ function PrimaryButton({ label, icon, onPress, disabled = false, tone = 'brand' 
       onPress={onPress}
       style={[
         styles.primaryButton,
-        { backgroundColor: disabled ? '#E8DED5' : palette.bg, borderColor: disabled ? '#E8DED5' : palette.border },
+        { backgroundColor: disabled ? COLORS.border : palette.bg, borderColor: disabled ? COLORS.border : palette.border },
       ]}>
-      {icon ? <Ionicons name={icon} size={16} color={disabled ? '#907E70' : palette.text} /> : null}
-      <Text style={[styles.primaryButtonText, { color: disabled ? '#907E70' : palette.text }]}>{label}</Text>
+      {icon ? <Ionicons name={icon} size={16} color={disabled ? COLORS.subtle : palette.text} /> : null}
+      <Text style={[styles.primaryButtonText, { color: disabled ? COLORS.subtle : palette.text }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -517,7 +518,7 @@ function QuerySearchBar({ value, onChangeText, onClear, onToggleFilters, filters
         activeOpacity={0.9}
         onPress={onToggleFilters}
         style={[styles.queryFilterButton, filtersOpen && styles.queryFilterButtonActive]}>
-        <Ionicons name="options-outline" size={18} color={filtersOpen ? '#FFFFFF' : COLORS.brand} />
+        <Ionicons name="options-outline" size={18} color={filtersOpen ? COLORS.white : COLORS.brand} />
         {filterCount > 0 ? (
           <View style={styles.queryFilterBadge}>
             <Text style={styles.queryFilterBadgeText}>{filterCount}</Text>
@@ -551,7 +552,7 @@ function QueryMetaBanner({ isFetching, isFromCache, updatedAt }) {
 function QueryChip({ label, icon, active, onPress }) {
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={[styles.queryChip, active && styles.queryChipActive]}>
-      <Ionicons name={icon} size={15} color={active ? '#FFFFFF' : COLORS.muted} />
+      <Ionicons name={icon} size={15} color={active ? COLORS.white : COLORS.muted} />
       <Text style={[styles.queryChipText, active && styles.queryChipTextActive]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -910,8 +911,8 @@ export default function PartnerCatalogScreen() {
             <Switch
               value={Boolean(productForm.is_available)}
               onValueChange={(value) => setProductForm((current) => ({ ...current, is_available: value }))}
-              trackColor={{ false: '#DCCFC2', true: '#F0B99F' }}
-              thumbColor={productForm.is_available ? COLORS.brand : '#FFFFFF'}
+              trackColor={{ false: COLORS.border, true: COLORS.brandSoft }}
+              thumbColor={productForm.is_available ? COLORS.brand : COLORS.white}
             />
           </View>
 
@@ -1071,22 +1072,22 @@ const styles = StyleSheet.create({
   queryFilterButton: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.brandSoft, position: 'relative' },
   queryFilterButtonActive: { backgroundColor: COLORS.brand },
   queryFilterBadge: { position: 'absolute', top: -4, right: -4, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: COLORS.black, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  queryFilterBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  queryFilterBadgeText: { color: COLORS.white, fontSize: 10, fontWeight: '800' },
   queryMetaBanner: { marginTop: 12, minHeight: 42, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.surfaceAlt, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   queryMetaLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   queryMetaText: { flex: 1, fontSize: 12, fontWeight: '800', color: COLORS.text },
   queryMetaTime: { fontSize: 11, fontWeight: '700', color: COLORS.muted },
-  queryControlsPanel: { marginTop: 12, borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, backgroundColor: '#FFFDFC', padding: 12 },
+  queryControlsPanel: { marginTop: 12, borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.surface, padding: 12 },
   queryPanelTitle: { fontSize: 12, fontWeight: '800', color: COLORS.text, marginBottom: 10 },
   queryChipRow: { gap: 10, paddingBottom: 8 },
   queryChip: { minHeight: 36, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, flexDirection: 'row', alignItems: 'center', gap: 7 },
   queryChipActive: { backgroundColor: COLORS.brand, borderColor: COLORS.brand },
   queryChipText: { fontSize: 12, fontWeight: '800', color: COLORS.text },
-  queryChipTextActive: { color: '#FFFFFF' },
+  queryChipTextActive: { color: COLORS.white },
   querySortChip: { minHeight: 34, paddingHorizontal: 12, borderRadius: 17, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, justifyContent: 'center' },
   querySortChipActive: { backgroundColor: COLORS.info, borderColor: COLORS.info },
   querySortChipText: { fontSize: 12, fontWeight: '800', color: COLORS.text },
-  querySortChipTextActive: { color: '#FFFFFF' },
+  querySortChipTextActive: { color: COLORS.white },
   querySummaryCard: { marginTop: 12, borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.surfaceAlt, padding: 12, gap: 10 },
   querySummaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   querySummaryTitle: { flex: 1, fontSize: 15, fontWeight: '800', color: COLORS.text },

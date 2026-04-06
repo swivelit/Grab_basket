@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { AppShellThemes, createShadow } from '@/constants/theme';
 
-function TabBarIcon({ focused, color, icon, iconSize, iconWrapSize }) {
+function TabBarIcon({ focused, color, icon, iconSize, iconWrapSize, theme }) {
   return (
     <View
       style={[
@@ -15,7 +15,7 @@ function TabBarIcon({ focused, color, icon, iconSize, iconWrapSize }) {
           height: iconWrapSize,
           borderRadius: iconWrapSize / 2,
         },
-        focused && styles.iconWrapActive,
+        { backgroundColor: focused ? theme.focusedSurface : theme.iconSurface, borderColor: focused ? theme.focusedBorder : 'transparent' },
       ]}>
       <Ionicons name={icon} size={iconSize} color={color} />
     </View>
@@ -109,6 +109,7 @@ export default function AppShellTabs({ shell = 'delivery', screens = [] }) {
                 icon={screen.icon}
                 iconSize={iconSize}
                 iconWrapSize={iconWrapSize}
+                theme={theme}
               />
             ),
           }}
@@ -122,11 +123,8 @@ const styles = StyleSheet.create({
   iconWrap: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'transparent',
     position: 'relative',
-  },
-  iconWrapActive: {
-    backgroundColor: 'rgba(217, 44, 58, 0.10)',
+    borderWidth: 1,
   },
   tabLabel: {
     width: '100%',

@@ -42,6 +42,7 @@ const COLORS = {
   danger: BrandPalette.danger,
   dangerSoft: BrandPalette.dangerSoft,
   black: BrandPalette.ink,
+  white: BrandPalette.white,
 };
 
 const DELIVERY_ACTIVE_STATUSES = ['ASSIGNED_TO_PARTNER', 'READY_FOR_PICKUP', 'PICKED_UP'];
@@ -185,12 +186,12 @@ function Pill({ text, tone = getStatusTone('') }) {
 function PrimaryButton({ label, icon, onPress, disabled = false, tone = 'brand' }) {
   const palette =
     tone === 'success'
-      ? { bg: COLORS.success, text: '#FFFFFF', border: COLORS.success }
+      ? { bg: COLORS.success, text: COLORS.white, border: COLORS.success }
       : tone === 'danger'
-        ? { bg: '#FFFFFF', text: COLORS.danger, border: '#F3C6C6' }
+        ? { bg: COLORS.white, text: COLORS.danger, border: COLORS.dangerSoft }
         : tone === 'muted'
-          ? { bg: '#FFFFFF', text: COLORS.text, border: COLORS.border }
-          : { bg: COLORS.brand, text: '#FFFFFF', border: COLORS.brand };
+          ? { bg: COLORS.white, text: COLORS.text, border: COLORS.border }
+          : { bg: COLORS.brand, text: COLORS.white, border: COLORS.brand };
 
   return (
     <TouchableOpacity
@@ -199,13 +200,13 @@ function PrimaryButton({ label, icon, onPress, disabled = false, tone = 'brand' 
       style={[
         styles.primaryButton,
         {
-          backgroundColor: disabled ? '#E8DED5' : palette.bg,
-          borderColor: disabled ? '#E8DED5' : palette.border,
+          backgroundColor: disabled ? COLORS.border : palette.bg,
+          borderColor: disabled ? COLORS.border : palette.border,
         },
       ]}
       onPress={onPress}>
-      {icon ? <Ionicons name={icon} size={16} color={disabled ? '#907E70' : palette.text} /> : null}
-      <Text style={[styles.primaryButtonText, { color: disabled ? '#907E70' : palette.text }]}>
+      {icon ? <Ionicons name={icon} size={16} color={disabled ? COLORS.subtle : palette.text} /> : null}
+      <Text style={[styles.primaryButtonText, { color: disabled ? COLORS.subtle : palette.text }]}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -388,8 +389,8 @@ function DeliveryIndexScreen({
             <Switch
               value={isAvailable}
               onValueChange={setAvailability}
-              trackColor={{ false: '#DCCFC2', true: '#F0B99F' }}
-              thumbColor={isAvailable ? COLORS.brand : '#FFFFFF'}
+              trackColor={{ false: COLORS.border, true: COLORS.brandSoft }}
+              thumbColor={isAvailable ? COLORS.brand : COLORS.white}
             />
           </View>
         }>
@@ -687,8 +688,8 @@ function DeliveryAccountScreen({ state, setAvailability, refresh, logout, loadin
           <Switch
             value={isAvailable}
             onValueChange={setAvailability}
-            trackColor={{ false: '#DCCFC2', true: '#F0B99F' }}
-            thumbColor={isAvailable ? COLORS.brand : '#FFFFFF'}
+            trackColor={{ false: COLORS.border, true: COLORS.brandSoft }}
+            thumbColor={isAvailable ? COLORS.brand : COLORS.white}
           />
         </View>
 
@@ -750,8 +751,8 @@ function PartnerIndexScreen({ state, refresh, toggleStoreOpen }) {
               <Switch
                 value={Boolean(state.vendor?.is_open)}
                 onValueChange={toggleStoreOpen}
-                trackColor={{ false: '#DCCFC2', true: '#F0B99F' }}
-                thumbColor={state.vendor?.is_open ? COLORS.brand : '#FFFFFF'}
+                trackColor={{ false: COLORS.border, true: COLORS.brandSoft }}
+                thumbColor={state.vendor?.is_open ? COLORS.brand : COLORS.white}
               />
             </View>
           ) : null
@@ -854,8 +855,8 @@ function PartnerCatalogScreen({
           <Switch
             value={Boolean(productForm.is_available)}
             onValueChange={(value) => setProductForm((current) => ({ ...current, is_available: value }))}
-            trackColor={{ false: '#DCCFC2', true: '#F0B99F' }}
-            thumbColor={productForm.is_available ? COLORS.brand : '#FFFFFF'}
+            trackColor={{ false: COLORS.border, true: COLORS.brandSoft }}
+            thumbColor={productForm.is_available ? COLORS.brand : COLORS.white}
           />
         </View>
 
@@ -1083,8 +1084,8 @@ function PartnerAccountScreen({ state, setVendorForm, saveVendor, refresh, logou
           <Switch
             value={Boolean(vendorForm.is_open)}
             onValueChange={(value) => setVendorForm((current) => ({ ...current, is_open: value }))}
-            trackColor={{ false: '#DCCFC2', true: '#F0B99F' }}
-            thumbColor={vendorForm.is_open ? COLORS.brand : '#FFFFFF'}
+            trackColor={{ false: COLORS.border, true: COLORS.brandSoft }}
+            thumbColor={vendorForm.is_open ? COLORS.brand : COLORS.white}
           />
         </View>
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  DeviceEventEmitter,
   Image,
   Modal,
   RefreshControl,
@@ -16,7 +17,7 @@ import * as Application from 'expo-application';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { BrandPalette, createShadow } from '@/constants/theme';
 import { mapLegacyService } from '@/domains/grab-basket-utils';
@@ -599,6 +600,7 @@ function OrderDetailsModal({
 
 export default function AccountScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const tabBarHeight = useBottomTabBarHeight();
   const {
     appVariantName,
@@ -635,6 +637,7 @@ export default function AccountScreen() {
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [detailsRefreshing, setDetailsRefreshing] = useState(false);
   const hydratedRef = useRef(false);
+  const handledRouteOrderRef = useRef('');
   const loadOrdersRef = useRef(loadOrders);
   const loadAddressesRef = useRef(loadAddresses);
 
@@ -649,6 +652,18 @@ export default function AccountScreen() {
   useEffect(() => {
     if (authEmail) setLoginIdentifier(authEmail);
   }, [authEmail]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const routeOrderId = String(params?.orderId || params?.highlightOrderId || '').trim();
+    if (!routeOrderId || handledRouteOrderRef.current === routeOrderId) return;
+
+    handledRouteOrderRef.current = routeOrderId;
+    setSelectedOrderId(routeOrderId);
+    setNotice(`Opened live order #${routeOrderId}.`);
+    loadOrdersRef.current?.({ silent: true }).catch(() => {});
+  }, [isAuthenticated, params?.highlightOrderId, params?.orderId]);
 
   useEffect(() => {
     if (!sessionReady) return;
@@ -731,6 +746,31 @@ export default function AccountScreen() {
       if (!silent) setTrackingLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+
+    const syncSub = DeviceEventEmitter.addListener('grab_basket:orders_sync_requested', (payload) => {
+      const targetVariant = String(payload?.app_variant || '').trim().toLowerCase();
+      if (targetVariant && targetVariant !== 'consumer') return;
+      loadOrdersRef.current?.({ silent: true }).catch(() => {});
+    });
+
+    const openSub = DeviceEventEmitter.addListener('grab_basket:push_order_open_requested', (payload) => {
+      const targetVariant = String(payload?.app_variant || '').trim().toLowerCase();
+      const nextOrderId = String(payload?.order_id || '').trim();
+      if (targetVariant && targetVariant !== 'consumer') return;
+      if (!nextOrderId) return;
+      setSelectedOrderId(nextOrderId);
+      setNotice(`Showing live order #${nextOrderId} from the latest notification.`);
+      loadOrdersRef.current?.({ silent: true }).catch(() => {});
+    });
+
+    return () => {
+      syncSub.remove();
+      openSub.remove();
+    };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!selectedOrder?.id || !authToken) return undefined;
