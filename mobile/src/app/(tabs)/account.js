@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   DeviceEventEmitter,
   Image,
-  Modal,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -21,7 +20,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { BrandPalette, createShadow } from '@/constants/theme';
 import { mapLegacyService } from '@/domains/grab-basket-utils';
-import { buildApiUrl } from '../../config';
 import InlineErrorCard from '../../components/inline-error-card';
 import InlineNoticeCard from '../../components/inline-notice-card';
 import { useGrabBasket } from '../../../App';
@@ -51,7 +49,6 @@ const ACCOUNT_LINKS = [
   { key: 'contact_pref', label: 'Allow stores to contact you', icon: 'chatbubbles-outline' },
 ];
 
-const TERMINAL_STATUSES = new Set(['DELIVERED', 'CANCELLED_BY_CUSTOMER', 'REJECTED_BY_SELLER', 'PAYMENT_FAILED']);
 const LIVE_ORDER_STATUSES = new Set([
   'PAYMENT_PENDING',
   'CREATED',
@@ -61,15 +58,6 @@ const LIVE_ORDER_STATUSES = new Set([
   'READY_FOR_PICKUP',
   'PICKED_UP',
 ]);
-
-const HANDOFF_STEPS = [
-  { key: 'placed', title: 'Order placed', statuses: ['PAYMENT_PENDING', 'PAYMENT_VERIFIED', 'CREATED'] },
-  { key: 'accepted', title: 'Seller accepted', statuses: ['ACCEPTED_BY_SELLER'] },
-  { key: 'assigned', title: 'Rider assigned', statuses: ['ASSIGNED_TO_PARTNER'] },
-  { key: 'ready', title: 'Packed & ready', statuses: ['READY_FOR_PICKUP'] },
-  { key: 'picked_up', title: 'Picked up', statuses: ['PICKED_UP'] },
-  { key: 'delivered', title: 'Delivered', statuses: ['DELIVERED'] },
-];
 
 function money(value) {
   return `₹${Number(value || 0).toFixed(0)}`;
@@ -132,20 +120,6 @@ function getProfileMeta(profile, authEmail) {
   return [...new Set([profile?.phone, profile?.email, authEmail].map((item) => String(item || '').trim()).filter(Boolean))];
 }
 
-function eventTime(event) {
-  return Date.parse(event?.created_at || 0) || 0;
-}
-
-function mergeEvents(base = [], live = []) {
-  const byKey = new Map();
-  [...base, ...live].forEach((event, index) => {
-    if (!event || typeof event !== 'object') return;
-    const key = Number(event?.id) > 0 ? `id:${event.id}` : `${event?.status || 'status'}:${event?.created_at || index}`;
-    byKey.set(key, event);
-  });
-  return [...byKey.values()].sort((left, right) => eventTime(right) - eventTime(left));
-}
-
 function isLiveOrder(order) {
   return LIVE_ORDER_STATUSES.has(normalizeStatus(order?.status));
 }
@@ -193,91 +167,6 @@ function getPrimaryOrderAction(order) {
   if (isLiveOrder(order)) return 'Track live';
   if (hasRefundForOrder(order)) return 'Refund Details';
   return 'Reorder';
-}
-
-function getStepIndex(order, events = [], tracking = null) {
-  const status = normalizeStatus(order?.status);
-  const statuses = new Set(events.map((event) => normalizeStatus(event?.status)));
-  if (status === 'DELIVERED' || statuses.has('DELIVERED')) return 5;
-  if (status === 'PICKED_UP' || statuses.has('PICKED_UP')) return 4;
-  if (status === 'READY_FOR_PICKUP' || statuses.has('READY_FOR_PICKUP')) return 3;
-  if (status === 'ASSIGNED_TO_PARTNER' || statuses.has('ASSIGNED_TO_PARTNER') || tracking?.assigned) return 2;
-  if (status === 'ACCEPTED_BY_SELLER' || statuses.has('ACCEPTED_BY_SELLER')) return 1;
-  return 0;
-}
-
-function buildSteps(order, events = [], tracking = null) {
-  const current = getStepIndex(order, events, tracking);
-  const closed = TERMINAL_STATUSES.has(normalizeStatus(order?.status)) && normalizeStatus(order?.status) !== 'DELIVERED';
-  return HANDOFF_STEPS.map((step, index) => ({
-    ...step,
-    done: !closed && index <= current,
-    current: !closed && index === current,
-  }));
-}
-
-function getSellerSummary(order) {
-  const status = normalizeStatus(order?.status);
-  if (status === 'REJECTED_BY_SELLER') {
-    return { title: 'Seller rejected the order', subtitle: 'The order closed before merchant handoff.', tone: 'danger', icon: 'close-circle-outline' };
-  }
-  if (status === 'READY_FOR_PICKUP') {
-    return { title: 'Seller finished prep', subtitle: 'Packed and waiting at pickup.', tone: 'success', icon: 'bag-handle-outline' };
-  }
-  if (status === 'PICKED_UP' || status === 'DELIVERED') {
-    return { title: 'Seller handoff completed', subtitle: 'The rider has already collected the order.', tone: 'success', icon: 'storefront-outline' };
-  }
-  if (status === 'ASSIGNED_TO_PARTNER') {
-    return { title: 'Seller is preparing the order', subtitle: 'Dispatch has a rider while the store finishes prep.', tone: 'warning', icon: 'restaurant-outline' };
-  }
-  if (status === 'ACCEPTED_BY_SELLER') {
-    return { title: 'Seller accepted the order', subtitle: 'The store is actively preparing your basket.', tone: 'warning', icon: 'checkmark-done-outline' };
-  }
-  return { title: 'Waiting for seller confirmation', subtitle: 'The store has not accepted the order yet.', tone: 'info', icon: 'time-outline' };
-}
-
-function getRiderSummary(order, tracking = null) {
-  const status = normalizeStatus(order?.status);
-  if (status === 'DELIVERED') {
-    return { title: 'Delivery completed', subtitle: 'The final handoff is complete.', tone: 'success', icon: 'checkmark-circle-outline' };
-  }
-  if (status === 'PICKED_UP') {
-    return {
-      title: 'Rider is on the way',
-      subtitle: tracking?.has_location
-        ? `Latest rider ping ${formatDateTime(tracking?.ts || tracking?.created_at)}.`
-        : 'The rider picked up the order and is heading to the drop.',
-      tone: 'warning',
-      icon: 'bicycle-outline',
-    };
-  }
-  if (tracking?.assigned && tracking?.has_location) {
-    return {
-      title: 'Rider is live in the system',
-      subtitle: `Latest rider ping ${formatDateTime(tracking?.ts || tracking?.created_at)}.`,
-      tone: 'success',
-      icon: 'navigate-outline',
-    };
-  }
-  if (status === 'ASSIGNED_TO_PARTNER' || tracking?.assigned) {
-    return {
-      title: 'Rider assigned',
-      subtitle: 'Dispatch assigned a rider, waiting for pickup or first live ping.',
-      tone: 'warning',
-      icon: 'bicycle-outline',
-    };
-  }
-  if (['CANCELLED_BY_CUSTOMER', 'REJECTED_BY_SELLER', 'PAYMENT_FAILED'].includes(status)) {
-    return { title: 'No rider handoff', subtitle: 'The order closed before delivery movement began.', tone: 'danger', icon: 'remove-circle-outline' };
-  }
-  return { title: 'Waiting for rider assignment', subtitle: 'Dispatch has not assigned a rider yet.', tone: 'info', icon: 'time-outline' };
-}
-
-function toneColors(tone) {
-  if (tone === 'success') return { fg: BrandPalette.success, bg: BrandPalette.successSoft };
-  if (tone === 'warning') return { fg: BrandPalette.warning, bg: BrandPalette.warningSoft };
-  if (tone === 'danger') return { fg: BrandPalette.danger, bg: BrandPalette.dangerSoft };
-  return { fg: BrandPalette.info, bg: BrandPalette.infoSoft };
 }
 
 function handleLinkNotice(key) {
@@ -349,252 +238,41 @@ function OrderCard({ order, onOpen, onPrimary }) {
   const imageUri = String(order?.vendor_image_url || '').trim();
 
   return (
-    <TouchableOpacity activeOpacity={0.95} style={styles.orderCard} onPress={onOpen}>
-      <View style={styles.orderTopRow}>
-        <View style={styles.orderIdentity}>
-          {imageUri ? (
-            <Image source={{ uri: imageUri }} style={styles.orderImage} />
-          ) : (
-            <View style={styles.orderFallback}>
-              <Text style={styles.orderFallbackText}>{initials(order?.vendor_name || 'GB')}</Text>
+    <View style={styles.orderCard}>
+      <TouchableOpacity activeOpacity={0.95} onPress={onOpen}>
+        <View style={styles.orderTopRow}>
+          <View style={styles.orderIdentity}>
+            {imageUri ? (
+              <Image source={{ uri: imageUri }} style={styles.orderImage} />
+            ) : (
+              <View style={styles.orderFallback}>
+                <Text style={styles.orderFallbackText}>{initials(order?.vendor_name || 'GB')}</Text>
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={1} style={styles.orderVendor}>{order?.vendor_name || 'Store'}</Text>
+              <Text numberOfLines={1} style={styles.orderMeta}>{getOrderItemsLabel(order)}</Text>
             </View>
-          )}
-          <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={styles.orderVendor}>{order?.vendor_name || 'Store'}</Text>
-            <Text numberOfLines={1} style={styles.orderMeta}>{getOrderItemsLabel(order)}</Text>
           </View>
+          <StatusPill tone={tone} />
         </View>
-        <StatusPill tone={tone} />
-      </View>
 
-      {isLiveOrder(order) ? (
-        <View style={styles.liveChip}>
-          <Ionicons name="radio-outline" size={13} color={BrandPalette.success} />
-          <Text style={styles.liveChipText}>Live seller / rider state</Text>
-        </View>
-      ) : null}
+        {isLiveOrder(order) ? (
+          <View style={styles.liveChip}>
+            <Ionicons name="radio-outline" size={13} color={BrandPalette.success} />
+            <Text style={styles.liveChipText}>Open full live tracking screen</Text>
+          </View>
+        ) : null}
+
+        <Text style={styles.footnote}>
+          Ordered {formatDateTime(order?.created_at || order?.updated_at)} • Total {money(order?.total_amount || 0)}
+        </Text>
+      </TouchableOpacity>
 
       <TouchableOpacity activeOpacity={0.92} style={styles.secondaryButton} onPress={onPrimary}>
         <Text style={styles.secondaryButtonText}>{getPrimaryOrderAction(order)}</Text>
       </TouchableOpacity>
-
-      <Text style={styles.footnote}>
-        Ordered {formatDateTime(order?.created_at || order?.updated_at)} • Total {money(order?.total_amount || 0)}
-      </Text>
-    </TouchableOpacity>
-  );
-}
-
-function StepRail({ steps }) {
-  return (
-    <View style={{ gap: 10 }}>
-      {steps.map((step, index) => {
-        const dotColor = step.done ? BrandPalette.success : step.current ? BrandPalette.warning : BrandPalette.border;
-        const textColor = step.done ? BrandPalette.success : step.current ? BrandPalette.warning : BrandPalette.textMuted;
-
-        return (
-          <View key={step.key} style={{ gap: 6 }}>
-            <View style={styles.stepTop}>
-              <View style={[styles.stepDot, { backgroundColor: dotColor }]} />
-              {index < steps.length - 1 ? (
-                <View style={[styles.stepLine, { backgroundColor: step.done ? BrandPalette.success : BrandPalette.border }]} />
-              ) : null}
-            </View>
-            <Text style={[styles.stepTitle, { color: textColor }]}>{step.title}</Text>
-          </View>
-        );
-      })}
     </View>
-  );
-}
-
-function StateCard({ title, subtitle, tone, icon }) {
-  const colors = toneColors(tone);
-  return (
-    <View style={styles.stateCard}>
-      <View style={[styles.stateIcon, { backgroundColor: colors.bg }]}>
-        <Ionicons name={icon} size={20} color={colors.fg} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.stateTitle}>{title}</Text>
-        <Text style={styles.stateSubtitle}>{subtitle}</Text>
-      </View>
-    </View>
-  );
-}
-
-function MetaRow({ icon, label, value, muted = false }) {
-  return (
-    <View style={styles.metaRow}>
-      <Ionicons name={icon} size={16} color={BrandPalette.primary} style={{ marginTop: 2 }} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.metaLabel}>{label}</Text>
-        <Text style={[styles.metaValue, muted && styles.metaValueMuted]}>{value}</Text>
-      </View>
-    </View>
-  );
-}
-
-function Timeline({ events }) {
-  if (!events.length) {
-    return (
-      <View style={styles.emptyTimeline}>
-        <Text style={styles.emptyTitle}>No timeline yet</Text>
-        <Text style={styles.emptySubtitle}>Seller, dispatch, rider, and delivery checkpoints will appear here.</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={{ marginTop: 4 }}>
-      {events.map((event, index) => {
-        const status = normalizeStatus(event?.status);
-        const tone = toneColors(
-          status === 'DELIVERED' || status === 'READY_FOR_PICKUP'
-            ? 'success'
-            : TERMINAL_STATUSES.has(status)
-              ? 'danger'
-              : 'warning'
-        );
-
-        return (
-          <View key={`${event?.id || event?.status}-${event?.created_at || index}`} style={styles.timelineRow}>
-            <View style={styles.timelineRail}>
-              <View style={[styles.timelineDot, { backgroundColor: tone.fg }]} />
-              {index < events.length - 1 ? <View style={styles.timelineLine} /> : null}
-            </View>
-            <View style={{ flex: 1, paddingBottom: 14 }}>
-              <Text style={styles.timelineTitle}>{prettyStatus(event?.status)}</Text>
-              <Text style={styles.timelineMeta}>{formatDateTime(event?.created_at)}</Text>
-              {event?.note ? <Text style={styles.timelineNote}>{event.note}</Text> : null}
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-function OrderDetailsModal({
-  visible,
-  order,
-  events,
-  tracking,
-  trackingLoading,
-  refreshing,
-  onRefresh,
-  onClose,
-  onPrimary,
-}) {
-  if (!visible || !order) return null;
-
-  const tone = getOrderTone(order);
-  const steps = buildSteps(order, events, tracking);
-  const seller = getSellerSummary(order);
-  const rider = getRiderSummary(order, tracking);
-  const latestEvent = events[0];
-  const dispatchSummary = trackingLoading
-    ? 'Checking the latest rider state…'
-    : tracking?.assigned
-      ? tracking?.has_location
-        ? `Live rider ping at ${formatDateTime(tracking?.ts || tracking?.created_at)}`
-        : 'Rider assigned, waiting for first live location'
-      : 'No rider assigned yet';
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
-          <View style={styles.sheetHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sheetTitle}>Order #{order.id}</Text>
-              <Text style={styles.sheetSubtitle}>{order?.vendor_name || 'Store'}</Text>
-            </View>
-            <TouchableOpacity activeOpacity={0.92} style={styles.iconButton} onPress={onClose}>
-              <Ionicons name="close" size={20} color={BrandPalette.text} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 28 }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BrandPalette.primary} />}>
-            <Surface>
-              <View style={styles.rowBetween}>
-                <StatusPill tone={tone} />
-                <TouchableOpacity activeOpacity={0.92} style={styles.refreshChip} onPress={onRefresh}>
-                  <Ionicons name="refresh-outline" size={14} color={BrandPalette.primary} />
-                  <Text style={styles.refreshChipText}>Refresh</Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.blockTitle}>Seller → rider → customer handoff</Text>
-              <Text style={styles.blockSubtitle}>
-                {latestEvent?.note || 'Live handoff updates will continue to flow into this order details view.'}
-              </Text>
-              <StepRail steps={steps} />
-            </Surface>
-
-            <Surface>
-              <Text style={styles.sectionTitle}>Live fulfilment state</Text>
-              <StateCard {...seller} />
-              <View style={{ height: 10 }} />
-              <StateCard {...rider} />
-            </Surface>
-
-            <Surface>
-              <Text style={styles.sectionTitle}>Dispatch visibility</Text>
-              {trackingLoading ? (
-                <View style={styles.inlineRow}>
-                  <ActivityIndicator size="small" color={BrandPalette.primary} />
-                  <Text style={styles.inlineText}>Loading rider state…</Text>
-                </View>
-              ) : null}
-
-              <MetaRow icon="storefront-outline" label="Seller" value={seller.title} />
-              <MetaRow icon="bicycle-outline" label="Rider" value={rider.title} />
-              <MetaRow icon="radio-outline" label="Dispatch feed" value={dispatchSummary} muted={!tracking?.assigned} />
-              <MetaRow icon="card-outline" label="Payment" value={`${order?.payment_method || 'COD'} • ${prettyStatus(order?.payment_status || 'pending')}`} />
-              <MetaRow
-                icon="location-outline"
-                label="Delivery address"
-                value={order?.delivery_address_label || 'Saved address not attached yet'}
-                muted={!order?.delivery_address_label}
-              />
-              <MetaRow
-                icon="time-outline"
-                label="ETA / distance"
-                value={[
-                  order?.delivery_eta_minutes ? `${order.delivery_eta_minutes} mins ETA` : '',
-                  order?.delivery_distance_km ? `${Number(order.delivery_distance_km).toFixed(1)} km` : '',
-                ].filter(Boolean).join(' • ') || 'ETA becomes clearer as seller and rider events arrive'}
-                muted={!order?.delivery_eta_minutes && !order?.delivery_distance_km}
-              />
-            </Surface>
-
-            <Surface>
-              <Text style={styles.sectionTitle}>Order summary</Text>
-              <MetaRow icon="receipt-outline" label="Items" value={getOrderItemsLabel(order)} />
-              <MetaRow icon="cash-outline" label="Bill total" value={money(order?.total_amount || 0)} />
-              <MetaRow icon="calendar-outline" label="Placed" value={formatDateTime(order?.created_at || order?.updated_at)} />
-            </Surface>
-
-            <Surface>
-              <View style={styles.rowBetween}>
-                <Text style={styles.sectionTitle}>Timeline</Text>
-                <Text style={styles.smallMuted}>Newest first</Text>
-              </View>
-              <Timeline events={events} />
-            </Surface>
-
-            <TouchableOpacity activeOpacity={0.95} style={styles.primaryButton} onPress={onPrimary}>
-              <Text style={styles.primaryButtonText}>{getPrimaryOrderAction(order)}</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
   );
 }
 
@@ -606,7 +284,6 @@ export default function AccountScreen() {
     appVariantName,
     sessionReady,
     isAuthenticated,
-    authToken,
     authEmail,
     authLoading,
     login,
@@ -621,8 +298,6 @@ export default function AccountScreen() {
     ordersLoading,
     loadAddresses,
     inlineErrors,
-    timelineEventsByOrder,
-    subscribeOrderTimeline,
   } = useGrabBasket();
 
   const [authMode, setAuthMode] = useState('login');
@@ -632,10 +307,6 @@ export default function AccountScreen() {
   const [password, setPassword] = useState('password');
   const [notice, setNotice] = useState('');
   const [pastOrderTab, setPastOrderTab] = useState('food');
-  const [selectedOrderId, setSelectedOrderId] = useState(null);
-  const [trackingMap, setTrackingMap] = useState({});
-  const [trackingLoading, setTrackingLoading] = useState(false);
-  const [detailsRefreshing, setDetailsRefreshing] = useState(false);
   const hydratedRef = useRef(false);
   const handledRouteOrderRef = useRef('');
   const loadOrdersRef = useRef(loadOrders);
@@ -654,24 +325,11 @@ export default function AccountScreen() {
   }, [authEmail]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const routeOrderId = String(params?.orderId || params?.highlightOrderId || '').trim();
-    if (!routeOrderId || handledRouteOrderRef.current === routeOrderId) return;
-
-    handledRouteOrderRef.current = routeOrderId;
-    setSelectedOrderId(routeOrderId);
-    setNotice(`Opened live order #${routeOrderId}.`);
-    loadOrdersRef.current?.({ silent: true }).catch(() => {});
-  }, [isAuthenticated, params?.highlightOrderId, params?.orderId]);
-
-  useEffect(() => {
     if (!sessionReady) return;
 
     if (!isAuthenticated) {
       hydratedRef.current = false;
-      setSelectedOrderId(null);
-      setTrackingMap({});
+      handledRouteOrderRef.current = '';
       return;
     }
 
@@ -680,6 +338,17 @@ export default function AccountScreen() {
     loadAddressesRef.current?.().catch(() => {});
     loadOrdersRef.current?.({ silent: true }).catch(() => {});
   }, [isAuthenticated, sessionReady]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const routeOrderId = String(params?.orderId || params?.highlightOrderId || '').trim();
+    if (!routeOrderId || handledRouteOrderRef.current === routeOrderId) return;
+
+    handledRouteOrderRef.current = routeOrderId;
+    setNotice(`Opened live order #${routeOrderId}.`);
+    router.replace(`/order/${routeOrderId}`);
+  }, [isAuthenticated, params?.highlightOrderId, params?.orderId, router]);
 
   const versionText = useMemo(() => {
     const version = Application.nativeApplicationVersion || '1.0.0';
@@ -697,55 +366,12 @@ export default function AccountScreen() {
     return orders.filter((order) => mapLegacyService(order?.service) === pastOrderTab);
   }, [orderHistory, pastOrderTab]);
 
-  const selectedOrder = useMemo(
-    () => (Array.isArray(orderHistory) ? orderHistory.find((order) => String(order.id) === String(selectedOrderId)) || null : null),
-    [orderHistory, selectedOrderId]
-  );
-
-  const selectedEvents = useMemo(
-    () => mergeEvents(selectedOrder?.events || [], timelineEventsByOrder?.[selectedOrder?.id] || []),
-    [selectedOrder, timelineEventsByOrder]
-  );
-
-  const selectedTracking = useMemo(
-    () => (selectedOrder ? trackingMap[String(selectedOrder.id)] || null : null),
-    [selectedOrder, trackingMap]
-  );
-
   const highlightedAddress = useMemo(() => {
     if (defaultAddress?.label || defaultAddress?.line1) {
       return [defaultAddress?.label, defaultAddress?.line1].filter(Boolean).join(' · ');
     }
     return addressCount ? `${addressCount} saved addresses` : 'No saved addresses yet';
   }, [addressCount, defaultAddress]);
-
-  const fetchTracking = async (orderId, { silent = false } = {}) => {
-    const numericOrderId = Number(orderId || 0);
-    if (!numericOrderId || !authToken) return null;
-
-    if (!silent) setTrackingLoading(true);
-
-    try {
-      const response = await fetch(buildApiUrl(`/tracking/order/${numericOrderId}/partner_latest`), {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${String(authToken || '').trim()}`,
-        },
-      });
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(String(payload?.detail || `Tracking request failed (${response.status})`));
-
-      setTrackingMap((current) => ({ ...current, [String(numericOrderId)]: payload }));
-      return payload;
-    } catch (error) {
-      setNotice(error?.message || 'Could not load live rider state for this order.');
-      return null;
-    } finally {
-      if (!silent) setTrackingLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (!isAuthenticated) return undefined;
@@ -761,8 +387,8 @@ export default function AccountScreen() {
       const nextOrderId = String(payload?.order_id || '').trim();
       if (targetVariant && targetVariant !== 'consumer') return;
       if (!nextOrderId) return;
-      setSelectedOrderId(nextOrderId);
-      setNotice(`Showing live order #${nextOrderId} from the latest notification.`);
+      handledRouteOrderRef.current = nextOrderId;
+      router.push(`/order/${nextOrderId}`);
       loadOrdersRef.current?.({ silent: true }).catch(() => {});
     });
 
@@ -770,28 +396,7 @@ export default function AccountScreen() {
       syncSub.remove();
       openSub.remove();
     };
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (!selectedOrder?.id || !authToken) return undefined;
-
-    const subscription = subscribeOrderTimeline({ orderId: selectedOrder.id, sinceId: 0, onError: () => {} });
-    fetchTracking(selectedOrder.id).catch(() => {});
-
-    if (!isLiveOrder(selectedOrder)) {
-      return () => subscription?.close?.();
-    }
-
-    const timer = setInterval(() => {
-      fetchTracking(selectedOrder.id, { silent: true }).catch(() => {});
-      loadOrders({ silent: true }).catch(() => {});
-    }, 12000);
-
-    return () => {
-      clearInterval(timer);
-      subscription?.close?.();
-    };
-  }, [authToken, loadOrders, selectedOrder?.id, selectedOrder?.status, subscribeOrderTimeline]);
+  }, [isAuthenticated, router]);
 
   const handleAuth = async () => {
     if (authMode === 'login') {
@@ -839,34 +444,26 @@ export default function AccountScreen() {
     }
   };
 
+  const openOrderScreen = (orderId) => {
+    const nextOrderId = String(orderId || '').trim();
+    if (!nextOrderId) return;
+    router.push(`/order/${nextOrderId}`);
+  };
+
   const runOrderAction = (order) => {
     if (!order) return;
 
     if (isLiveOrder(order)) {
-      setSelectedOrderId(order.id);
+      openOrderScreen(order.id);
       return;
     }
 
     if (hasRefundForOrder(order)) {
-      setSelectedOrderId(null);
       router.push('/refunds');
       return;
     }
 
-    setSelectedOrderId(null);
     router.push('/(tabs)/reorder');
-  };
-
-  const refreshSelectedOrder = async () => {
-    if (!selectedOrder?.id) return;
-
-    try {
-      setDetailsRefreshing(true);
-      await loadOrders({ silent: true });
-      await fetchTracking(selectedOrder.id, { silent: true });
-    } finally {
-      setDetailsRefreshing(false);
-    }
   };
 
   if (!sessionReady) {
@@ -900,37 +497,39 @@ export default function AccountScreen() {
               </Text>
             </View>
 
-            <Surface style={{ marginHorizontal: 16, marginTop: 8 }}>
+            <Surface style={{ marginHorizontal: 16 }}>
               <View style={styles.authTabs}>
-                <TouchableOpacity
-                  activeOpacity={0.94}
-                  style={[styles.authTab, authMode === 'login' && styles.authTabActive]}
-                  onPress={() => setAuthMode('login')}>
-                  <Text style={[styles.authTabText, authMode === 'login' && styles.authTabTextActive]}>Login</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  activeOpacity={0.94}
-                  style={[styles.authTab, authMode === 'register' && styles.authTabActive]}
-                  onPress={() => setAuthMode('register')}>
-                  <Text style={[styles.authTabText, authMode === 'register' && styles.authTabTextActive]}>Sign up</Text>
-                </TouchableOpacity>
+                {['login', 'signup'].map((mode) => {
+                  const active = authMode === mode;
+                  return (
+                    <TouchableOpacity
+                      key={mode}
+                      activeOpacity={0.94}
+                      style={[styles.authTab, active && styles.authTabActive]}
+                      onPress={() => setAuthMode(mode)}>
+                      <Text style={[styles.authTabText, active && styles.authTabTextActive]}>
+                        {mode === 'login' ? 'Login' : 'Sign up'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
+              {notice ? <InlineNoticeCard title="Updated" message={notice} onDismiss={() => setNotice('')} /> : null}
               {inlineErrors.auth ? <InlineErrorCard title="Authentication issue" message={inlineErrors.auth} /> : null}
-              {notice ? <InlineNoticeCard title="Ready" message={notice} onDismiss={() => setNotice('')} /> : null}
 
               {authMode === 'login' ? (
                 <>
                   <Field value={loginIdentifier} onChangeText={setLoginIdentifier} placeholder="Email or phone number" />
                   <Field value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
-                  <Text style={styles.helper}>Use your email address or mobile number to sign in.</Text>
+                  <Text style={styles.helper}>Use your email address or phone number.</Text>
                 </>
               ) : (
                 <>
                   <Field value={email} onChangeText={setEmail} placeholder="Email address" keyboardType="email-address" />
                   <Field value={phone} onChangeText={setPhone} placeholder="Phone number" keyboardType="phone-pad" />
                   <Field value={password} onChangeText={setPassword} placeholder="Password" secureTextEntry />
-                  <Text style={styles.helper}>Sign up now collects both email and mobile number.</Text>
+                  <Text style={styles.helper}>Create a customer account with your email and phone number.</Text>
                 </>
               )}
 
@@ -1016,7 +615,7 @@ export default function AccountScreen() {
             <View style={{ gap: 12 }}>
               <View style={styles.rowBetween}>
                 <Text style={styles.listTitle}>Past orders</Text>
-                <Text style={styles.smallMuted}>Tap any order for live handoff details</Text>
+                <Text style={styles.smallMuted}>Tap any order to open the tracking timeline screen</Text>
               </View>
 
               <View style={styles.segmentRow}>
@@ -1043,7 +642,12 @@ export default function AccountScreen() {
               ) : filteredOrders.length ? (
                 <View style={{ gap: 12 }}>
                   {filteredOrders.slice(0, 8).map((order) => (
-                    <OrderCard key={order.id} order={order} onOpen={() => setSelectedOrderId(order.id)} onPrimary={() => runOrderAction(order)} />
+                    <OrderCard
+                      key={order.id}
+                      order={order}
+                      onOpen={() => openOrderScreen(order.id)}
+                      onPrimary={() => runOrderAction(order)}
+                    />
                   ))}
                 </View>
               ) : (
@@ -1074,18 +678,6 @@ export default function AccountScreen() {
           </View>
         )}
       </ScrollView>
-
-      <OrderDetailsModal
-        visible={Boolean(selectedOrder)}
-        order={selectedOrder}
-        events={selectedEvents}
-        tracking={selectedTracking}
-        trackingLoading={trackingLoading}
-        refreshing={detailsRefreshing}
-        onRefresh={refreshSelectedOrder}
-        onClose={() => setSelectedOrderId(null)}
-        onPrimary={() => runOrderAction(selectedOrder)}
-      />
     </SafeAreaView>
   );
 }
