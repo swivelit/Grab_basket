@@ -90,6 +90,23 @@ function EmptyBasket({ onBrowse }) {
   );
 }
 
+function getLatestTrackedOrder(orders = [], service = '') {
+  const normalizedService = String(service || '').trim().toLowerCase();
+  const list = Array.isArray(orders) ? orders : [];
+
+  const preferred = list.filter(
+    (item) => String(item?.service || '').trim().toLowerCase() === normalizedService
+  );
+
+  const source = preferred.length ? preferred : list;
+
+  return [...source].sort((left, right) => {
+    const rightTime = Date.parse(right?.created_at || right?.updated_at || 0) || 0;
+    const leftTime = Date.parse(left?.created_at || left?.updated_at || 0) || 0;
+    return rightTime - leftTime;
+  })[0] || null;
+}
+
 export default function CartScreen() {
   const router = useRouter();
   const {
@@ -107,6 +124,7 @@ export default function CartScreen() {
     defaultAddress,
     placeOrder,
     placingOrder,
+    loadOrders,
     inlineErrors,
     isAuthenticated,
   } = useGrabBasket();
@@ -124,10 +142,17 @@ export default function CartScreen() {
 
   const handleCheckout = async () => {
     const ok = await placeOrder({ paymentMethod });
+    if (!ok) return;
 
-    if (ok && !['UPI', 'CARD'].includes(paymentMethod)) {
-      router.replace('/(tabs)/reorder');
+    const latestOrders = await loadOrders({ silent: true });
+    const latestOrder = getLatestTrackedOrder(latestOrders, activeService);
+
+    if (latestOrder?.id) {
+      router.replace(`/order/${latestOrder.id}`);
+      return;
     }
+
+    router.replace('/(tabs)/account');
   };
 
   return (
