@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Linking,
+  Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -9,8 +11,10 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -19,7 +23,6 @@ import { mapLegacyService } from '@/domains/grab-basket-utils';
 import { buildApiUrl } from '../../config';
 import InlineErrorCard from '../../components/inline-error-card';
 import InlineNoticeCard from '../../components/inline-notice-card';
-import LiveRouteIntelligenceCard from '../../components/live-route-intelligence-card';
 import { useGrabBasket } from '../../../App';
 
 const TERMINAL_STATUSES = new Set(['DELIVERED', 'CANCELLED_BY_CUSTOMER', 'REJECTED_BY_SELLER', 'PAYMENT_FAILED']);
@@ -36,7 +39,7 @@ const LIVE_ORDER_STATUSES = new Set([
 const HANDOFF_STEPS = [
   { key: 'placed', title: 'Order placed' },
   { key: 'accepted', title: 'Seller accepted' },
-  { key: 'assigned', title: 'Rider assigned' },
+  { key: 'assigned', title: 'Partner assigned' },
   { key: 'ready', title: 'Packed & ready' },
   { key: 'picked_up', title: 'Picked up' },
   { key: 'delivered', title: 'Delivered' },
@@ -89,6 +92,40 @@ function normalizeCoordinate(lat, lng) {
   return { latitude, longitude };
 }
 
+function hasCoordinatePair(value) {
+  return (
+    value &&
+    Number.isFinite(Number(value.latitude)) &&
+    Number.isFinite(Number(value.longitude))
+  );
+}
+
+function buildRegion(points = []) {
+  const usable = points.filter(hasCoordinatePair);
+  if (!usable.length) {
+    return {
+      latitude: 12.9716,
+      longitude: 77.5946,
+      latitudeDelta: 0.08,
+      longitudeDelta: 0.08,
+    };
+  }
+
+  const latitudes = usable.map((point) => Number(point.latitude));
+  const longitudes = usable.map((point) => Number(point.longitude));
+  const minLat = Math.min(...latitudes);
+  const maxLat = Math.max(...latitudes);
+  const minLng = Math.min(...longitudes);
+  const maxLng = Math.max(...longitudes);
+
+  return {
+    latitude: (minLat + maxLat) / 2,
+    longitude: (minLng + maxLng) / 2,
+    latitudeDelta: Math.max(0.02, (maxLat - minLat) * 1.8 || 0.02),
+    longitudeDelta: Math.max(0.02, (maxLng - minLng) * 1.8 || 0.02),
+  };
+}
+
 function eventTime(event) {
   return Date.parse(event?.created_at || 0) || 0;
 }
@@ -115,6 +152,15 @@ function getOrderItemsLabel(order) {
   const totalItems = Number(order?.item_count || items.length || 0);
   if (totalItems > 0) return `${totalItems} item${totalItems > 1 ? 's' : ''}`;
   return 'Order details available in history';
+}
+
+function getOrderItemCount(order) {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const explicitCount = Number(order?.item_count || 0);
+  const inferred = items.reduce((sum, item) => sum + Number(item?.qty || 1), 0);
+  const total = explicitCount || inferred || items.length || 0;
+  if (!total) return '0 items';
+  return `${total} item${total > 1 ? 's' : ''}`;
 }
 
 function toneColors(tone) {
@@ -147,111 +193,6 @@ function deriveEtaMinutes(order, tracking = null) {
   return null;
 }
 
-function getTrackingHero(order, tracking = null) {
-  const status = normalizeStatus(order?.status);
-  const etaMinutes = deriveEtaMinutes(order, tracking);
-
-  if (status === 'DELIVERED') {
-    return {
-      title: 'Delivered',
-      subtitle: 'The order handoff is complete. You can still review the seller, rider and event timeline below.',
-      tone: 'success',
-      progressLabel: 'Completed',
-      etaPrimary: 'Done',
-      etaSecondary: '',
-      helperText: 'Final delivery checkpoints remain visible for post-order support.',
-    };
-  }
-
-  if (status === 'PICKED_UP') {
-    return {
-      title: 'Out for delivery',
-      subtitle: tracking?.has_location
-        ? `Your rider is on the move. Latest live ping ${formatDateTime(tracking?.ts || tracking?.created_at)}.`
-        : 'Your rider picked up the order and is moving towards your address.',
-      tone: 'success',
-      progressLabel: 'Rider en route',
-      etaPrimary: etaMinutes ? String(etaMinutes) : 'Live',
-      etaSecondary: etaMinutes ? 'mins' : '',
-      helperText: 'This mirrors the Swiggy-style final-mile pattern: map first, status card second, timeline below.',
-    };
-  }
-
-  if (status === 'READY_FOR_PICKUP') {
-    return {
-      title: 'Order is packed!',
-      subtitle: tracking?.assigned
-        ? 'The basket is ready at the store and your rider will pick it up shortly.'
-        : 'The store finished packing the basket and dispatch is getting pickup ready.',
-      tone: 'success',
-      progressLabel: 'Packed and ready',
-      etaPrimary: etaMinutes ? String(etaMinutes) : 'Soon',
-      etaSecondary: etaMinutes ? 'mins' : '',
-      helperText: 'Packed orders stay in a ready-to-pickup state until the rider confirms handoff.',
-    };
-  }
-
-  if (status === 'ASSIGNED_TO_PARTNER') {
-    return {
-      title: 'Order is getting packed!',
-      subtitle: tracking?.assigned
-        ? 'A delivery partner is already assigned while the store finishes preparing your basket.'
-        : 'Dispatch is working on partner assignment while the store keeps packing the order.',
-      tone: 'warning',
-      progressLabel: 'Partner assigned',
-      etaPrimary: etaMinutes ? String(etaMinutes) : 'Soon',
-      etaSecondary: etaMinutes ? 'mins' : '',
-      helperText: 'This is the same transition state customers expect in quick-commerce apps before pickup starts.',
-    };
-  }
-
-  if (status === 'ACCEPTED_BY_SELLER') {
-    return {
-      title: 'Order is getting packed!',
-      subtitle: 'The store accepted your order and started assembling the basket for dispatch.',
-      tone: 'warning',
-      progressLabel: 'Seller preparing',
-      etaPrimary: etaMinutes ? String(etaMinutes) : 'Soon',
-      etaSecondary: etaMinutes ? 'mins' : '',
-      helperText: 'Seller updates are surfaced before rider movement so the customer always knows the current stage.',
-    };
-  }
-
-  if (['PAYMENT_PENDING', 'PAYMENT_VERIFIED', 'CREATED'].includes(status)) {
-    return {
-      title: 'Order is getting packed!',
-      subtitle: 'We received the order. The store and dispatch systems are syncing the next fulfilment steps now.',
-      tone: 'warning',
-      progressLabel: 'Order received',
-      etaPrimary: etaMinutes ? String(etaMinutes) : 'Soon',
-      etaSecondary: etaMinutes ? 'mins' : '',
-      helperText: 'Early-stage orders keep the customer informed even before seller acceptance and partner assignment finish.',
-    };
-  }
-
-  if (['CANCELLED_BY_CUSTOMER', 'REJECTED_BY_SELLER', 'PAYMENT_FAILED'].includes(status)) {
-    return {
-      title: prettyStatus(status),
-      subtitle: 'This order is closed, so the live movement feed has stopped. Historical events remain available below.',
-      tone: 'danger',
-      progressLabel: 'Closed',
-      etaPrimary: '—',
-      etaSecondary: 'closed',
-      helperText: 'Keep the closed-state messaging explicit so the customer is never confused about why tracking stopped.',
-    };
-  }
-
-  return {
-    title: 'Tracking will start soon',
-    subtitle: 'We are waiting for the first fulfilment updates from the store and dispatch systems.',
-    tone: 'info',
-    progressLabel: 'Starting',
-    etaPrimary: etaMinutes ? String(etaMinutes) : 'Live',
-    etaSecondary: etaMinutes ? 'mins' : '',
-    helperText: 'The screen is ready for seller acceptance, rider assignment and live route events.',
-  };
-}
-
 function getStepIndex(order, events = [], tracking = null) {
   const status = normalizeStatus(order?.status);
   const statuses = new Set(events.map((event) => normalizeStatus(event?.status)));
@@ -282,10 +223,10 @@ function getSellerSummary(order) {
     return { title: 'Seller finished prep', subtitle: 'Packed and waiting at pickup.', tone: 'success', icon: 'bag-handle-outline' };
   }
   if (status === 'PICKED_UP' || status === 'DELIVERED') {
-    return { title: 'Seller handoff completed', subtitle: 'The rider has already collected the order.', tone: 'success', icon: 'storefront-outline' };
+    return { title: 'Seller handoff completed', subtitle: 'The delivery partner has already collected the order.', tone: 'success', icon: 'storefront-outline' };
   }
   if (status === 'ASSIGNED_TO_PARTNER') {
-    return { title: 'Seller is preparing the order', subtitle: 'Dispatch has a rider while the store finishes prep.', tone: 'warning', icon: 'restaurant-outline' };
+    return { title: 'Seller is preparing the order', subtitle: 'Dispatch has a partner while the store finishes prep.', tone: 'warning', icon: 'restaurant-outline' };
   }
   if (status === 'ACCEPTED_BY_SELLER') {
     return { title: 'Seller accepted the order', subtitle: 'The store is actively preparing your basket.', tone: 'warning', icon: 'checkmark-done-outline' };
@@ -300,34 +241,213 @@ function getRiderSummary(order, tracking = null) {
   }
   if (status === 'PICKED_UP') {
     return {
-      title: 'Rider is on the way',
+      title: 'Partner is on the way',
       subtitle: tracking?.has_location
-        ? `Latest rider ping ${formatDateTime(tracking?.ts || tracking?.created_at)}.`
-        : 'The rider picked up the order and is heading to the drop.',
+        ? `Latest live ping ${formatDateTime(tracking?.ts || tracking?.created_at)}.`
+        : 'The partner picked up the order and is heading to the drop.',
       tone: 'warning',
       icon: 'bicycle-outline',
     };
   }
   if (tracking?.assigned && tracking?.has_location) {
     return {
-      title: 'Rider is live in the system',
-      subtitle: `Latest rider ping ${formatDateTime(tracking?.ts || tracking?.created_at)}.`,
+      title: 'Partner is live in the system',
+      subtitle: `Latest live ping ${formatDateTime(tracking?.ts || tracking?.created_at)}.`,
       tone: 'success',
       icon: 'navigate-outline',
     };
   }
   if (status === 'ASSIGNED_TO_PARTNER' || tracking?.assigned) {
     return {
-      title: 'Rider assigned',
-      subtitle: 'Dispatch assigned a rider, waiting for pickup or first live ping.',
+      title: 'Partner assigned',
+      subtitle: 'Dispatch assigned a partner, waiting for pickup or the first live ping.',
       tone: 'warning',
       icon: 'bicycle-outline',
     };
   }
   if (['CANCELLED_BY_CUSTOMER', 'REJECTED_BY_SELLER', 'PAYMENT_FAILED'].includes(status)) {
-    return { title: 'No rider handoff', subtitle: 'The order closed before delivery movement began.', tone: 'danger', icon: 'remove-circle-outline' };
+    return { title: 'No partner handoff', subtitle: 'The order closed before delivery movement began.', tone: 'danger', icon: 'remove-circle-outline' };
   }
-  return { title: 'Waiting for rider assignment', subtitle: 'Dispatch has not assigned a rider yet.', tone: 'info', icon: 'time-outline' };
+  return { title: 'Waiting for partner assignment', subtitle: 'Dispatch has not assigned a partner yet.', tone: 'info', icon: 'time-outline' };
+}
+
+function getPartnerLabel(order, tracking) {
+  const explicit = String(order?.partner_name || tracking?.partner_name || '').trim();
+  if (explicit) return explicit;
+
+  const partnerId = Number(tracking?.partner_id || order?.partner_id || 0);
+  if (partnerId > 0) return `Partner #${partnerId}`;
+  if (tracking?.assigned) return 'GrabBasket partner';
+  return 'Delivery partner';
+}
+
+function getPartnerPhone(order, vendor, tracking) {
+  const value =
+    order?.partner_phone ||
+    tracking?.partner_phone ||
+    vendor?.support_phone ||
+    order?.support_phone ||
+    order?.contact_phone ||
+    '';
+  return String(value || '').trim();
+}
+
+function getStageCopy(order, tracking = null) {
+  const status = normalizeStatus(order?.status);
+  const etaMinutes = deriveEtaMinutes(order, tracking);
+  const partnerLabel = getPartnerLabel(order, tracking);
+
+  if (status === 'DELIVERED') {
+    return {
+      title: 'Order delivered',
+      subtitle: 'The final handoff is complete. You can still review the timeline and order details below.',
+      tone: 'success',
+      badge: 'Delivered',
+      etaPrimary: 'Done',
+      etaSecondary: '',
+      helper: 'Delivery complete',
+      showPartnerControls: false,
+    };
+  }
+
+  if (status === 'PICKED_UP') {
+    return {
+      title: 'Out for delivery',
+      subtitle: tracking?.has_location
+        ? `${partnerLabel} is on the way to deliver your order. Latest live ping ${formatDateTime(tracking?.ts || tracking?.created_at)}.`
+        : `${partnerLabel} picked up the order and is moving towards your address.`,
+      tone: 'success',
+      badge: 'Live trip',
+      etaPrimary: etaMinutes ? String(etaMinutes) : 'Live',
+      etaSecondary: etaMinutes ? 'mins' : '',
+      helper: 'Partner → you',
+      showPartnerControls: true,
+    };
+  }
+
+  if (status === 'READY_FOR_PICKUP') {
+    return {
+      title: 'Order is packed!',
+      subtitle: tracking?.assigned
+        ? `${partnerLabel} is at the store and will pick up your order soon.`
+        : 'Your basket is packed and waiting for partner pickup.',
+      tone: 'success',
+      badge: 'Packed',
+      etaPrimary: etaMinutes ? String(etaMinutes) : 'Soon',
+      etaSecondary: etaMinutes ? 'mins' : '',
+      helper: 'Store ready',
+      showPartnerControls: Boolean(tracking?.assigned),
+    };
+  }
+
+  if (status === 'ASSIGNED_TO_PARTNER') {
+    return {
+      title: 'Order is getting packed!',
+      subtitle: tracking?.assigned
+        ? `${partnerLabel} has been assigned while the store finishes packing your basket.`
+        : 'A partner is being prepared while the store keeps packing the order.',
+      tone: 'warning',
+      badge: 'Partner assigned',
+      etaPrimary: etaMinutes ? String(etaMinutes) : 'Soon',
+      etaSecondary: etaMinutes ? 'mins' : '',
+      helper: 'Store + dispatch',
+      showPartnerControls: Boolean(tracking?.assigned),
+    };
+  }
+
+  if (status === 'ACCEPTED_BY_SELLER') {
+    return {
+      title: 'Order is getting packed!',
+      subtitle: 'The store accepted your order and started assembling the basket for dispatch.',
+      tone: 'warning',
+      badge: 'Preparing',
+      etaPrimary: etaMinutes ? String(etaMinutes) : 'Soon',
+      etaSecondary: etaMinutes ? 'mins' : '',
+      helper: 'Seller preparing',
+      showPartnerControls: false,
+    };
+  }
+
+  if (['PAYMENT_PENDING', 'PAYMENT_VERIFIED', 'CREATED'].includes(status)) {
+    return {
+      title: 'Order is getting packed!',
+      subtitle: 'We received the order. The store and dispatch systems are syncing the next fulfilment steps now.',
+      tone: 'warning',
+      badge: 'Order received',
+      etaPrimary: etaMinutes ? String(etaMinutes) : 'Soon',
+      etaSecondary: etaMinutes ? 'mins' : '',
+      helper: 'Waiting for seller',
+      showPartnerControls: false,
+    };
+  }
+
+  if (['CANCELLED_BY_CUSTOMER', 'REJECTED_BY_SELLER', 'PAYMENT_FAILED'].includes(status)) {
+    return {
+      title: prettyStatus(status),
+      subtitle: 'This order is closed, so live movement has stopped. Historical events are still available below.',
+      tone: 'danger',
+      badge: 'Closed',
+      etaPrimary: '—',
+      etaSecondary: 'closed',
+      helper: 'Tracking stopped',
+      showPartnerControls: false,
+    };
+  }
+
+  return {
+    title: 'Tracking will start soon',
+    subtitle: 'We are waiting for the first fulfilment updates from the store and dispatch systems.',
+    tone: 'info',
+    badge: 'Starting',
+    etaPrimary: etaMinutes ? String(etaMinutes) : 'Live',
+    etaSecondary: etaMinutes ? 'mins' : '',
+    helper: 'Waiting for updates',
+    showPartnerControls: false,
+  };
+}
+
+function shortenLocationLabel(value, fallback) {
+  const source = String(value || '').trim();
+  if (!source) return fallback;
+  const first = source.split(',')[0]?.trim() || source;
+  return first.length > 24 ? `${first.slice(0, 24)}…` : first;
+}
+
+function getMapPresentation(order, pickupPoint, dropPoint, riderPoint) {
+  const status = normalizeStatus(order?.status);
+  const pickup = hasCoordinatePair(pickupPoint) ? pickupPoint : null;
+  const drop = hasCoordinatePair(dropPoint) ? dropPoint : null;
+  const rider = hasCoordinatePair(riderPoint) ? riderPoint : null;
+
+  if (status === 'PICKED_UP' || status === 'DELIVERED') {
+    return {
+      solidRoute: [pickup, rider, drop].filter(hasCoordinatePair),
+      dashedRoute: [],
+      emphasis: 'trip',
+    };
+  }
+
+  if (status === 'READY_FOR_PICKUP') {
+    return {
+      solidRoute: [],
+      dashedRoute: rider ? [rider, pickup].filter(hasCoordinatePair) : [pickup, drop].filter(hasCoordinatePair),
+      emphasis: 'pickup',
+    };
+  }
+
+  if (status === 'ASSIGNED_TO_PARTNER') {
+    return {
+      solidRoute: [],
+      dashedRoute: rider ? [rider, pickup, drop].filter(hasCoordinatePair) : [pickup, drop].filter(hasCoordinatePair),
+      emphasis: 'assignment',
+    };
+  }
+
+  return {
+    solidRoute: [],
+    dashedRoute: [pickup, drop].filter(hasCoordinatePair),
+    emphasis: 'prep',
+  };
 }
 
 function Surface({ children, style }) {
@@ -397,7 +517,7 @@ function Timeline({ events }) {
     return (
       <View style={styles.emptyTimeline}>
         <Text style={styles.emptyTitle}>No timeline yet</Text>
-        <Text style={styles.emptySubtitle}>Seller, dispatch, rider, and delivery checkpoints will appear here.</Text>
+        <Text style={styles.emptySubtitle}>Seller, dispatch, partner, and delivery checkpoints will appear here.</Text>
       </View>
     );
   }
@@ -432,10 +552,237 @@ function Timeline({ events }) {
   );
 }
 
+function QuickActionButton({ icon, onPress, disabled = false }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.92}
+      disabled={disabled}
+      style={[styles.quickActionButton, disabled && styles.quickActionButtonDisabled]}
+      onPress={onPress}>
+      <Ionicons name={icon} size={20} color={disabled ? BrandPalette.textSubtle : BrandPalette.text} />
+    </TouchableOpacity>
+  );
+}
+
+function MapMarkerBubble({ icon, label }) {
+  return (
+    <View style={styles.markerWrap}>
+      <View style={styles.markerBubble}>
+        <Ionicons name={icon} size={18} color={BrandPalette.white} />
+      </View>
+      {label ? (
+        <View style={styles.markerLabelBubble}>
+          <Text numberOfLines={1} style={styles.markerLabelText}>{label}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function TrackingStage({
+  stageHeight,
+  insets,
+  order,
+  vendor,
+  tracking,
+  stageCopy,
+  pickupPoint,
+  dropPoint,
+  riderPoint,
+  dispatchSummary,
+  itemLabel,
+  orderTone,
+  trackingLoading,
+  onBack,
+  onMenu,
+  onViewItems,
+  onCall,
+  onMessage,
+  callEnabled,
+  messageEnabled,
+}) {
+  const mapRef = useRef(null);
+  const tone = toneColors(stageCopy.tone);
+  const mapPresentation = useMemo(
+    () => getMapPresentation(order, pickupPoint, dropPoint, riderPoint),
+    [dropPoint, order, pickupPoint, riderPoint]
+  );
+
+  const mapPoints = useMemo(
+    () => [pickupPoint, dropPoint, riderPoint].filter(hasCoordinatePair),
+    [dropPoint, pickupPoint, riderPoint]
+  );
+
+  const mapRegion = useMemo(() => buildRegion(mapPoints), [mapPoints]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' || !mapRef.current || mapPoints.length < 2) {
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      mapRef.current?.fitToCoordinates(mapPoints, {
+        animated: true,
+        edgePadding: {
+          top: 80,
+          right: 44,
+          bottom: 220,
+          left: 44,
+        },
+      });
+    }, 140);
+
+    return () => clearTimeout(timer);
+  }, [mapPoints]);
+
+  const imageUri = String(order?.vendor_image_url || '').trim();
+  const partnerLabel = getPartnerLabel(order, tracking);
+  const headerTitle = mapLegacyService(order?.service) === 'warehouse' ? 'GrabBasket instant order' : 'GrabBasket order';
+  const showMap = Platform.OS !== 'web' && mapPoints.length > 0;
+
+  return (
+    <View style={[styles.stageShell, { minHeight: stageHeight }]}>
+      {showMap ? (
+        <MapView ref={mapRef} style={StyleSheet.absoluteFillObject} initialRegion={mapRegion}>
+          {hasCoordinatePair(dropPoint) ? (
+            <Marker coordinate={dropPoint} anchor={{ x: 0.16, y: 1 }}>
+              <MapMarkerBubble icon="navigate" label={shortenLocationLabel(order?.delivery_address_label, 'Your place')} />
+            </Marker>
+          ) : null}
+
+          {hasCoordinatePair(pickupPoint) ? (
+            <Marker coordinate={pickupPoint} anchor={{ x: 0.16, y: 1 }}>
+              <MapMarkerBubble icon="storefront-outline" label={shortenLocationLabel(vendor?.name || order?.vendor_name, 'Store')} />
+            </Marker>
+          ) : null}
+
+          {hasCoordinatePair(riderPoint) && normalizeStatus(order?.status) !== 'DELIVERED' ? (
+            <Marker coordinate={riderPoint} anchor={{ x: 0.16, y: 1 }}>
+              <MapMarkerBubble icon="bicycle-outline" label={shortenLocationLabel(partnerLabel, 'Partner')} />
+            </Marker>
+          ) : null}
+
+          {mapPresentation.dashedRoute.length >= 2 ? (
+            <Polyline
+              coordinates={mapPresentation.dashedRoute}
+              strokeWidth={4}
+              strokeColor={BrandPalette.black}
+              lineDashPattern={[8, 8]}
+            />
+          ) : null}
+
+          {mapPresentation.solidRoute.length >= 2 ? (
+            <Polyline
+              coordinates={mapPresentation.solidRoute}
+              strokeWidth={5}
+              strokeColor={BrandPalette.info}
+            />
+          ) : null}
+        </MapView>
+      ) : (
+        <View style={styles.mapFallback}>
+          <Ionicons name="map-outline" size={30} color={BrandPalette.primary} />
+          <Text style={styles.mapFallbackTitle}>Live map will appear once coordinates are ready</Text>
+          <Text style={styles.mapFallbackSubtitle}>
+            Add store, rider, and delivery coordinates to mirror the Swiggy-style live tracking flow in GrabBasket.
+          </Text>
+        </View>
+      )}
+
+      <View pointerEvents="none" style={styles.stageScrim} />
+
+      <View style={[styles.stageHeader, { paddingTop: Math.max(insets.top, 16) + 6 }]}>
+        <TouchableOpacity activeOpacity={0.92} style={styles.stageIconButton} onPress={onBack}>
+          <Ionicons name="arrow-back" size={20} color={BrandPalette.text} />
+        </TouchableOpacity>
+
+        <View style={styles.stageHeaderCenter}>
+          <Text numberOfLines={1} style={styles.stageHeaderTitle}>{headerTitle}</Text>
+          <Text numberOfLines={1} style={styles.stageHeaderMeta}>
+            {formatDateTime(order?.created_at || order?.updated_at)} • {getOrderItemCount(order)}
+          </Text>
+        </View>
+
+        <TouchableOpacity activeOpacity={0.92} style={styles.stageIconButton} onPress={onMenu}>
+          <Ionicons name="ellipsis-horizontal" size={18} color={BrandPalette.text} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.stageInfoStrip, { top: Math.max(insets.top, 16) + 86 }]}>
+        <View style={styles.stageInfoChip}>
+          <Ionicons name="radio-outline" size={14} color={tracking?.has_location ? BrandPalette.success : BrandPalette.warning} />
+          <Text style={styles.stageInfoChipText}>{dispatchSummary}</Text>
+        </View>
+      </View>
+
+      <View style={[styles.stageCardWrap, { paddingBottom: Math.max(insets.bottom, 14) + 10 }]}>
+        <View style={styles.stageCard}>
+          <View style={styles.stageCardTopRow}>
+            <View style={styles.stageStoreIdentity}>
+              {imageUri ? (
+                <Image source={{ uri: imageUri }} style={styles.stageStoreImage} />
+              ) : (
+                <View style={styles.stageStoreFallback}>
+                  <Text style={styles.stageStoreFallbackText}>{initials(order?.vendor_name || 'GB')}</Text>
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text numberOfLines={1} style={styles.stageStoreTitle}>{order?.vendor_name || 'Store'}</Text>
+                <Text numberOfLines={1} style={styles.stageStoreSubtitle}>{itemLabel}</Text>
+              </View>
+            </View>
+
+            <View style={[styles.etaBadge, { backgroundColor: tone.fg }]}>
+              <Text style={styles.etaBadgePrimary}>{stageCopy.etaPrimary}</Text>
+              {stageCopy.etaSecondary ? <Text style={styles.etaBadgeSecondary}>{stageCopy.etaSecondary}</Text> : null}
+            </View>
+          </View>
+
+          <View style={styles.stagePillRow}>
+            <StatusPill tone={{ label: orderTone.label, fg: tone.fg, bg: tone.bg }} />
+            <View style={styles.liveFlowChip}>
+              <Ionicons name="git-network-outline" size={14} color={BrandPalette.info} />
+              <Text style={styles.liveFlowChipText}>{stageCopy.helper}</Text>
+            </View>
+          </View>
+
+          <Text style={styles.stagePrimaryTitle}>{stageCopy.title}</Text>
+          <Text style={styles.stagePrimarySubtitle}>{stageCopy.subtitle}</Text>
+
+          {trackingLoading ? (
+            <View style={styles.stageInlineRow}>
+              <ActivityIndicator size="small" color={BrandPalette.primary} />
+              <Text style={styles.stageInlineText}>Refreshing the latest live movement…</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.stageActionsRow}>
+            <TouchableOpacity activeOpacity={0.94} style={styles.itemsButton} onPress={onViewItems}>
+              <Text style={styles.itemsButtonText}>View item list</Text>
+              <Ionicons name="chevron-forward" size={16} color={BrandPalette.text} />
+            </TouchableOpacity>
+
+            {stageCopy.showPartnerControls ? (
+              <View style={styles.partnerActionsWrap}>
+                <QuickActionButton icon="call-outline" onPress={onCall} disabled={!callEnabled} />
+                <QuickActionButton icon="chatbubble-ellipses-outline" onPress={onMessage} disabled={!messageEnabled} />
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export default function CustomerLiveTrackingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const orderId = String(params?.orderId || '').trim();
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const scrollRef = useRef(null);
+  const [detailsAnchorY, setDetailsAnchorY] = useState(0);
   const {
     sessionReady,
     isAuthenticated,
@@ -499,7 +846,7 @@ export default function CustomerLiveTrackingScreen() {
       setTracking(payload);
       return payload;
     } catch (fetchError) {
-      const message = fetchError?.message || 'Could not load live rider state for this order.';
+      const message = fetchError?.message || 'Could not load live partner state for this order.';
       setError(message);
       return null;
     } finally {
@@ -510,7 +857,7 @@ export default function CustomerLiveTrackingScreen() {
   useEffect(() => {
     if (!order?.id || !authToken) return undefined;
 
-    const subscription = subscribeOrderTimeline({ orderId: order.id, sinceId: 0, onError: () => {} });
+    const subscription = subscribeOrderTimeline?.({ orderId: order.id, sinceId: 0, onError: () => {} });
     fetchTracking({ silent: false }).catch(() => {});
 
     if (!isLiveOrder(order)) {
@@ -519,7 +866,7 @@ export default function CustomerLiveTrackingScreen() {
 
     const timer = setInterval(() => {
       fetchTracking({ silent: true }).catch(() => {});
-      loadOrders({ silent: true }).catch(() => {});
+      loadOrders?.({ silent: true }).catch(() => {});
     }, 12000);
 
     return () => {
@@ -531,7 +878,7 @@ export default function CustomerLiveTrackingScreen() {
   const onRefresh = async () => {
     try {
       setRefreshing(true);
-      await loadOrders({ silent: true });
+      await loadOrders?.({ silent: true });
       await fetchTracking({ silent: true });
       setNotice('Live order state refreshed.');
     } finally {
@@ -539,9 +886,16 @@ export default function CustomerLiveTrackingScreen() {
     }
   };
 
+  const scrollToDetails = () => {
+    scrollRef.current?.scrollTo({
+      y: Math.max(0, detailsAnchorY - 12),
+      animated: true,
+    });
+  };
+
   if (!sessionReady) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <StatusBar barStyle="dark-content" />
         <View style={styles.centerState}>
           <ActivityIndicator color={BrandPalette.primary} />
@@ -553,7 +907,7 @@ export default function CustomerLiveTrackingScreen() {
 
   if (!isAuthenticated) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <StatusBar barStyle="dark-content" />
         <View style={styles.centerState}>
           <Text style={styles.emptyTitle}>Sign in to track your order</Text>
@@ -565,16 +919,17 @@ export default function CustomerLiveTrackingScreen() {
 
   if (!order) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
         <StatusBar barStyle="dark-content" />
-        <View style={styles.trackingHeader}>
-          <TouchableOpacity activeOpacity={0.92} style={styles.iconButton} onPress={() => router.back()}>
+        <View style={[styles.stageHeader, { paddingTop: Math.max(insets.top, 16) + 6 }]}>
+          <TouchableOpacity activeOpacity={0.92} style={styles.stageIconButton} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={20} color={BrandPalette.text} />
           </TouchableOpacity>
-          <View style={styles.trackingHeaderCopy}>
-            <Text style={styles.trackingHeaderTitle}>GrabBasket live order</Text>
-            <Text style={styles.trackingHeaderMeta}>Order #{orderId || '—'}</Text>
+          <View style={styles.stageHeaderCenter}>
+            <Text style={styles.stageHeaderTitle}>GrabBasket order</Text>
+            <Text style={styles.stageHeaderMeta}>Order #{orderId || '—'}</Text>
           </View>
+          <View style={styles.stageIconButtonPlaceholder} />
         </View>
         <View style={styles.centerState}>
           <Text style={styles.emptyTitle}>Order not found</Text>
@@ -584,14 +939,12 @@ export default function CustomerLiveTrackingScreen() {
     );
   }
 
-  const tone = getOrderTone(order);
-  const hero = getTrackingHero(order, tracking);
-  const heroColors = toneColors(hero.tone);
+  const orderTone = getOrderTone(order);
+  const stageCopy = getStageCopy(order, tracking);
   const steps = buildSteps(order, events, tracking);
   const seller = getSellerSummary(order);
   const rider = getRiderSummary(order, tracking);
   const itemLabel = getOrderItemsLabel(order);
-  const imageUri = String(order?.vendor_image_url || '').trim();
   const pickupPoint = normalizeCoordinate(vendor?.lat, vendor?.lng);
   const dropPoint = normalizeCoordinate(order?.delivery_lat, order?.delivery_lng);
   const riderPoint = normalizeCoordinate(
@@ -600,165 +953,133 @@ export default function CustomerLiveTrackingScreen() {
   );
   const latestEvent = events[0];
   const dispatchSummary = trackingLoading
-    ? 'Checking the latest rider state…'
+    ? 'Checking the latest partner state…'
     : tracking?.assigned
       ? tracking?.has_location
-        ? `Live rider ping at ${formatDateTime(tracking?.ts || tracking?.created_at)}`
-        : 'Rider assigned, waiting for first live location'
-      : 'No rider assigned yet';
-  const headerTitle = mapLegacyService(order?.service) === 'warehouse' ? 'GrabBasket instant order' : 'GrabBasket live order';
+        ? `Live ping at ${formatDateTime(tracking?.ts || tracking?.created_at)}`
+        : 'Partner assigned, waiting for first live location'
+      : 'No partner assigned yet';
+  const detailsDistance = order?.delivery_distance_km ? `${Number(order.delivery_distance_km).toFixed(1)} km` : '';
+  const partnerPhone = getPartnerPhone(order, vendor, tracking);
+  const callEnabled = Boolean(partnerPhone) && stageCopy.showPartnerControls;
+  const messageEnabled = stageCopy.showPartnerControls;
+  const stageHeight = Math.max(windowHeight * 0.72, 580);
+
+  const handleCall = async () => {
+    if (!partnerPhone) {
+      setNotice('Connect partner or support phone data to enable calling from the live tracking card.');
+      return;
+    }
+
+    const url = `tel:${partnerPhone}`;
+    const supported = await Linking.canOpenURL(url).catch(() => false);
+    if (!supported) {
+      setNotice('Calling is not available on this device right now.');
+      return;
+    }
+
+    await Linking.openURL(url);
+  };
+
+  const handleMessage = () => {
+    if (!stageCopy.showPartnerControls) {
+      setNotice('Chat will appear once a delivery partner is assigned.');
+      return;
+    }
+
+    setNotice('Use this slot for rider chat when your in-app messaging flow is ready.');
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <StatusBar barStyle="dark-content" />
 
-      <View style={styles.trackingHeader}>
-        <TouchableOpacity activeOpacity={0.92} style={styles.iconButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={20} color={BrandPalette.text} />
-        </TouchableOpacity>
-
-        <View style={styles.trackingHeaderCopy}>
-          <Text style={styles.trackingHeaderTitle}>{headerTitle}</Text>
-          <Text numberOfLines={1} style={styles.trackingHeaderMeta}>
-            {formatDateTime(order?.created_at || order?.updated_at)} • {itemLabel}
-          </Text>
-        </View>
-
-        <TouchableOpacity activeOpacity={0.92} style={styles.iconButton} onPress={onRefresh}>
-          <Ionicons name="refresh-outline" size={18} color={BrandPalette.text} />
-        </TouchableOpacity>
-      </View>
-
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 28, gap: 14 }}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BrandPalette.primary} />}>
-        {notice ? <InlineNoticeCard title="Updated" message={notice} onDismiss={() => setNotice('')} /> : null}
-        {error ? <InlineErrorCard title="Tracking issue" message={error} /> : null}
+        <TrackingStage
+          stageHeight={stageHeight}
+          insets={insets}
+          order={order}
+          vendor={vendor}
+          tracking={tracking}
+          stageCopy={stageCopy}
+          pickupPoint={pickupPoint}
+          dropPoint={dropPoint}
+          riderPoint={riderPoint}
+          dispatchSummary={dispatchSummary}
+          itemLabel={itemLabel}
+          orderTone={orderTone}
+          trackingLoading={trackingLoading}
+          onBack={() => router.back()}
+          onMenu={scrollToDetails}
+          onViewItems={scrollToDetails}
+          onCall={handleCall}
+          onMessage={handleMessage}
+          callEnabled={callEnabled}
+          messageEnabled={messageEnabled}
+        />
 
-        <View style={styles.trackingMapSection}>
-          <LiveRouteIntelligenceCard
-            orderId={order?.id}
-            orderStatus={order?.status}
-            pickupPoint={pickupPoint}
-            dropPoint={dropPoint}
-            riderPoint={riderPoint}
-            pickupTitle="Store"
-            pickupDescription={vendor?.name || order?.vendor_name || 'Store'}
-            dropTitle="Delivery address"
-            dropDescription={order?.delivery_address_label || 'Customer drop'}
-            riderTitle="Delivery partner"
-            riderDescription={
-              tracking?.has_location
-                ? `Updated ${formatDateTime(tracking?.ts || tracking?.created_at)}`
-                : tracking?.assigned
-                  ? 'Partner assigned, waiting for first live location'
-                  : 'Partner not assigned yet'
-            }
-            emptyTitle="Map will appear once fulfilment coordinates are ready"
-            emptySubtitle="Add store coordinates and delivery coordinates to mirror the Swiggy-style live tracking experience in GrabBasket."
-            webTitle="Map preview is only available on iOS and Android."
-            webSubtitle="The customer app can still open the active stop in the installed maps application."
-            routeUnavailableMessage="Pickup or delivery coordinates are not available for this order yet."
-          />
+        <View style={styles.detailStack} onLayout={(event) => setDetailsAnchorY(event.nativeEvent.layout.y)}>
+          {notice ? <InlineNoticeCard title="Updated" message={notice} onDismiss={() => setNotice('')} /> : null}
+          {error ? <InlineErrorCard title="Tracking issue" message={error} /> : null}
+
+          <Surface>
+            <View style={styles.rowBetween}>
+              <Text style={styles.sectionTitle}>Delivery progress</Text>
+              <Text style={styles.smallMuted}>{stageCopy.badge}</Text>
+            </View>
+            <Text style={styles.blockSubtitle}>{latestEvent?.note || 'Keep the first viewport focused on map + status card, and push detailed breakdowns below it.'}</Text>
+            <StepRail steps={steps} />
+          </Surface>
+
+          <Surface>
+            <Text style={styles.sectionTitle}>Live fulfilment state</Text>
+            <StateCard {...seller} />
+            <View style={{ height: 10 }} />
+            <StateCard {...rider} />
+          </Surface>
+
+          <Surface>
+            <Text style={styles.sectionTitle}>Dispatch visibility</Text>
+            <MetaRow icon="storefront-outline" label="Seller" value={seller.title} />
+            <MetaRow icon="bicycle-outline" label="Partner" value={rider.title} />
+            <MetaRow icon="radio-outline" label="Dispatch feed" value={dispatchSummary} muted={!tracking?.assigned} />
+            <MetaRow icon="card-outline" label="Payment" value={`${order?.payment_method || 'COD'} • ${prettyStatus(order?.payment_status || 'pending')}`} />
+            <MetaRow
+              icon="location-outline"
+              label="Delivery address"
+              value={order?.delivery_address_label || 'Saved address not attached yet'}
+              muted={!order?.delivery_address_label}
+            />
+            <MetaRow
+              icon="time-outline"
+              label="ETA / distance"
+              value={[
+                stageCopy.etaSecondary ? `${stageCopy.etaPrimary} ${stageCopy.etaSecondary}` : '',
+                detailsDistance,
+              ].filter(Boolean).join(' • ') || 'ETA becomes clearer as seller and rider events arrive'}
+              muted={!stageCopy.etaSecondary && !detailsDistance}
+            />
+          </Surface>
+
+          <Surface>
+            <Text style={styles.sectionTitle}>Order summary</Text>
+            <MetaRow icon="receipt-outline" label="Items" value={itemLabel} />
+            <MetaRow icon="cash-outline" label="Bill total" value={money(order?.total_amount || 0)} />
+            <MetaRow icon="calendar-outline" label="Placed" value={formatDateTime(order?.created_at || order?.updated_at)} />
+          </Surface>
+
+          <Surface>
+            <View style={styles.rowBetween}>
+              <Text style={styles.sectionTitle}>Timeline</Text>
+              <Text style={styles.smallMuted}>Newest first</Text>
+            </View>
+            <Timeline events={events} />
+          </Surface>
         </View>
-
-        <View style={styles.trackingHeroCard}>
-          <View style={styles.trackingHeroTopRow}>
-            <View style={styles.trackingVendorIdentity}>
-              {imageUri ? (
-                <Image source={{ uri: imageUri }} style={styles.trackingVendorImage} />
-              ) : (
-                <View style={styles.trackingVendorFallback}>
-                  <Text style={styles.trackingVendorFallbackText}>{initials(order?.vendor_name || 'GB')}</Text>
-                </View>
-              )}
-              <View style={{ flex: 1 }}>
-                <Text numberOfLines={1} style={styles.trackingVendorTitle}>{order?.vendor_name || 'Store'}</Text>
-                <Text numberOfLines={1} style={styles.trackingVendorSubtitle}>{itemLabel}</Text>
-              </View>
-            </View>
-
-            <View style={[styles.trackingEtaCard, { backgroundColor: heroColors.fg }]}>
-              <Text style={styles.trackingEtaPrimary}>{hero.etaPrimary}</Text>
-              {hero.etaSecondary ? <Text style={styles.trackingEtaSecondary}>{hero.etaSecondary}</Text> : null}
-            </View>
-          </View>
-
-          <View style={styles.trackingPillRow}>
-            <StatusPill tone={{ label: tone.label, fg: heroColors.fg, bg: heroColors.bg }} />
-            {tracking?.assigned ? (
-              <View style={styles.trackingLiveBadge}>
-                <Ionicons name="radio-outline" size={13} color={BrandPalette.success} />
-                <Text style={styles.trackingLiveBadgeText}>{tracking?.has_location ? 'Live rider ping' : 'Rider assigned'}</Text>
-              </View>
-            ) : null}
-          </View>
-
-          <Text style={styles.trackingHeroTitle}>{hero.title}</Text>
-          <Text style={styles.trackingHeroSubtitle}>{hero.subtitle}</Text>
-
-          {trackingLoading ? (
-            <View style={styles.inlineRow}>
-              <ActivityIndicator size="small" color={BrandPalette.primary} />
-              <Text style={styles.inlineText}>Refreshing the latest rider movement…</Text>
-            </View>
-          ) : null}
-        </View>
-
-        <Surface>
-          <View style={styles.rowBetween}>
-            <Text style={styles.sectionTitle}>Delivery progress</Text>
-            <Text style={styles.smallMuted}>{hero.progressLabel}</Text>
-          </View>
-          <Text style={styles.blockSubtitle}>{latestEvent?.note || hero.helperText}</Text>
-          <StepRail steps={steps} />
-        </Surface>
-
-        <Surface>
-          <Text style={styles.sectionTitle}>Live fulfilment state</Text>
-          <StateCard {...seller} />
-          <View style={{ height: 10 }} />
-          <StateCard {...rider} />
-        </Surface>
-
-        <Surface>
-          <Text style={styles.sectionTitle}>Dispatch visibility</Text>
-          <MetaRow icon="storefront-outline" label="Seller" value={seller.title} />
-          <MetaRow icon="bicycle-outline" label="Rider" value={rider.title} />
-          <MetaRow icon="radio-outline" label="Dispatch feed" value={dispatchSummary} muted={!tracking?.assigned} />
-          <MetaRow icon="card-outline" label="Payment" value={`${order?.payment_method || 'COD'} • ${prettyStatus(order?.payment_status || 'pending')}`} />
-          <MetaRow
-            icon="location-outline"
-            label="Delivery address"
-            value={order?.delivery_address_label || 'Saved address not attached yet'}
-            muted={!order?.delivery_address_label}
-          />
-          <MetaRow
-            icon="time-outline"
-            label="ETA / distance"
-            value={[
-              hero.etaSecondary ? `${hero.etaPrimary} ${hero.etaSecondary}` : '',
-              order?.delivery_distance_km ? `${Number(order.delivery_distance_km).toFixed(1)} km` : '',
-            ].filter(Boolean).join(' • ') || 'ETA becomes clearer as seller and rider events arrive'}
-            muted={!hero.etaSecondary && !order?.delivery_distance_km}
-          />
-        </Surface>
-
-        <Surface>
-          <Text style={styles.sectionTitle}>Order summary</Text>
-          <MetaRow icon="receipt-outline" label="Items" value={itemLabel} />
-          <MetaRow icon="cash-outline" label="Bill total" value={money(order?.total_amount || 0)} />
-          <MetaRow icon="calendar-outline" label="Placed" value={formatDateTime(order?.created_at || order?.updated_at)} />
-        </Surface>
-
-        <Surface>
-          <View style={styles.rowBetween}>
-            <Text style={styles.sectionTitle}>Timeline</Text>
-            <Text style={styles.smallMuted}>Newest first</Text>
-          </View>
-          <Timeline events={events} />
-        </Surface>
       </ScrollView>
     </SafeAreaView>
   );
@@ -766,6 +1087,14 @@ export default function CustomerLiveTrackingScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: BrandPalette.background },
+  scrollContent: {
+    paddingBottom: 28,
+  },
+  detailStack: {
+    paddingHorizontal: 16,
+    gap: 14,
+    marginTop: 14,
+  },
   surface: {
     borderRadius: 24,
     padding: 16,
@@ -777,76 +1106,194 @@ const styles = StyleSheet.create({
   },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 10 },
   centerStateText: { fontSize: 14, color: BrandPalette.textMuted, textAlign: 'center' },
-  trackingHeader: {
+  stageShell: {
+    backgroundColor: '#D9DDD9',
+    position: 'relative',
+  },
+  stageScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(20,18,16,0.04)',
+  },
+  stageHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 5,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 10,
   },
-  trackingHeaderCopy: { flex: 1 },
-  trackingHeaderTitle: { fontSize: 22, fontWeight: '800', color: BrandPalette.text },
-  trackingHeaderMeta: { marginTop: 4, fontSize: 13, color: BrandPalette.textMuted },
-  iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  stageHeaderCenter: { flex: 1, alignItems: 'center' },
+  stageHeaderTitle: { fontSize: 22, fontWeight: '900', color: BrandPalette.text },
+  stageHeaderMeta: { marginTop: 3, fontSize: 13, color: BrandPalette.textMuted },
+  stageIconButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: BrandPalette.surface,
-    borderWidth: 1,
-    borderColor: BrandPalette.border,
+    backgroundColor: 'rgba(255,249,243,0.96)',
   },
-  trackingMapSection: { gap: 12 },
-  trackingHeroCard: {
-    borderRadius: 26,
-    padding: 16,
+  stageIconButtonPlaceholder: {
+    width: 42,
+    height: 42,
+  },
+  stageInfoStrip: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    zIndex: 4,
+    alignItems: 'center',
+  },
+  stageInfoChip: {
+    maxWidth: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,249,243,0.96)',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  stageInfoChipText: {
+    flexShrink: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    color: BrandPalette.text,
+    fontWeight: '700',
+  },
+  mapFallback: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    gap: 10,
+    backgroundColor: '#E7E9E5',
+  },
+  mapFallbackTitle: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: '800',
+    color: BrandPalette.text,
+    textAlign: 'center',
+  },
+  mapFallbackSubtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: BrandPalette.textMuted,
+    textAlign: 'center',
+  },
+  markerWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  markerBubble: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#23211F',
+    borderWidth: 2,
+    borderColor: BrandPalette.white,
+  },
+  markerLabelBubble: {
+    maxWidth: 150,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,249,243,0.98)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  markerLabelText: {
+    fontSize: 12,
+    color: BrandPalette.text,
+    fontWeight: '700',
+  },
+  stageCardWrap: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 0,
+    zIndex: 5,
+  },
+  stageCard: {
+    borderRadius: 30,
+    padding: 18,
     backgroundColor: BrandPalette.surface,
     borderWidth: 1,
     borderColor: BrandPalette.border,
     gap: 12,
-    ...createShadow(0.1, 16, 8),
+    ...createShadow(0.14, 18, 10),
   },
-  trackingHeroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  trackingVendorIdentity: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  trackingVendorImage: { width: 52, height: 52, borderRadius: 16, backgroundColor: BrandPalette.backgroundAlt },
-  trackingVendorFallback: {
-    width: 52,
-    height: 52,
+  stageCardTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  stageStoreIdentity: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  stageStoreImage: { width: 54, height: 54, borderRadius: 16, backgroundColor: BrandPalette.backgroundAlt },
+  stageStoreFallback: {
+    width: 54,
+    height: 54,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: BrandPalette.primarySoft,
   },
-  trackingVendorFallbackText: { fontSize: 17, fontWeight: '800', color: BrandPalette.primary },
-  trackingVendorTitle: { fontSize: 17, fontWeight: '800', color: BrandPalette.text },
-  trackingVendorSubtitle: { marginTop: 3, fontSize: 13, color: BrandPalette.textMuted },
-  trackingEtaCard: {
-    minWidth: 84,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  stageStoreFallbackText: { fontSize: 17, fontWeight: '900', color: BrandPalette.primary },
+  stageStoreTitle: { fontSize: 17, fontWeight: '900', color: BrandPalette.text },
+  stageStoreSubtitle: { marginTop: 3, fontSize: 13, color: BrandPalette.textMuted },
+  etaBadge: {
+    minWidth: 86,
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  trackingEtaPrimary: { fontSize: 28, lineHeight: 30, fontWeight: '900', color: BrandPalette.white },
-  trackingEtaSecondary: { marginTop: 2, fontSize: 12, fontWeight: '800', color: BrandPalette.white, textTransform: 'lowercase' },
-  trackingPillRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  trackingLiveBadge: {
+  etaBadgePrimary: { fontSize: 28, lineHeight: 30, fontWeight: '900', color: BrandPalette.white },
+  etaBadgeSecondary: { marginTop: 2, fontSize: 12, fontWeight: '800', color: BrandPalette.white, textTransform: 'lowercase' },
+  stagePillRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  statusPill: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999 },
+  statusPillText: { fontSize: 12, fontWeight: '800' },
+  liveFlowChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: BrandPalette.successSoft,
+    backgroundColor: BrandPalette.infoSoft,
   },
-  trackingLiveBadgeText: { fontSize: 12, fontWeight: '700', color: BrandPalette.success },
-  trackingHeroTitle: { fontSize: 22, lineHeight: 28, fontWeight: '900', color: BrandPalette.text },
-  trackingHeroSubtitle: { fontSize: 15, lineHeight: 22, color: BrandPalette.textMuted },
-  statusPill: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999 },
-  statusPillText: { fontSize: 12, fontWeight: '800' },
+  liveFlowChipText: { fontSize: 12, fontWeight: '700', color: BrandPalette.info },
+  stagePrimaryTitle: { fontSize: 22, lineHeight: 28, fontWeight: '900', color: BrandPalette.text },
+  stagePrimarySubtitle: { fontSize: 15, lineHeight: 22, color: BrandPalette.textMuted },
+  stageInlineRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stageInlineText: { fontSize: 13, color: BrandPalette.textMuted },
+  stageActionsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  itemsButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    paddingHorizontal: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  itemsButtonText: { fontSize: 17, fontWeight: '800', color: BrandPalette.text },
+  partnerActionsWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  quickActionButton: {
+    width: 54,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: BrandPalette.backgroundAlt,
+    borderWidth: 1,
+    borderColor: BrandPalette.border,
+  },
+  quickActionButtonDisabled: {
+    opacity: 0.5,
+  },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   smallMuted: { fontSize: 12, lineHeight: 18, color: BrandPalette.textSubtle },
   blockSubtitle: { fontSize: 13, lineHeight: 19, color: BrandPalette.textMuted },
@@ -868,8 +1315,6 @@ const styles = StyleSheet.create({
   stateIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   stateTitle: { fontSize: 14, fontWeight: '800', color: BrandPalette.text },
   stateSubtitle: { marginTop: 4, fontSize: 13, lineHeight: 19, color: BrandPalette.textMuted },
-  inlineRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  inlineText: { fontSize: 13, color: BrandPalette.textMuted },
   metaRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 8 },
   metaLabel: {
     fontSize: 12,
